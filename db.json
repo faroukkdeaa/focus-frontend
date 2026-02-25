@@ -1,0 +1,2527 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "email": "student@focus.com",
+      "password": "123456",
+      "name": "Ahmed Ali",
+      "role": "student",
+      "grade": "3rd Secondary",
+      "avatar": null
+    },
+    {
+      "id": "2",
+      "email": "teacher@focus.com",
+      "password": "123456",
+      "name": "Mr. Hassan",
+      "role": "teacher",
+      "avatar": null
+    },
+    {
+      "id": "9584",
+      "name": "فاروق ضياء",
+      "email": "farouk@student.com",
+      "password": "123456",
+      "grade": "2nd",
+      "role": "student",
+      "avatar": null
+    },
+    {
+      "id": "85d2",
+      "name": "احمد محمد",
+      "email": "ahmed@focus.com",
+      "password": "123456",
+      "grade": "1st",
+      "role": "student",
+      "avatar": null
+    },
+    {
+      "id": "635c",
+      "name": "حسين",
+      "email": "husayn@focus.com",
+      "password": "123456",
+      "grade": "1st",
+      "role": "student",
+      "avatar": null
+    }
+  ],
+  "teachers": [
+    {
+      "id": "teacher1",
+      "name": "مستر محمد أحمد",
+      "rating": 4.9,
+      "students": "12,450",
+      "avatar": null
+    },
+    {
+      "id": "teacher2",
+      "name": "مستر أحمد علي",
+      "rating": 4.7,
+      "students": "8,320",
+      "avatar": null
+    }
+  ],
+  "dashboard": {
+    "studentName": "Ahmed Ali",
+    "upcomingExams": 3,
+    "weaknesses": [
+      "الفيزياء - قانون أوم",
+      "الرياضيات - التفاضل"
+    ],
+    "stats": {
+      "completedLessons": 122,
+      "improvementRate": 23,
+      "studyHours": 47
+    }
+  },
+  "remediation": {
+    "weakTopics": [
+      {
+        "id": 1,
+        "subject": "الفيزياء",
+        "subjectId": 1,
+        "topic": "قانون أوم",
+        "lessonId": 5,
+        "lessonTitle": "قانون أوم",
+        "completed": false
+      },
+      {
+        "id": 2,
+        "subject": "الرياضيات",
+        "subjectId": 4,
+        "topic": "المعادلات التربيعية",
+        "lessonId": 1,
+        "lessonTitle": "المعادلات التربيعية",
+        "completed": false
+      },
+      {
+        "id": 3,
+        "subject": "الكيمياء",
+        "subjectId": 2,
+        "topic": "الاتزان الكيميائي",
+        "lessonId": 1,
+        "lessonTitle": "الاتزان الكيميائي",
+        "completed": false
+      }
+    ]
+  },
+  "subjects": [
+    {
+      "id": "1",
+      "name": "الفيزياء",
+      "icon": "📐",
+      "progress": 72,
+      "lessons": 45,
+      "completed": 32
+    },
+    {
+      "id": "2",
+      "name": "الكيمياء",
+      "icon": "🧪",
+      "progress": 58,
+      "lessons": 38,
+      "completed": 22
+    },
+    {
+      "id": "3",
+      "name": "الأحياء",
+      "icon": "🔬",
+      "progress": 85,
+      "lessons": 42,
+      "completed": 36
+    },
+    {
+      "id": "4",
+      "name": "الرياضيات",
+      "icon": "📊",
+      "progress": 40,
+      "lessons": 50,
+      "completed": 20
+    }
+  ],
+  "courses": [
+    {
+      "id": "1",
+      "subjectId": 1,
+      "subjectName": "الفيزياء",
+      "totalLessons": 7,
+      "completedLessons": 32,
+      "progress": 72,
+      "lessons": [
+        {
+          "id": 1,
+          "title": "مقدمة عن قوانين نيوتن",
+          "duration": "12:30",
+          "completed": true,
+          "chapter": "الباب الثاني: الديناميكا",
+          "videoUrl": null,
+          "description": "شرح شامل لقوانين نيوتن الثلاثة"
+        },
+        {
+          "id": 2,
+          "title": "القانون الأول للحركة",
+          "duration": "18:45",
+          "completed": true,
+          "chapter": "الباب الثاني: الديناميكا",
+          "videoUrl": null,
+          "description": "قانون القصور الذاتي"
+        },
+        {
+          "id": 3,
+          "title": "القانون الثاني للحركة",
+          "duration": "22:15",
+          "completed": false,
+          "chapter": "الباب الثاني: الديناميكا",
+          "videoUrl": null,
+          "description": "العلاقة بين القوة والكتلة والتسارع"
+        },
+        {
+          "id": 4,
+          "title": "القانون الثالث للحركة",
+          "duration": "16:20",
+          "completed": false,
+          "chapter": "الباب الثاني: الديناميكا",
+          "videoUrl": null,
+          "description": "قانون الفعل ورد الفعل"
+        },
+        {
+          "id": 5,
+          "title": "قانون أوم",
+          "duration": "20:10",
+          "completed": false,
+          "chapter": "الباب الثالث: الكهرباء",
+          "videoUrl": null,
+          "description": "العلاقة بين الجهد والتيار والمقاومة"
+        },
+        {
+          "id": 6,
+          "title": "tht",
+          "duration": "00:00",
+          "completed": false,
+          "chapter": "",
+          "videoUrl": null,
+          "description": ""
+        },
+        {
+          "id": 7,
+          "title": "تز",
+          "duration": "00:00",
+          "completed": false,
+          "chapter": "",
+          "videoUrl": null,
+          "description": ""
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "subjectId": 2,
+      "subjectName": "الكيمياء",
+      "totalLessons": 38,
+      "completedLessons": 22,
+      "progress": 58,
+      "lessons": [
+        {
+          "id": 1,
+          "title": "الاتزان الكيميائي",
+          "duration": "15:00",
+          "completed": true,
+          "chapter": "الباب الأول: الكيمياء الحرارية",
+          "videoUrl": null,
+          "description": "شرح مفهوم الاتزان في التفاعلات الكيميائية"
+        },
+        {
+          "id": 2,
+          "title": "سرعة التفاعل الكيميائي",
+          "duration": "18:30",
+          "completed": false,
+          "chapter": "الباب الأول: الكيمياء الحرارية",
+          "videoUrl": null,
+          "description": "العوامل المؤثرة على سرعة التفاعل"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "subjectId": 3,
+      "subjectName": "الأحياء",
+      "totalLessons": 42,
+      "completedLessons": 36,
+      "progress": 85,
+      "lessons": [
+        {
+          "id": 1,
+          "title": "الخلية وتركيبها",
+          "duration": "14:20",
+          "completed": true,
+          "chapter": "الباب الأول: علم الأحياء الخلوي",
+          "videoUrl": null,
+          "description": "مكونات الخلية الحيوانية والنباتية"
+        },
+        {
+          "id": 2,
+          "title": "الأنسجة الحيوانية",
+          "duration": "16:45",
+          "completed": true,
+          "chapter": "الباب الثاني: الأنسجة",
+          "videoUrl": null,
+          "description": "أنواع الأنسجة في جسم الحيوان"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "subjectId": 4,
+      "subjectName": "الرياضيات",
+      "totalLessons": 50,
+      "completedLessons": 20,
+      "progress": 40,
+      "lessons": [
+        {
+          "id": 1,
+          "title": "المعادلات التربيعية",
+          "duration": "25:00",
+          "completed": false,
+          "chapter": "الباب الأول: الجبر",
+          "videoUrl": null,
+          "description": "حل المعادلات من الدرجة الثانية"
+        },
+        {
+          "id": 2,
+          "title": "التفاضل والتكامل",
+          "duration": "30:15",
+          "completed": false,
+          "chapter": "الباب الثاني: التفاضل",
+          "videoUrl": null,
+          "description": "مبادئ التفاضل والتكامل"
+        }
+      ]
+    }
+  ],
+  "quizzes": [
+    {
+      "id": "1",
+      "lessonId": 3,
+      "subjectId": 1,
+      "lessonTitle": "القانون الثاني للحركة",
+      "subjectName": "الفيزياء",
+      "title": "اختبار الفيزياء",
+      "subtitle": "قوانين نيوتن للحركة",
+      "timeLimit": 600,
+      "questions": [
+        {
+          "id": 1,
+          "question": "ما هي وحدة قياس القوة في النظام الدولي؟",
+          "options": [
+            "الجول (Joule)",
+            "النيوتن (Newton)",
+            "الواط (Watt)",
+            "باسكال (Pascal)"
+          ],
+          "correct": 1,
+          "subtopic": "مفاهيم أساسية",
+          "skill": "تذكر"
+        },
+        {
+          "id": 2,
+          "question": "ينص القانون الأول لنيوتن على أن الجسم الساكن يبقى ساكناً ما لم...",
+          "options": [
+            "تؤثر عليه قوة خارجية",
+            "تتغير كتلته",
+            "تزيد سرعته",
+            "يقل احتكاكه"
+          ],
+          "correct": 0,
+          "subtopic": "قانون نيوتن الأول",
+          "skill": "فهم"
+        },
+        {
+          "id": 3,
+          "question": "إذا زادت كتلة الجسم للضعف مع ثبات القوة، فإن التسارع...",
+          "options": [
+            "يزداد للضعف",
+            "يقل للنصف",
+            "يظل ثابتاً",
+            "يصبح صفر"
+          ],
+          "correct": 1,
+          "subtopic": "قانون نيوتن الثاني",
+          "skill": "تطبيق"
+        },
+        {
+          "id": 4,
+          "question": "قوة الفعل ورد الفعل هما قوتان...",
+          "options": [
+            "متساويتان ومحصلتهما صفر",
+            "متساويتان وتؤثران في جسمين مختلفين",
+            "مختلفتان في المقدار",
+            "تؤثران في نفس الاتجاه"
+          ],
+          "correct": 1,
+          "subtopic": "قانون نيوتن الثالث",
+          "skill": "فهم"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "lessonId": 1,
+      "subjectId": 2,
+      "lessonTitle": "الاتزان الكيميائي",
+      "subjectName": "الكيمياء",
+      "title": "اختبار الكيمياء",
+      "subtitle": "الاتزان الكيميائي",
+      "timeLimit": 600,
+      "questions": [
+        {
+          "id": 1,
+          "question": "ما هو الاتزان الكيميائي؟",
+          "options": [
+            "توقف التفاعل",
+            "تساوي سرعة التفاعل الأمامي والعكسي",
+            "انتهاء المواد المتفاعلة",
+            "عدم حدوث تفاعل"
+          ],
+          "correct": 1,
+          "subtopic": "مفهوم الاتزان",
+          "skill": "فهم"
+        },
+        {
+          "id": 2,
+          "question": "ما هي العوامل المؤثرة على الاتزان الكيميائي؟",
+          "options": [
+            "التركيز فقط",
+            "التركيز والضغط ودرجة الحرارة",
+            "الضغط فقط",
+            "درجة الحرارة فقط"
+          ],
+          "correct": 1,
+          "subtopic": "عوامل الاتزان",
+          "skill": "تطبيق"
+        }
+      ]
+    }
+  ],
+  "admin_kpi": {
+    "totalStudents": 4821,
+    "totalTeachers": 38,
+    "totalLessons": 156,
+    "totalQuizzesTaken": 12450
+  },
+  "admin_pending_teachers": [
+    {
+      "id": "1",
+      "name": "أحمد محمد السيد",
+      "specialty": "الفيزياء",
+      "email": "ahmed.sayed@example.com",
+      "date": "2026-02-18"
+    },
+    {
+      "id": "2",
+      "name": "سارة علي خالد",
+      "specialty": "الكيمياء",
+      "email": "sara.ali@example.com",
+      "date": "2026-02-19"
+    },
+    {
+      "id": "3",
+      "name": "محمود إبراهيم",
+      "specialty": "الرياضيات",
+      "email": "mahmoud.ibrahim@example.com",
+      "date": "2026-02-20"
+    },
+    {
+      "id": "4",
+      "name": "نور حسن رمضان",
+      "specialty": "الأحياء",
+      "email": "nour.hassan@example.com",
+      "date": "2026-02-21"
+    }
+  ],
+  "admin_reports": [
+    {
+      "id": "1",
+      "title": "دوال الجبر الخطي",
+      "type": "video",
+      "teacher": "د. خالد رمضان",
+      "issue": "فيديو معطوب — لا يعمل"
+    },
+    {
+      "id": "2",
+      "title": "اختبار الكيمياء العضوية",
+      "type": "quiz",
+      "teacher": "أ. إيمان طاهر",
+      "issue": "خطأ في خيارات السؤال 4"
+    },
+    {
+      "id": "3",
+      "title": "قوانين نيوتن الثلاثة",
+      "type": "video",
+      "teacher": "د. محمد سامي",
+      "issue": "الصوت غير واضح"
+    },
+    {
+      "id": "4",
+      "title": "الاحتمالات والإحصاء",
+      "type": "quiz",
+      "teacher": "أ. ريم فاروق",
+      "issue": "إجابة خاطئة للسؤال 7"
+    },
+    {
+      "id": "5",
+      "title": "الموجات الكهرومغناطيسية",
+      "type": "video",
+      "teacher": "د. أحمد نصر",
+      "issue": "مقطع الفيديو مقطوع"
+    }
+  ],
+  "admin_activity": [
+    {
+      "id": "1",
+      "day_ar": "السبت",
+      "day_en": "Sat",
+      "registrations": 12,
+      "views": 145
+    },
+    {
+      "id": "2",
+      "day_ar": "الأحد",
+      "day_en": "Sun",
+      "registrations": 19,
+      "views": 230
+    },
+    {
+      "id": "3",
+      "day_ar": "الإثنين",
+      "day_en": "Mon",
+      "registrations": 8,
+      "views": 178
+    },
+    {
+      "id": "4",
+      "day_ar": "الثلاثاء",
+      "day_en": "Tue",
+      "registrations": 25,
+      "views": 310
+    },
+    {
+      "id": "5",
+      "day_ar": "الأربعاء",
+      "day_en": "Wed",
+      "registrations": 15,
+      "views": 267
+    },
+    {
+      "id": "6",
+      "day_ar": "الخميس",
+      "day_en": "Thu",
+      "registrations": 31,
+      "views": 420
+    },
+    {
+      "id": "7",
+      "day_ar": "الجمعة",
+      "day_en": "Fri",
+      "registrations": 22,
+      "views": 385
+    }
+  ],
+  "teacher_dashboard": {
+    "stats": {
+      "totalStudents": 150,
+      "totalLessons": 46,
+      "averageRating": 4.8
+    },
+    "my_courses": [
+      {
+        "id": 1,
+        "title": "الفيزياء - قوانين نيوتن",
+        "grade": "3rd Secondary",
+        "lessonsCount": 6,
+        "subjectId": 1
+      },
+      {
+        "id": 2,
+        "title": "الكيمياء - الاتزان الكيميائي",
+        "grade": "3rd Secondary",
+        "lessonsCount": 2,
+        "subjectId": 2
+      },
+      {
+        "id": 3,
+        "title": "الرياضيات - التفاضل والتكامل",
+        "grade": "3rd Secondary",
+        "lessonsCount": 2,
+        "subjectId": 4
+      }
+    ],
+    "enrolled_students": [
+      {
+        "id": 1,
+        "name": "أحمد محمد",
+        "email": "ahmed@example.com",
+        "progress": 72,
+        "grade": "3rd Secondary"
+      },
+      {
+        "id": 2,
+        "name": "فاطمة علي",
+        "email": "fatima@example.com",
+        "progress": 85,
+        "grade": "3rd Secondary"
+      },
+      {
+        "id": 3,
+        "name": "محمد خالد",
+        "email": "mohamed@example.com",
+        "progress": 58,
+        "grade": "3rd Secondary"
+      },
+      {
+        "id": 4,
+        "name": "سارة أحمد",
+        "email": "sara@example.com",
+        "progress": 90,
+        "grade": "3rd Secondary"
+      },
+      {
+        "id": 5,
+        "name": "يوسف محمود",
+        "email": "youssef@example.com",
+        "progress": 65,
+        "grade": "3rd Secondary"
+      }
+    ]
+  },
+  "focused_questions": [
+    {
+      "id": "1",
+      "subtopics": [
+        "قانون أوم",
+        "ohm"
+      ],
+      "question": "جسم موصل مقاومته 10 أوم يمر به تيار شدته 2 أمبير. ما الجهد الكهربي عليه؟",
+      "options": [
+        "5 فولت",
+        "20 فولت",
+        "12 فولت",
+        "8 فولت"
+      ],
+      "correct": 1,
+      "explanation": "قانون أوم: ف = ت × م = 2 × 10 = 20 فولت"
+    },
+    {
+      "id": "2",
+      "subtopics": [
+        "قانون أوم",
+        "ohm"
+      ],
+      "question": "إذا تضاعف الجهد الكهربي مع ثبات المقاومة، فإن التيار...",
+      "options": [
+        "يتضاعف",
+        "ينتصف",
+        "يظل ثابتاً",
+        "يصبح صفراً"
+      ],
+      "correct": 0,
+      "explanation": "ت = ف / م، عند ثبات م وتضاعف ف يتضاعف التيار"
+    },
+    {
+      "id": "3",
+      "subtopics": [
+        "قانون أوم",
+        "ohm"
+      ],
+      "question": "وحدة قياس المقاومة الكهربية هي...",
+      "options": [
+        "الأمبير",
+        "الفولت",
+        "الأوم (Ω)",
+        "الواط"
+      ],
+      "correct": 2,
+      "explanation": "المقاومة تقاس بالأوم (Ω) نسبةً للعالم جورج سيمون أوم"
+    },
+    {
+      "id": "4",
+      "subtopics": [
+        "قانون أوم",
+        "ohm"
+      ],
+      "question": "مقاومة سلك 5 أوم، والجهد عليها 15 فولت. ما شدة التيار؟",
+      "options": [
+        "3 أمبير",
+        "75 أمبير",
+        "10 أمبير",
+        "0.33 أمبير"
+      ],
+      "correct": 0,
+      "explanation": "ت = ف / م = 15 / 5 = 3 أمبير"
+    },
+    {
+      "id": "5",
+      "subtopics": [
+        "قانون أوم",
+        "ohm"
+      ],
+      "question": "أي من الصيغ التالية يعبر بشكل صحيح عن قانون أوم؟",
+      "options": [
+        "م = ف × ت",
+        "ف = ت / م",
+        "ت = م / ف",
+        "ت = ف / م"
+      ],
+      "correct": 3,
+      "explanation": "الصيغة الصحيحة: التيار = الجهد ÷ المقاومة، أي ت = ف / م"
+    },
+    {
+      "id": "6",
+      "subtopics": [
+        "المعادلات التربيعية",
+        "quadratic"
+      ],
+      "question": "ما حلول المعادلة: س² − 5س + 6 = 0؟",
+      "options": [
+        "س = 2 و 3",
+        "س = 1 و 6",
+        "س = −2 و −3",
+        "س = 5 و 1"
+      ],
+      "correct": 0,
+      "explanation": "التحليل: (س−2)(س−3) = 0، إذن س = 2 أو س = 3"
+    },
+    {
+      "id": "7",
+      "subtopics": [
+        "المعادلات التربيعية",
+        "quadratic"
+      ],
+      "question": "في المعادلة أس² + بس + جـ = 0، المميز (Δ) يساوي...",
+      "options": [
+        "ب² + 4أجـ",
+        "ب² − 4أجـ",
+        "√ب − 4أجـ",
+        "4أ − ب²"
+      ],
+      "correct": 1,
+      "explanation": "المميز Δ = ب² − 4أجـ، يحدد عدد وطبيعة الجذور"
+    },
+    {
+      "id": "8",
+      "subtopics": [
+        "المعادلات التربيعية",
+        "quadratic"
+      ],
+      "question": "إذا كان المميز = 0، فإن المعادلة التربيعية تملك...",
+      "options": [
+        "جذرين حقيقيين مختلفين",
+        "جذرين حقيقيين متساويين",
+        "لا جذور حقيقية",
+        "ثلاثة جذور"
+      ],
+      "correct": 1,
+      "explanation": "عندما Δ = 0: جذران حقيقيان متساويان، س = −ب / 2أ"
+    },
+    {
+      "id": "9",
+      "subtopics": [
+        "المعادلات التربيعية",
+        "quadratic"
+      ],
+      "question": "ما مجموع جذري المعادلة: 2س² − 8س + 3 = 0؟",
+      "options": [
+        "4",
+        "−4",
+        "3/2",
+        "8"
+      ],
+      "correct": 0,
+      "explanation": "مجموع الجذرين = −ب/أ = −(−8)/2 = 4"
+    },
+    {
+      "id": "10",
+      "subtopics": [
+        "المعادلات التربيعية",
+        "quadratic"
+      ],
+      "question": "حل المعادلة: س² − 16 = 0",
+      "options": [
+        "س = 4 فقط",
+        "س = ±4",
+        "س = ±8",
+        "س = 16"
+      ],
+      "correct": 1,
+      "explanation": "س² = 16، إذن س = ±4"
+    },
+    {
+      "id": "11",
+      "subtopics": [
+        "الاتزان الكيميائي",
+        "chemical equilibrium"
+      ],
+      "question": "وفق مبدأ لو شاتلييه، عند زيادة الضغط على تفاعل غازي يتحرك الاتزان إلى...",
+      "options": [
+        "الجهة التي تزيد موالات الغاز",
+        "الجهة التي تقلل موالات الغاز",
+        "لا يتأثر الاتزان",
+        "توقف التفاعل"
+      ],
+      "correct": 1,
+      "explanation": "زيادة الضغط تدفع الاتزان نحو الجهة الأقل في عدد موالات الغاز"
+    },
+    {
+      "id": "12",
+      "subtopics": [
+        "الاتزان الكيميائي",
+        "chemical equilibrium"
+      ],
+      "question": "ثابت الاتزان Kc = 1000 يدل على أن...",
+      "options": [
+        "المتفاعلات بتركيز أكبر",
+        "النواتج تسود بشكل كبير",
+        "المتفاعلات والنواتج متساوية",
+        "التفاعل لم يبدأ"
+      ],
+      "correct": 1,
+      "explanation": "Kc >> 1 تعني أن التفاعل يسير للأمام والنواتج تسود"
+    },
+    {
+      "id": "13",
+      "subtopics": [
+        "الاتزان الكيميائي",
+        "chemical equilibrium"
+      ],
+      "question": "عند رفع درجة الحرارة لتفاعل ماص للحرارة...",
+      "options": [
+        "يتحرك للخلف",
+        "يتحرك للأمام",
+        "يظل في توازن",
+        "يتوقف"
+      ],
+      "correct": 1,
+      "explanation": "التفاعل الماص يمتص حرارة، فرفع الحرارة يحرك الاتزان للأمام"
+    },
+    {
+      "id": "14",
+      "subtopics": [
+        "الاتزان الكيميائي",
+        "chemical equilibrium"
+      ],
+      "question": "إضافة عامل حفاز للتفاعل يؤثر على...",
+      "options": [
+        "قيمة Kc فقط",
+        "سرعة الوصول للاتزان فقط",
+        "تركيز النواتج",
+        "درجة حرارة التفاعل"
+      ],
+      "correct": 1,
+      "explanation": "العامل الحفاز يسرع الوصول للاتزان ولا يغير قيمة Kc"
+    },
+    {
+      "id": "15",
+      "subtopics": [
+        "الاتزان الكيميائي",
+        "chemical equilibrium"
+      ],
+      "question": "عند الاتزان الكيميائي، سرعة التفاعل الأمامي...",
+      "options": [
+        "أكبر من العكسي",
+        "أصغر من العكسي",
+        "تساوي العكسي",
+        "تساوي الصفر"
+      ],
+      "correct": 2,
+      "explanation": "عند الاتزان: سرعة الأمامي = سرعة العكسي (ولكن كلاهما ≠ 0)"
+    },
+    {
+      "id": "16",
+      "subtopics": [
+        "قانون نيوتن الثاني",
+        "newton's 2nd law",
+        "newton"
+      ],
+      "question": "جسم كتلته 5 كجم يتسارع بمعدل 3 م/ث². ما مقدار القوة المؤثرة عليه؟",
+      "options": [
+        "10 نيوتن",
+        "15 نيوتن",
+        "8 نيوتن",
+        "20 نيوتن"
+      ],
+      "correct": 1,
+      "explanation": "ق = ك × ت = 5 × 3 = 15 نيوتن"
+    },
+    {
+      "id": "17",
+      "subtopics": [
+        "قانون نيوتن الثاني",
+        "newton's 2nd law",
+        "newton"
+      ],
+      "question": "إذا تضاعفت الكتلة مع ثبات القوة، فإن التسارع...",
+      "options": [
+        "يتضاعف",
+        "ينتصف",
+        "يظل ثابتاً",
+        "يصبح صفراً"
+      ],
+      "correct": 1,
+      "explanation": "ت = ق / ك، عند ثبات ق وتضاعف ك ينتصف التسارع"
+    },
+    {
+      "id": "18",
+      "subtopics": [
+        "قانون نيوتن الثاني",
+        "newton's 2nd law",
+        "newton"
+      ],
+      "question": "قوة 30 نيوتن تؤثر على جسم فيكتسب تسارعاً 6 م/ث². ما كتلة الجسم؟",
+      "options": [
+        "3 كجم",
+        "180 كجم",
+        "5 كجم",
+        "36 كجم"
+      ],
+      "correct": 2,
+      "explanation": "ك = ق / ت = 30 / 6 = 5 كجم"
+    },
+    {
+      "id": "19",
+      "subtopics": [
+        "قانون نيوتن الثاني",
+        "newton's 2nd law",
+        "newton"
+      ],
+      "question": "ينص القانون الثاني لنيوتن على أن التسارع...",
+      "options": [
+        "عكسي مع القوة وطردي مع الكتلة",
+        "طردي مع القوة وعكسي مع الكتلة",
+        "ثابت دائماً",
+        "لا يتأثر بالكتلة"
+      ],
+      "correct": 1,
+      "explanation": "ت = ق / ك، التسارع طردي مع القوة وعكسي مع الكتلة"
+    },
+    {
+      "id": "20",
+      "subtopics": [
+        "قانون نيوتن الثاني",
+        "newton's 2nd law",
+        "newton"
+      ],
+      "question": "وحدة القوة في نظام SI مشتقة من F = ma، وهي...",
+      "options": [
+        "الجول",
+        "الواط",
+        "النيوتن",
+        "الباسكال"
+      ],
+      "correct": 2,
+      "explanation": "1 نيوتن = 1 كجم · م/ث²، نسبةً للعالم إسحاق نيوتن"
+    }
+  ],
+  "teacher_content": [
+    {
+      "id": "1",
+      "lesson": "قانون نيوتن الثاني",
+      "subject": "Physics",
+      "views": 340,
+      "quizAttempts": 210,
+      "avgScore": 58,
+      "topWeakSubtopic": "قانون نيوتن الثاني",
+      "scoreDistribution": [
+        8,
+        22,
+        55,
+        80,
+        45
+      ],
+      "missedQuestions": [
+        {
+          "text": "جسم كتلته 5 كجم يتسارع بتأثير قوة محصلة مقدارها...",
+          "wrongRate": 72,
+          "topWrongOption": "10 نيوتن"
+        },
+        {
+          "text": "إذا كانت القوة المؤثرة على جسم 20 نيوتن والكتلة...",
+          "wrongRate": 65,
+          "topWrongOption": "2 م/ث²"
+        },
+        {
+          "text": "ما العلاقة بين التسارع والكتلة عند ثبات القوة؟",
+          "wrongRate": 58,
+          "topWrongOption": "طردية"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "lesson": "قانون أوم والدارات الكهربائية",
+      "subject": "Physics",
+      "views": 285,
+      "quizAttempts": 178,
+      "avgScore": 74,
+      "topWeakSubtopic": "الكهرومغناطيسية",
+      "scoreDistribution": [
+        3,
+        10,
+        30,
+        85,
+        50
+      ],
+      "missedQuestions": [
+        {
+          "text": "دارة كهربائية فيها مقاومة 4 أوم وفولتية 12 فولت...",
+          "wrongRate": 55,
+          "topWrongOption": "48 أمبير"
+        },
+        {
+          "text": "مقاومتان على التوازي كل منهما 6 أوم، المقاومة المكافئة...",
+          "wrongRate": 48,
+          "topWrongOption": "12 أوم"
+        },
+        {
+          "text": "القدرة المستهلكة في مقاومة 5 أوم بتيار 2 أمبير...",
+          "wrongRate": 40,
+          "topWrongOption": "10 واط"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "lesson": "الاتزان الكيميائي",
+      "subject": "Chemistry",
+      "views": 198,
+      "quizAttempts": 145,
+      "avgScore": 49,
+      "topWeakSubtopic": "تأثير التركيز على الاتزان",
+      "scoreDistribution": [
+        15,
+        38,
+        50,
+        30,
+        12
+      ],
+      "missedQuestions": [
+        {
+          "text": "عند رفع ضغط منظومة متزنة تحتوي على غازات، الاتزان...",
+          "wrongRate": 78,
+          "topWrongOption": "لا يتأثر"
+        },
+        {
+          "text": "مبدأ لو شاتيليه ينص على أن المنظومة المتزنة...",
+          "wrongRate": 70,
+          "topWrongOption": "تتحرك نحو المواد المتفاعلة دائماً"
+        },
+        {
+          "text": "ثابت الاتزان Kc يعتمد على...",
+          "wrongRate": 62,
+          "topWrongOption": "الضغط والتركيز"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "lesson": "المعادلات التربيعية",
+      "subject": "Mathematics",
+      "views": 420,
+      "quizAttempts": 312,
+      "avgScore": 83,
+      "topWeakSubtopic": "المعادلات ذات الجذر المتكرر",
+      "scoreDistribution": [
+        2,
+        8,
+        20,
+        95,
+        187
+      ],
+      "missedQuestions": [
+        {
+          "text": "معادلة تربيعية جذراها متساويان وثابتها الحر 9، المعادلة...",
+          "wrongRate": 42,
+          "topWrongOption": "x² - 6x + 9 = 0"
+        },
+        {
+          "text": "مجموع جذري المعادلة x² - 5x + 6 = 0 يساوي...",
+          "wrongRate": 35,
+          "topWrongOption": "6"
+        },
+        {
+          "text": "حاصل ضرب جذري x² + 3x - 10 = 0 يساوي...",
+          "wrongRate": 30,
+          "topWrongOption": "3"
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "lesson": "الوراثة والجينات",
+      "subject": "Biology",
+      "views": 156,
+      "quizAttempts": 98,
+      "avgScore": 66,
+      "topWeakSubtopic": "الصفات المرتبطة بالجنس",
+      "scoreDistribution": [
+        5,
+        12,
+        28,
+        38,
+        15
+      ],
+      "missedQuestions": [
+        {
+          "text": "الصفة المرتبطة بالجنس X تنتقل من الأب إلى...",
+          "wrongRate": 68,
+          "topWrongOption": "الأبناء الذكور فقط"
+        },
+        {
+          "text": "نسبة ظهور الصفة المتنحية في الجيل F2 هي...",
+          "wrongRate": 55,
+          "topWrongOption": "1/2"
+        },
+        {
+          "text": "عبور الكروموسومات يحدث أثناء...",
+          "wrongRate": 48,
+          "topWrongOption": "الطور البيني"
+        }
+      ]
+    }
+  ],
+  "teacher_kpi": {
+    "totalVideos": 5,
+    "totalAttempts": 943,
+    "avgScore": 66,
+    "watchHours": 95
+  },
+  "teacher_views_over_time": [
+    {
+      "id": "1",
+      "day": "1/2",
+      "مشاهدات": 12
+    },
+    {
+      "id": "2",
+      "day": "2/2",
+      "مشاهدات": 8
+    },
+    {
+      "id": "3",
+      "day": "3/2",
+      "مشاهدات": 15
+    },
+    {
+      "id": "4",
+      "day": "4/2",
+      "مشاهدات": 20
+    },
+    {
+      "id": "5",
+      "day": "5/2",
+      "مشاهدات": 9
+    },
+    {
+      "id": "6",
+      "day": "6/2",
+      "مشاهدات": 18
+    },
+    {
+      "id": "7",
+      "day": "7/2",
+      "مشاهدات": 25
+    },
+    {
+      "id": "8",
+      "day": "8/2",
+      "مشاهدات": 14
+    },
+    {
+      "id": "9",
+      "day": "9/2",
+      "مشاهدات": 30
+    },
+    {
+      "id": "10",
+      "day": "10/2",
+      "مشاهدات": 22
+    },
+    {
+      "id": "11",
+      "day": "11/2",
+      "مشاهدات": 17
+    },
+    {
+      "id": "12",
+      "day": "12/2",
+      "مشاهدات": 28
+    },
+    {
+      "id": "13",
+      "day": "13/2",
+      "مشاهدات": 35
+    },
+    {
+      "id": "14",
+      "day": "14/2",
+      "مشاهدات": 20
+    },
+    {
+      "id": "15",
+      "day": "15/2",
+      "مشاهدات": 15
+    },
+    {
+      "id": "16",
+      "day": "16/2",
+      "مشاهدات": 42
+    },
+    {
+      "id": "17",
+      "day": "17/2",
+      "مشاهدات": 38
+    },
+    {
+      "id": "18",
+      "day": "18/2",
+      "مشاهدات": 25
+    },
+    {
+      "id": "19",
+      "day": "19/2",
+      "مشاهدات": 30
+    },
+    {
+      "id": "20",
+      "day": "20/2",
+      "مشاهدات": 18
+    },
+    {
+      "id": "21",
+      "day": "21/2",
+      "مشاهدات": 45
+    },
+    {
+      "id": "22",
+      "day": "22/2",
+      "مشاهدات": 50
+    },
+    {
+      "id": "23",
+      "day": "23/2",
+      "مشاهدات": 35
+    },
+    {
+      "id": "24",
+      "day": "24/2",
+      "مشاهدات": 28
+    },
+    {
+      "id": "25",
+      "day": "25/2",
+      "مشاهدات": 40
+    },
+    {
+      "id": "26",
+      "day": "26/2",
+      "مشاهدات": 55
+    },
+    {
+      "id": "27",
+      "day": "27/2",
+      "مشاهدات": 48
+    },
+    {
+      "id": "28",
+      "day": "28/2",
+      "مشاهدات": 38
+    },
+    {
+      "id": "29",
+      "day": "29/2",
+      "مشاهدات": 52
+    },
+    {
+      "id": "30",
+      "day": "30/2",
+      "مشاهدات": 60
+    }
+  ],
+  "subject_units": [
+    {
+      "id": "1",
+      "subjectId": "1",
+      "order": 1,
+      "title": "الباب الأول: الحركة الخطية",
+      "lessons": [
+        {
+          "id": 11,
+          "title": "مفهوم السرعة والتسارع",
+          "duration": "10:45",
+          "completed": true,
+          "videoUrl": null,
+          "description": "الفرق بين السرعة المتجهة والعددية والتسارع",
+          "quizId": null
+        },
+        {
+          "id": 12,
+          "title": "معادلات الحركة المنتظمة",
+          "duration": "14:20",
+          "completed": true,
+          "videoUrl": null,
+          "description": "تطبيق معادلات الحركة بتسارع ثابت",
+          "quizId": null
+        },
+        {
+          "id": 13,
+          "title": "الحركة في المستويين",
+          "duration": "18:35",
+          "completed": false,
+          "videoUrl": null,
+          "description": "تحليل الحركة ثنائية الأبعاد",
+          "quizId": null
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "subjectId": "1",
+      "order": 2,
+      "title": "الباب الثاني: الديناميكا",
+      "lessons": [
+        {
+          "id": 21,
+          "title": "مقدمة عن قوانين نيوتن",
+          "duration": "12:30",
+          "completed": true,
+          "videoUrl": null,
+          "description": "شرح شامل لقوانين نيوتن الثلاثة",
+          "quizId": null
+        },
+        {
+          "id": 22,
+          "title": "القانون الأول للحركة",
+          "duration": "18:45",
+          "completed": true,
+          "videoUrl": null,
+          "description": "قانون القصور الذاتي",
+          "quizId": null
+        },
+        {
+          "id": 23,
+          "title": "القانون الثاني للحركة",
+          "duration": "22:15",
+          "completed": false,
+          "videoUrl": null,
+          "description": "العلاقة بين القوة والكتلة والتسارع",
+          "quizId": "1"
+        },
+        {
+          "id": 24,
+          "title": "القانون الثالث للحركة",
+          "duration": "16:20",
+          "completed": false,
+          "videoUrl": null,
+          "description": "قانون الفعل ورد الفعل",
+          "quizId": null
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "subjectId": "1",
+      "order": 3,
+      "title": "الباب الثالث: الكهرباء",
+      "lessons": [
+        {
+          "id": 31,
+          "title": "قانون أوم",
+          "duration": "20:10",
+          "completed": false,
+          "videoUrl": null,
+          "description": "العلاقة بين الجهد والتيار والمقاومة",
+          "quizId": null
+        },
+        {
+          "id": 32,
+          "title": "الدوائر الكهربائية المتسلسلة",
+          "duration": "17:40",
+          "completed": false,
+          "videoUrl": null,
+          "description": "حل مسائل الدوائر المتسلسلة",
+          "quizId": null
+        },
+        {
+          "id": 33,
+          "title": "الدوائر الكهربائية المتوازية",
+          "duration": "19:55",
+          "completed": false,
+          "videoUrl": null,
+          "description": "حل مسائل الدوائر المتوازية",
+          "quizId": null
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "subjectId": "2",
+      "order": 1,
+      "title": "الباب الأول: الكيمياء الحرارية",
+      "lessons": [
+        {
+          "id": 41,
+          "title": "الاتزان الكيميائي",
+          "duration": "15:00",
+          "completed": true,
+          "videoUrl": null,
+          "description": "شرح مفهوم الاتزان في التفاعلات الكيميائية",
+          "quizId": "2"
+        },
+        {
+          "id": 42,
+          "title": "سرعة التفاعل الكيميائي",
+          "duration": "18:30",
+          "completed": false,
+          "videoUrl": null,
+          "description": "العوامل المؤثرة على سرعة التفاعل",
+          "quizId": null
+        },
+        {
+          "id": 43,
+          "title": "مبدأ لو شاتيليه",
+          "duration": "13:15",
+          "completed": false,
+          "videoUrl": null,
+          "description": "تأثير تغيير الظروف على الاتزان",
+          "quizId": null
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "subjectId": "2",
+      "order": 2,
+      "title": "الباب الثاني: الكيمياء العضوية",
+      "lessons": [
+        {
+          "id": 51,
+          "title": "الهيدروكربونات المشبعة",
+          "duration": "16:20",
+          "completed": false,
+          "videoUrl": null,
+          "description": "الألكانات وخصائصها وتفاعلاتها",
+          "quizId": null
+        },
+        {
+          "id": 52,
+          "title": "الهيدروكربونات غير المشبعة",
+          "duration": "20:45",
+          "completed": false,
+          "videoUrl": null,
+          "description": "الألكينات والألكاينات وتفاعلاتها",
+          "quizId": null
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "subjectId": "3",
+      "order": 1,
+      "title": "الباب الأول: علم الأحياء الخلوي",
+      "lessons": [
+        {
+          "id": 61,
+          "title": "الخلية وتركيبها",
+          "duration": "14:20",
+          "completed": true,
+          "videoUrl": null,
+          "description": "مكونات الخلية الحيوانية والنباتية",
+          "quizId": null
+        },
+        {
+          "id": 62,
+          "title": "وظائف عضيات الخلية",
+          "duration": "12:50",
+          "completed": true,
+          "videoUrl": null,
+          "description": "دور كل عضية في حياة الخلية",
+          "quizId": null
+        },
+        {
+          "id": 63,
+          "title": "الانقسام الخلوي",
+          "duration": "17:30",
+          "completed": true,
+          "videoUrl": null,
+          "description": "الانقسام المتساوي والاختزالي",
+          "quizId": null
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "subjectId": "3",
+      "order": 2,
+      "title": "الباب الثاني: الأنسجة والأعضاء",
+      "lessons": [
+        {
+          "id": 71,
+          "title": "الأنسجة الحيوانية",
+          "duration": "16:45",
+          "completed": true,
+          "videoUrl": null,
+          "description": "أنواع الأنسجة في جسم الحيوان",
+          "quizId": null
+        },
+        {
+          "id": 72,
+          "title": "الأنسجة النباتية",
+          "duration": "15:10",
+          "completed": false,
+          "videoUrl": null,
+          "description": "أنواع الأنسجة في النبات ووظائفها",
+          "quizId": null
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "subjectId": "4",
+      "order": 1,
+      "title": "الباب الأول: الجبر",
+      "lessons": [
+        {
+          "id": 81,
+          "title": "المعادلات التربيعية",
+          "duration": "25:00",
+          "completed": false,
+          "videoUrl": null,
+          "description": "حل المعادلات من الدرجة الثانية",
+          "quizId": null
+        },
+        {
+          "id": 82,
+          "title": "المتباينات الجبرية",
+          "duration": "18:40",
+          "completed": false,
+          "videoUrl": null,
+          "description": "حل المتباينات وتمثيلها على محور الأعداد",
+          "quizId": null
+        },
+        {
+          "id": 83,
+          "title": "الدوال والعمليات عليها",
+          "duration": "21:15",
+          "completed": false,
+          "videoUrl": null,
+          "description": "مفهوم الدالة ومجال التعريف والمدى",
+          "quizId": null
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "subjectId": "4",
+      "order": 2,
+      "title": "الباب الثاني: التفاضل والتكامل",
+      "lessons": [
+        {
+          "id": 91,
+          "title": "مبادئ التفاضل والتكامل",
+          "duration": "30:15",
+          "completed": false,
+          "videoUrl": null,
+          "description": "مفهوم المشتقة والتكامل المحدود وغير المحدود",
+          "quizId": null
+        },
+        {
+          "id": 92,
+          "title": "تطبيقات التفاضل",
+          "duration": "26:30",
+          "completed": false,
+          "videoUrl": null,
+          "description": "إيجاد القيم العظمى والصغرى للدوال",
+          "quizId": null
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "subjectId": "4",
+      "order": 3,
+      "title": "الباب الثالث: الهندسة التحليلية",
+      "lessons": [
+        {
+          "id": 101,
+          "title": "الإحداثيات والمستقيمات",
+          "duration": "19:00",
+          "completed": false,
+          "videoUrl": null,
+          "description": "معادلة المستقيم وميله وقاطعه",
+          "quizId": null
+        },
+        {
+          "id": 102,
+          "title": "الدوائر والمقاطع المخروطية",
+          "duration": "22:45",
+          "completed": false,
+          "videoUrl": null,
+          "description": "معادلات الدائرة والقطع المكافئ والناقص",
+          "quizId": null
+        }
+      ]
+    }
+  ],
+  "remediation_gaps": [
+    {
+      "id": "1",
+      "gap": "قانون أوم",
+      "subject": "الفيزياء",
+      "subjectId": 1,
+      "lessonId": 5,
+      "lessonTitle": "قانون أوم",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "2",
+      "gap": "المعادلات التربيعية",
+      "subject": "الرياضيات",
+      "subjectId": 4,
+      "lessonId": 1,
+      "lessonTitle": "المعادلات التربيعية",
+      "difficulty": "medium",
+      "completed": false
+    },
+    {
+      "id": "3",
+      "gap": "الاتزان الكيميائي",
+      "subject": "الكيمياء",
+      "subjectId": 2,
+      "lessonId": 1,
+      "lessonTitle": "الاتزان الكيميائي",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "4",
+      "gap": "قانون نيوتن الثاني",
+      "subject": "الفيزياء",
+      "subjectId": 1,
+      "lessonId": 2,
+      "lessonTitle": "قوانين نيوتن",
+      "difficulty": "medium",
+      "completed": false
+    },
+    {
+      "id": "5",
+      "gap": "الخلية وأجزاؤها",
+      "subject": "الأحياء",
+      "subjectId": 3,
+      "lessonId": 1,
+      "lessonTitle": "بيولوجيا الخلية",
+      "difficulty": "easy",
+      "completed": false
+    }
+  ],
+  "remediation_content": [
+    {
+      "id": "1",
+      "gap": "قانون أوم",
+      "videos": [
+        {
+          "id": "v1",
+          "title": "شرح قانون أوم من الصفر",
+          "duration": "8:42",
+          "teacher": "مستر محمد أحمد",
+          "thumbnail": null,
+          "videoUrl": null
+        },
+        {
+          "id": "v2",
+          "title": "تطبيقات قانون أوم على الدوائر",
+          "duration": "11:15",
+          "teacher": "مستر أحمد علي",
+          "thumbnail": null,
+          "videoUrl": null
+        },
+        {
+          "id": "v3",
+          "title": "مسائل محلولة: قانون أوم",
+          "duration": "14:30",
+          "teacher": "مستر محمد أحمد",
+          "thumbnail": null,
+          "videoUrl": null
+        }
+      ],
+      "questions": [
+        {
+          "id": "q1",
+          "text": "إذا كان الجهد 12 فولت والمقاومة 4 أوم، فما شدة التيار؟",
+          "options": [
+            "2 A",
+            "3 A",
+            "4 A",
+            "6 A"
+          ],
+          "correct": 1,
+          "explanation": "I = V ÷ R = 12 ÷ 4 = 3 A"
+        },
+        {
+          "id": "q2",
+          "text": "ما وحدة المقاومة الكهربائية؟",
+          "options": [
+            "أمبير",
+            "فولت",
+            "أوم",
+            "واط"
+          ],
+          "correct": 2,
+          "explanation": "وحدة المقاومة هي الأوم (Ω)"
+        },
+        {
+          "id": "q3",
+          "text": "ينص قانون أوم على أن التيار يتناسب … مع الجهد.",
+          "options": [
+            "عكسياً",
+            "تربيعياً",
+            "طردياً",
+            "لوغاريتمياً"
+          ],
+          "correct": 2,
+          "explanation": "I = V/R أي التيار يتناسب طردياً مع الجهد"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "gap": "المعادلات التربيعية",
+      "videos": [
+        {
+          "id": "v1",
+          "title": "حل المعادلات التربيعية بالتحليل",
+          "duration": "9:10",
+          "teacher": "مستر محمد أحمد",
+          "thumbnail": null,
+          "videoUrl": null
+        },
+        {
+          "id": "v2",
+          "title": "القانون العام للمعادلة التربيعية",
+          "duration": "12:05",
+          "teacher": "مستر أحمد علي",
+          "thumbnail": null,
+          "videoUrl": null
+        },
+        {
+          "id": "v3",
+          "title": "تطبيقات المعادلات التربيعية في المسائل",
+          "duration": "15:20",
+          "teacher": "مستر محمد أحمد",
+          "thumbnail": null,
+          "videoUrl": null
+        }
+      ],
+      "questions": [
+        {
+          "id": "q1",
+          "text": "حل المعادلة x² - 5x + 6 = 0",
+          "options": [
+            "x=2,x=3",
+            "x=1,x=6",
+            "x=-2,x=-3",
+            "x=2,x=-3"
+          ],
+          "correct": 0,
+          "explanation": "(x-2)(x-3)=0 ∴ x=2 أو x=3"
+        },
+        {
+          "id": "q2",
+          "text": "المميز Δ = b²-4ac للمعادلة x²-4x+4=0:",
+          "options": [
+            "16",
+            "0",
+            "8",
+            "-4"
+          ],
+          "correct": 1,
+          "explanation": "Δ = 16 - 16 = 0 أي جذر مكرر"
+        },
+        {
+          "id": "q3",
+          "text": "إذا كان Δ < 0 فإن المعادلة التربيعية:",
+          "options": [
+            "لها جذران حقيقيان",
+            "لها جذر مكرر",
+            "لا جذور حقيقية",
+            "لها ثلاثة جذور"
+          ],
+          "correct": 2,
+          "explanation": "عندما يكون المميز سالباً لا توجد جذور حقيقية"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "gap": "الاتزان الكيميائي",
+      "videos": [
+        {
+          "id": "v1",
+          "title": "مفهوم الاتزان الكيميائي وشروطه",
+          "duration": "10:00",
+          "teacher": "مستر محمد أحمد",
+          "thumbnail": null,
+          "videoUrl": null
+        },
+        {
+          "id": "v2",
+          "title": "ثابت الاتزان K وحسابه",
+          "duration": "13:45",
+          "teacher": "مستر أحمد علي",
+          "thumbnail": null,
+          "videoUrl": null
+        },
+        {
+          "id": "v3",
+          "title": "مبدأ لو شاتيليه وأثر الضغط والحرارة",
+          "duration": "11:30",
+          "teacher": "مستر محمد أحمد",
+          "thumbnail": null,
+          "videoUrl": null
+        }
+      ],
+      "questions": [
+        {
+          "id": "q1",
+          "text": "يتحقق الاتزان الكيميائي عندما:",
+          "options": [
+            "تتوقف التفاعلات",
+            "تتساوى سرعتا التفاعل الأمامي والعكسي",
+            "تنتهي المواد المتفاعلة",
+            "تتحول كل المواد إلى نواتج"
+          ],
+          "correct": 1,
+          "explanation": "الاتزان ديناميكي: السرعتان متساويتان"
+        },
+        {
+          "id": "q2",
+          "text": "رفع الضغط في تفاعل غازي يُحرّك الاتزان نحو:",
+          "options": [
+            "الجانب ذي عدد مولات أقل",
+            "الجانب ذي عدد مولات أكثر",
+            "لا أثر للضغط",
+            "الجانب الأيسر دائماً"
+          ],
+          "correct": 0,
+          "explanation": "وفقاً لمبدأ لو شاتيليه يتحرك نحو تقليل الضغط"
+        },
+        {
+          "id": "q3",
+          "text": "إذا كان K >> 1 فإن التفاعل:",
+          "options": [
+            "عكسي بشدة",
+            "أمامي بشدة",
+            "في الاتزان",
+            "بطيء جداً"
+          ],
+          "correct": 1,
+          "explanation": "K كبير يعني غلبة النواتج أي تفاعل أمامي"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "gap": "قانون نيوتن الثاني",
+      "videos": [
+        {
+          "id": "v1",
+          "title": "القانون الثاني لنيوتن F=ma شرح مبسط",
+          "duration": "7:55",
+          "teacher": "مستر محمد أحمد",
+          "thumbnail": null,
+          "videoUrl": null
+        },
+        {
+          "id": "v2",
+          "title": "تطبيقات على F=ma: الأجسام المتحركة",
+          "duration": "12:10",
+          "teacher": "مستر أحمد علي",
+          "thumbnail": null,
+          "videoUrl": null
+        }
+      ],
+      "questions": [
+        {
+          "id": "q1",
+          "text": "جسم كتلته 5 kg تؤثر عليه قوة 20 N، ما تسارعه؟",
+          "options": [
+            "2 m/s²",
+            "4 m/s²",
+            "5 m/s²",
+            "100 m/s²"
+          ],
+          "correct": 1,
+          "explanation": "a = F/m = 20/5 = 4 m/s²"
+        },
+        {
+          "id": "q2",
+          "text": "ينص القانون الثاني لنيوتن على أن القوة تساوي:",
+          "options": [
+            "الكتلة × السرعة",
+            "الكتلة × التسارع",
+            "الكتلة ÷ التسارع",
+            "الوزن ÷ الكتلة"
+          ],
+          "correct": 1,
+          "explanation": "F = m × a"
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "gap": "الخلية وأجزاؤها",
+      "videos": [
+        {
+          "id": "v1",
+          "title": "مكونات الخلية الحيوانية والنباتية",
+          "duration": "9:40",
+          "teacher": "مستر محمد أحمد",
+          "thumbnail": null,
+          "videoUrl": null
+        },
+        {
+          "id": "v2",
+          "title": "وظائف عضيات الخلية",
+          "duration": "10:25",
+          "teacher": "مستر أحمد علي",
+          "thumbnail": null,
+          "videoUrl": null
+        }
+      ],
+      "questions": [
+        {
+          "id": "q1",
+          "text": "أيٌّ من التالي يُعدّ مركز توليد الطاقة في الخلية؟",
+          "options": [
+            "النواة",
+            "الريبوسوم",
+            "الميتوكوندريا",
+            "جهاز جولجي"
+          ],
+          "correct": 2,
+          "explanation": "الميتوكوندريا هي محطة الطاقة (ATP)"
+        },
+        {
+          "id": "q2",
+          "text": "ما الذي يميز الخلية النباتية عن الحيوانية؟",
+          "options": [
+            "غشاء خلوي",
+            "جدار خلوي وبلاستيدات",
+            "نواة",
+            "ريبوسومات"
+          ],
+          "correct": 1,
+          "explanation": "الخلية النباتية لها جدار خلوي وبلاستيدات خضراء"
+        }
+      ]
+    }
+  ],
+  "profile_stats": [
+    {
+      "id": "1",
+      "userId": "1",
+      "streak": 7,
+      "longestStreak": 15,
+      "completedLessons": 122,
+      "studyHours": 47,
+      "avgQuizScore": 74,
+      "totalQuizzes": 38,
+      "improvementRate": 23
+    },
+    {
+      "id": "2",
+      "userId": "9584",
+      "streak": 3,
+      "longestStreak": 9,
+      "completedLessons": 45,
+      "studyHours": 18,
+      "avgQuizScore": 61,
+      "totalQuizzes": 14,
+      "improvementRate": 12
+    }
+  ],
+  "profile_achievements": [
+    {
+      "id": "1",
+      "userId": "1",
+      "title": "نجم الفيزياء",
+      "description": "أكملت جميع دروس الفيزياء",
+      "emoji": "⚡",
+      "earned": true,
+      "earnedDate": "2026-01-15"
+    },
+    {
+      "id": "2",
+      "userId": "1",
+      "title": "سلسلة لا تنكسر",
+      "description": "7 أيام دراسة متتالية بدون انقطاع",
+      "emoji": "🔥",
+      "earned": true,
+      "earnedDate": "2026-02-10"
+    },
+    {
+      "id": "3",
+      "userId": "1",
+      "title": "عبقري الكيمياء",
+      "description": "حصلت على 90% فأكثر في اختبار الكيمياء",
+      "emoji": "🧪",
+      "earned": true,
+      "earnedDate": "2026-01-28"
+    },
+    {
+      "id": "4",
+      "userId": "1",
+      "title": "مثابر",
+      "description": "أكملت 100 درس",
+      "emoji": "🎯",
+      "earned": true,
+      "earnedDate": "2026-02-05"
+    },
+    {
+      "id": "5",
+      "userId": "1",
+      "title": "المحقق الرياضي",
+      "description": "حل 20 مسألة رياضيات صعبة بنجاح",
+      "emoji": "📐",
+      "earned": false,
+      "earnedDate": null
+    },
+    {
+      "id": "6",
+      "userId": "1",
+      "title": "صاحب أطول سلسلة استمرار",
+      "description": "حقق 30 يوماً متتالياً",
+      "emoji": "🏆",
+      "earned": false,
+      "earnedDate": null
+    },
+    {
+      "id": "7",
+      "userId": "1",
+      "title": "عاشق الأحياء",
+      "description": "أكملت جميع دروس الأحياء",
+      "emoji": "🔬",
+      "earned": false,
+      "earnedDate": null
+    },
+    {
+      "id": "8",
+      "userId": "1",
+      "title": "متميز",
+      "description": "تفوقت على 90% من زملائك",
+      "emoji": "🌟",
+      "earned": false,
+      "earnedDate": null
+    },
+    {
+      "id": "9",
+      "userId": "9584",
+      "title": "نجم الفيزياء",
+      "description": "أكملت جميع دروس الفيزياء",
+      "emoji": "⚡",
+      "earned": false,
+      "earnedDate": null
+    },
+    {
+      "id": "10",
+      "userId": "9584",
+      "title": "سلسلة لا تنكسر",
+      "description": "7 أيام دراسة متتالية بدون انقطاع",
+      "emoji": "🔥",
+      "earned": false,
+      "earnedDate": null
+    },
+    {
+      "id": "11",
+      "userId": "9584",
+      "title": "مثابر",
+      "description": "أكملت 100 درس",
+      "emoji": "🎯",
+      "earned": false,
+      "earnedDate": null
+    },
+    {
+      "id": "12",
+      "userId": "9584",
+      "title": "صاحب أطول سلسلة استمرار",
+      "description": "حقق 30 يوماً متتالياً",
+      "emoji": "🏆",
+      "earned": false,
+      "earnedDate": null
+    }
+  ],
+  "user_dashboards": [
+    {
+      "id": "ud_1",
+      "userId": "1",
+      "studentName": "Ahmed Ali",
+      "upcomingExams": 3,
+      "weaknesses": [
+        "الفيزياء - قانون أوم",
+        "الرياضيات - التفاضل"
+      ],
+      "stats": {
+        "completedLessons": 122,
+        "improvementRate": 23,
+        "studyHours": 47
+      }
+    },
+    {
+      "id": "ud_9584",
+      "userId": "9584",
+      "studentName": "فاروق ضياء",
+      "upcomingExams": 0,
+      "weaknesses": [
+        "الفيزياء - القانون الأول للحركة"
+      ],
+      "stats": {
+        "completedLessons": 0,
+        "improvementRate": 0,
+        "studyHours": 0
+      }
+    },
+    {
+      "id": "287d",
+      "userId": "85d2",
+      "studentName": "احمد محمد",
+      "upcomingExams": 0,
+      "weaknesses": [],
+      "stats": {
+        "completedLessons": 0,
+        "improvementRate": 0,
+        "studyHours": 0
+      }
+    },
+    {
+      "id": "4c3c",
+      "userId": "635c",
+      "studentName": "حسين",
+      "upcomingExams": 0,
+      "weaknesses": [
+        "الفيزياء - مقدمة عن قوانين نيوتن"
+      ],
+      "stats": {
+        "completedLessons": 1,
+        "improvementRate": 0,
+        "studyHours": 0
+      }
+    }
+  ],
+  "user_subjects": [
+    {
+      "id": "us_1_1",
+      "userId": "1",
+      "subjectId": "1",
+      "progress": 72,
+      "completed": 32
+    },
+    {
+      "id": "us_1_2",
+      "userId": "1",
+      "subjectId": "2",
+      "progress": 58,
+      "completed": 22
+    },
+    {
+      "id": "us_1_3",
+      "userId": "1",
+      "subjectId": "3",
+      "progress": 85,
+      "completed": 36
+    },
+    {
+      "id": "us_1_4",
+      "userId": "1",
+      "subjectId": "4",
+      "progress": 40,
+      "completed": 20
+    },
+    {
+      "id": "us_9584_1",
+      "userId": "9584",
+      "subjectId": "1",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "us_9584_2",
+      "userId": "9584",
+      "subjectId": "2",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "us_9584_3",
+      "userId": "9584",
+      "subjectId": "3",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "us_9584_4",
+      "userId": "9584",
+      "subjectId": "4",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "c1b7",
+      "userId": "85d2",
+      "subjectId": "1",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "ed65",
+      "userId": "85d2",
+      "subjectId": "2",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "eb96",
+      "userId": "85d2",
+      "subjectId": "3",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "6421",
+      "userId": "85d2",
+      "subjectId": "4",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "c597",
+      "userId": "635c",
+      "subjectId": "1",
+      "progress": 10,
+      "completed": 1
+    },
+    {
+      "id": "5e39",
+      "userId": "635c",
+      "subjectId": "2",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "6268",
+      "userId": "635c",
+      "subjectId": "3",
+      "progress": 0,
+      "completed": 0
+    },
+    {
+      "id": "c6e0",
+      "userId": "635c",
+      "subjectId": "4",
+      "progress": 0,
+      "completed": 0
+    }
+  ],
+  "user_lesson_progress": [
+    {
+      "id": "ulp_1_11",
+      "userId": "1",
+      "lessonId": 11,
+      "subjectId": "1",
+      "completed": true,
+      "completedAt": "2026-01-10"
+    },
+    {
+      "id": "ulp_1_12",
+      "userId": "1",
+      "lessonId": 12,
+      "subjectId": "1",
+      "completed": true,
+      "completedAt": "2026-01-11"
+    },
+    {
+      "id": "ulp_1_21",
+      "userId": "1",
+      "lessonId": 21,
+      "subjectId": "1",
+      "completed": true,
+      "completedAt": "2026-01-12"
+    },
+    {
+      "id": "ulp_1_22",
+      "userId": "1",
+      "lessonId": 22,
+      "subjectId": "1",
+      "completed": true,
+      "completedAt": "2026-01-13"
+    },
+    {
+      "id": "ulp_1_41",
+      "userId": "1",
+      "lessonId": 41,
+      "subjectId": "2",
+      "completed": true,
+      "completedAt": "2026-01-15"
+    },
+    {
+      "id": "ulp_1_61",
+      "userId": "1",
+      "lessonId": 61,
+      "subjectId": "3",
+      "completed": true,
+      "completedAt": "2026-01-18"
+    },
+    {
+      "id": "ulp_1_62",
+      "userId": "1",
+      "lessonId": 62,
+      "subjectId": "3",
+      "completed": true,
+      "completedAt": "2026-01-19"
+    },
+    {
+      "id": "ulp_1_63",
+      "userId": "1",
+      "lessonId": 63,
+      "subjectId": "3",
+      "completed": true,
+      "completedAt": "2026-01-20"
+    },
+    {
+      "id": "ulp_1_71",
+      "userId": "1",
+      "lessonId": 71,
+      "subjectId": "3",
+      "completed": true,
+      "completedAt": "2026-01-21"
+    },
+    {
+      "id": "eafd",
+      "userId": "635c",
+      "lessonId": 1,
+      "subjectId": "1",
+      "completed": true,
+      "completedAt": "2026-02-23"
+    }
+  ],
+  "user_quiz_results": [
+    {
+      "id": "60ad",
+      "userId": "635c",
+      "lessonTitle": "مقدمة عن قوانين نيوتن",
+      "subjectName": "الفيزياء",
+      "subjectId": "1",
+      "score": 0,
+      "total": 4,
+      "percentage": 0,
+      "date": "2026-02-23"
+    },
+    {
+      "id": "7178",
+      "userId": "103",
+      "lessonTitle": "الدرس",
+      "subjectName": "الكيمياء",
+      "subjectId": "2",
+      "score": 0,
+      "total": 2,
+      "percentage": 0,
+      "date": "2026-02-24"
+    },
+    {
+      "id": "a49c",
+      "userId": "103",
+      "lessonTitle": "الفصل الخامس: ازدواجية الموجة والجسيم",
+      "subjectName": "الكيمياء",
+      "subjectId": "2",
+      "score": 1,
+      "total": 2,
+      "percentage": 50,
+      "date": "2026-02-24"
+    },
+    {
+      "id": "d9a0",
+      "userId": "583",
+      "lessonTitle": "الفصل الأول: التيار الكهربى وقانون أوم وقانونا كيرتشوف",
+      "subjectName": "الكيمياء",
+      "subjectId": "2",
+      "score": 0,
+      "total": 2,
+      "percentage": 0,
+      "date": "2026-02-24"
+    },
+    {
+      "id": "ad9b",
+      "userId": "583",
+      "lessonTitle": "الفصل الأول: التيار الكهربى وقانون أوم وقانونا كيرتشوف",
+      "subjectName": "الكيمياء",
+      "subjectId": "2",
+      "score": 0,
+      "total": 2,
+      "percentage": 0,
+      "date": "2026-02-24"
+    },
+    {
+      "id": "7e33",
+      "userId": "583",
+      "lessonTitle": "الفصل الأول: التيار الكهربى وقانون أوم وقانونا كيرتشوف",
+      "subjectName": "",
+      "subjectId": "2",
+      "score": 0,
+      "total": 1,
+      "percentage": 0,
+      "date": "2026-02-24"
+    },
+    {
+      "id": "e0f2",
+      "userId": "583",
+      "lessonTitle": "الفصل الأول: التيار الكهربى وقانون أوم وقانونا كيرتشوف",
+      "subjectName": "الفصل السادس: الأطياف الذرية",
+      "subjectId": "2",
+      "score": 1,
+      "total": 1,
+      "percentage": 100,
+      "date": "2026-02-24"
+    },
+    {
+      "id": "2cb1",
+      "userId": "583",
+      "lessonTitle": "الفصل الأول: التيار الكهربى وقانون أوم وقانونا كيرتشوف",
+      "subjectName": "الكيمياء",
+      "subjectId": "2",
+      "score": 0,
+      "total": 2,
+      "percentage": 0,
+      "date": "2026-02-24"
+    },
+    {
+      "id": "f286",
+      "userId": "9584",
+      "lessonTitle": "القانون الأول للحركة",
+      "subjectName": "الفيزياء",
+      "subjectId": "1",
+      "score": 0,
+      "total": 4,
+      "percentage": 0,
+      "date": "2026-02-25"
+    }
+  ],
+  "user_remediation_gaps": [
+    {
+      "id": "urg_1_1",
+      "userId": "1",
+      "gap": "قانون أوم",
+      "subject": "الفيزياء",
+      "subjectId": 1,
+      "lessonId": 5,
+      "lessonTitle": "قانون أوم",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "urg_1_2",
+      "userId": "1",
+      "gap": "المعادلات التربيعية",
+      "subject": "الرياضيات",
+      "subjectId": 4,
+      "lessonId": 1,
+      "lessonTitle": "المعادلات التربيعية",
+      "difficulty": "medium",
+      "completed": false
+    },
+    {
+      "id": "urg_1_3",
+      "userId": "1",
+      "gap": "الاتزان الكيميائي",
+      "subject": "الكيمياء",
+      "subjectId": 2,
+      "lessonId": 1,
+      "lessonTitle": "الاتزان الكيميائي",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "urg_1_4",
+      "userId": "1",
+      "gap": "قانون نيوتن الثاني",
+      "subject": "الفيزياء",
+      "subjectId": 1,
+      "lessonId": 2,
+      "lessonTitle": "قوانين نيوتن",
+      "difficulty": "medium",
+      "completed": false
+    },
+    {
+      "id": "urg_1_5",
+      "userId": "1",
+      "gap": "الخلية وأجزاؤها",
+      "subject": "الأحياء",
+      "subjectId": 3,
+      "lessonId": 1,
+      "lessonTitle": "بيولوجيا الخلية",
+      "difficulty": "easy",
+      "completed": false
+    },
+    {
+      "id": "a74f",
+      "userId": "635c",
+      "gap": "الفيزياء - مقدمة عن قوانين نيوتن",
+      "subject": "الفيزياء",
+      "subjectId": "1",
+      "lessonId": 1,
+      "lessonTitle": "مقدمة عن قوانين نيوتن",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "7496",
+      "userId": "103",
+      "gap": "الكيمياء - الدرس",
+      "subject": "الكيمياء",
+      "subjectId": "2",
+      "lessonId": 1,
+      "lessonTitle": "الدرس",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "a000",
+      "userId": "583",
+      "gap": "الكيمياء - الفصل الأول: التيار الكهربى وقانون أوم وقانونا كيرتشوف",
+      "subject": "الكيمياء",
+      "subjectId": "2",
+      "lessonId": 1,
+      "lessonTitle": "الفصل الأول: التيار الكهربى وقانون أوم وقانونا كيرتشوف",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "9611",
+      "userId": "583",
+      "gap": " - الفصل الأول: التيار الكهربى وقانون أوم وقانونا كيرتشوف",
+      "subject": "",
+      "subjectId": "2",
+      "lessonId": 1,
+      "lessonTitle": "الفصل الأول: التيار الكهربى وقانون أوم وقانونا كيرتشوف",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "a5b2",
+      "userId": "9584",
+      "gap": "الفيزياء - القانون الأول للحركة",
+      "subject": "الفيزياء",
+      "subjectId": "1",
+      "lessonId": 2,
+      "lessonTitle": "القانون الأول للحركة",
+      "difficulty": "hard",
+      "completed": false
+    }
+  ]
+}
