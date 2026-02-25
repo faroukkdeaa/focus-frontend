@@ -1,4 +1,3 @@
-# 🚀 FOCUS - Installation Guide
 
 Follow these steps to set up the project locally on your machine.
 
@@ -38,3 +37,10 @@ npm run dev
 
 The frontend should now be running at http://localhost:5173
 
+### 3. Temporary Mock Backend (Optional - JSON Server)
+You can run the temporary mock API.
+Open a new terminal window in the project directory and run:
+```
+npx json-server --watch db.json --port 3001
+```
+The mock API will be running at http://localhost:3001
