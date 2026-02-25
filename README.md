@@ -1,16 +1,36 @@
-# React + Vite
+# 🚀 FOCUS - Installation Guide
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Follow these steps to set up the project locally on your machine.
 
-Currently, two official plugins are available:
+## 📋 Prerequisites
+Before you begin, make sure you have the following installed:
+- [Node.js](https://nodejs.org/) (Latest LTS version)
+- [XAMPP](https://www.apachefriends.org/) (For PHP & MySQL)
+- [Git](https://git-scm.com/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## 🛠️ Setup Instructions
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 1. Clone the Repository
+Open your terminal and run the following commands to download the project:
 
-## Expanding the ESLint configuration
+```bash
+git clone [https://github.com/faroukkdeaa/focus-frontend.git](https://github.com/faroukkdeaa/focus-frontend.git)
+cd focus-frontend
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+2. Frontend Setup (React)
+Install the required dependencies:
+
+Bash
+npm install
+Environment Variables:
+Create a file named .env in the root directory of the project and add your API key:
+
+Code snippet
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
+Start the development server:
+
+Bash
+npm run dev
+The frontend should now be running at http://localhost:5173
