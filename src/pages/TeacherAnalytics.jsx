@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import { useLanguage } from '../context/LanguageContext';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -115,7 +115,7 @@ const TeacherAnalytics = () => {
     setLoadingContent(true);
     setErrorContent(null);
     try {
-      const { data } = await axios.get(`${API}/teacher_content`);
+      const { data } = await api.get(`${API}/teacher_content`);
       setContent(data);
       // Auto-select first lesson on first load
       setSelectedId(prev => prev ?? data[0]?.id ?? null);
@@ -130,7 +130,7 @@ const TeacherAnalytics = () => {
     setLoadingKpi(true);
     setErrorKpi(null);
     try {
-      const { data } = await axios.get(`${API}/teacher_kpi`);
+      const { data } = await api.get(`${API}/teacher_kpi`);
       setKpi(data);
     } catch {
       setErrorKpi('تعذّر تحميل مؤشرات الأداء.');
@@ -143,7 +143,7 @@ const TeacherAnalytics = () => {
     setLoadingViews(true);
     setErrorViews(null);
     try {
-      const { data } = await axios.get(`${API}/teacher_views_over_time`);
+      const { data } = await api.get(`${API}/teacher_views_over_time`);
       setViewsData(data);
     } catch {
       setErrorViews('تعذّر تحميل بيانات المشاهدات.');

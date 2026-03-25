@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import api from '../api/api';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import {
@@ -122,10 +122,10 @@ const ProgressAnalytics = () => {
     const userId = String(storedUser.id || '');
     // Protected route — user always exists; if somehow empty, stop spinner via promise
     const noop = !userId ? Promise.resolve([{data:[]},{data:[]},{data:[]},{data:[]}]) : Promise.all([
-      axios.get(`${API}/user_subjects?userId=${userId}`),
-      axios.get(`${API}/user_quiz_results?userId=${userId}`),
-      axios.get(`${API}/user_lesson_progress?userId=${userId}`),
-      axios.get(`${API}/user_remediation_gaps?userId=${userId}`),
+      api.get(`${API}/user_subjects?userId=${userId}`),
+      api.get(`${API}/user_quiz_results?userId=${userId}`),
+      api.get(`${API}/user_lesson_progress?userId=${userId}`),
+      api.get(`${API}/user_remediation_gaps?userId=${userId}`),
     ]);
 
     noop.then(([subRes, quizRes, lpRes, remRes]) => {

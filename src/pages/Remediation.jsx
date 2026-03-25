@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import {
   ArrowRight, BookOpen, PlayCircle, Target, Loader2, Zap,
   ChevronDown, ChevronUp, Video, HelpCircle, RefreshCcw, AlertTriangle,
@@ -50,7 +50,7 @@ const GapCard = ({ item, onStartLesson, onFocusedQuiz }) => {
     setLoadingContent(true);
     setErrorContent(null);
     try {
-      const { data } = await axios.get(
+      const { data } = await api.get(
         `${API}/remediation_content?gap=${encodeURIComponent(item.gap)}`
       );
       setContent(data[0] ?? null);
@@ -280,7 +280,7 @@ const Remediation = () => {
         setTopics([]);
         return;
       }
-      const { data } = await axios.get(`${API}/user_remediation_gaps?userId=${userId}`);
+      const { data } = await api.get(`${API}/user_remediation_gaps?userId=${userId}`);
       setTopics(data);
     } catch {
       setError('تعذّر تحميل خطة المعالجة. تأكد من تشغيل json-server.');
@@ -298,7 +298,7 @@ const Remediation = () => {
   const handleStartLesson = async (topic) => {
     try {
       // جلب بيانات الدرس من الكورس
-      const coursesResponse = await axios.get(`http://localhost:3001/courses?subjectId=${topic.subjectId}`);
+      const coursesResponse = await api.get(`http://localhost:3001/courses?subjectId=${topic.subjectId}`);
       if (coursesResponse.data && coursesResponse.data.length > 0) {
         const course = coursesResponse.data[0];
         const lesson = course.lessons?.find(l => l.id === topic.lessonId) || course.lessons?.[0];

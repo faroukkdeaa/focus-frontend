@@ -1,95 +1,50 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useRef } from 'react';
-import axios from 'axios';
 import { CheckCircle2, XCircle, AlertCircle, RefreshCcw, ArrowRight, Home, Award, Brain } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-
-const API = 'http://localhost:3001';
 
 const QuizResults = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { t, lang } = useLanguage();
-  const savedRef = useRef(false); // prevent double-save in StrictMode
-  
-  // Get data from navigation state
+  const savedRef = useRef(false);
+
   const { score, total, questions, userAnswers, lesson, subjectId, subjectName } = location.state || {};
 
   const percentage = location.state ? Math.round((score / total) * 100) : 0;
 
-  // ── Save result to db when page mounts ───────────────────────────────────
+  // حفظ الثغرات في localStorage (النتيجة الفعلية محفوظة بالفعل في الـ backend من Quiz.jsx)
   useEffect(() => {
     if (!location.state || savedRef.current) return;
     savedRef.current = true;
 
-    const saveResult = async () => {
-      try {
-        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-        const userId = String(storedUser.id || '');
-        if (!userId) return;
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = String(storedUser.id || '');
+      if (!userId) return;
 
-        // 1. حفظ نتيجة الكويز في user_quiz_results
-        await axios.post(`${API}/user_quiz_results`, {
-          userId,
-          lessonTitle: lesson?.title || '',
-          subjectName: subjectName || '',
-          subjectId:   String(subjectId || ''),
-          score,
-          total,
-          percentage,
-          date: new Date().toISOString().split('T')[0],
-        });
-
-        // 2. لو النتيجة أقل من 50% — أضف ثغرة جديدة في user_remediation_gaps
-        if (percentage < 50 && lesson) {
-          const gapLabel = `${subjectName || ''} - ${lesson.title || ''}`;
-
-          // تحقق أن الثغرة غير موجودة مسبقاً
-          const existing = await axios.get(
-            `${API}/user_remediation_gaps?userId=${userId}&gap=${encodeURIComponent(gapLabel)}`
-          );
-          if (existing.data.length === 0) {
-            await axios.post(`${API}/user_remediation_gaps`, {
-              userId,
-              gap:        gapLabel,
-              subject:    subjectName || '',
-              subjectId:  subjectId || '',
-              lessonId:   lesson.id || '',
-              lessonTitle: lesson.title || '',
-              difficulty: percentage < 30 ? 'hard' : 'medium',
-              completed:  false,
-            });
-          }
-
-          // 3. حدّث user_dashboards weaknesses
-          const udRes = await axios.get(`${API}/user_dashboards?userId=${userId}`);
-          if (udRes.data.length > 0) {
-            const ud = udRes.data[0];
-            const current = ud.weaknesses || [];
-            if (!current.includes(gapLabel)) {
-              await axios.patch(`${API}/user_dashboards/${ud.id}`, {
-                weaknesses: [...current, gapLabel],
-              });
-            }
-          }
-        }
-
-        // 4. حدّث improvementRate في user_dashboards بناءً على النتيجة
-        const udRes2 = await axios.get(`${API}/user_dashboards?userId=${userId}`);
-        if (udRes2.data.length > 0) {
-          const ud = udRes2.data[0];
-          const prevRate = ud.stats?.improvementRate || 0;
-          const newRate = Math.round((prevRate + percentage) / 2);
-          await axios.patch(`${API}/user_dashboards/${ud.id}`, {
-            stats: { ...ud.stats, improvementRate: newRate },
+      // لو النتيجة أقل من 50% — أضف ثغرة في localStorage
+      if (percentage < 50 && lesson) {
+        const gapLabel = `${subjectName || ''} - ${lesson.title || ''}`;
+        const gaps = JSON.parse(localStorage.getItem('remediationGaps') || '[]');
+        if (!gaps.some(g => g.gap === gapLabel && g.userId === userId)) {
+          gaps.push({
+            userId,
+            gap:        gapLabel,
+            subject:    subjectName || '',
+            subjectId:  subjectId || '',
+            lessonId:   lesson.id || '',
+            lessonTitle: lesson.title || '',
+            difficulty: percentage < 30 ? 'hard' : 'medium',
+            completed:  false,
+            date:       new Date().toISOString().split('T')[0],
           });
+          localStorage.setItem('remediationGaps', JSON.stringify(gaps));
         }
-      } catch (err) {
-        console.error('Save quiz result error:', err);
       }
-    };
-
-    saveResult();
+    } catch (err) {
+      console.error('Save quiz result error:', err);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

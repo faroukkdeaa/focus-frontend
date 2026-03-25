@@ -1,8 +1,35 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import { ArrowRight, Clock, Loader2, AlertCircle } from "lucide-react";
 import { useLanguage } from '../context/LanguageContext';
+import { MOCK_API, REAL_TO_MOCK_SUBJECT } from '../utils/subjectMapping';
+
+// تحويل سؤال real API للشكل الداخلي ({ id, question, options:[], correct:N })
+const normalizeQuestion = (q, idx) => {
+  // Real API format: option_1, option_2, option_3, option_4
+  if (q.option_1 !== undefined) {
+    const options = [q.option_1, q.option_2, q.option_3, q.option_4].filter(Boolean);
+    // correct_answer not returned in question list — scored by server
+    return {
+      id:       q.question_id ?? q.id ?? idx,
+      question: q.question ?? q.question_text ?? `Q${idx + 1}`,
+      options,
+      correct:  -1, // يحسبها السيرفر
+      _realId:  q.question_id ?? q.id,
+    };
+  }
+  // Mock format: options as array + correct as index
+  if (Array.isArray(q.options) && typeof q.correct === 'number') return { ...q, _realId: q.id ?? q.question_id };
+  // choices format: [{id, text, is_correct}]
+  if (Array.isArray(q.choices)) {
+    const options = q.choices.map(c => c.text ?? c.answer_text ?? String(c));
+    const correct = q.choices.findIndex(c => c.id === q.correct_choice_id || c.is_correct);
+    return { id: q.id ?? q.question_id ?? idx, question: q.question ?? q.question_text, options, correct: correct >= 0 ? correct : 0, _realId: q.id ?? q.question_id };
+  }
+  // fallback
+  return { id: idx, question: q.question ?? q.question_text ?? `Q${idx}`, options: [], correct: 0, _realId: q.id ?? q.question_id };
+};
 
 const Quiz = () => {
   const navigate = useNavigate();
@@ -10,22 +37,26 @@ const Quiz = () => {
   const { t, lang } = useLanguage();
 
   // جلب بيانات الدرس من location.state
-  const lesson = location.state?.lesson;
-  const subjectId = location.state?.subjectId;
+  const lesson     = location.state?.lesson;
+  const subjectId  = location.state?.subjectId;
+  const teacherId  = location.state?.teacherId;  // مطلوب لجلب كويز من real API
 
   // 1. حالات التحكم (State)
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [userAnswers, setUserAnswers] = useState({}); // New: Track all answers
+  const [userAnswers, setUserAnswers] = useState({});
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [quizData, setQuizData] = useState(null);
   const [timeLeft, setTimeLeft] = useState(600);
+  const [submitting, setSubmitting] = useState(false);
+  // real API params — محتاجينهم عشان نسلم الإجابات
+  const [realParams, setRealParams] = useState(null); // { subjectId, teacherId, lessonId, videoId, quizId }
 
   const questions = quizData?.questions || [];
 
-  // جلب بيانات الاختبار من json-server
+  // جلب بيانات الاختبار — real API أولاً، fallback لـ mock
   useEffect(() => {
     const loadQuiz = async () => {
       try {
@@ -38,38 +69,59 @@ const Quiz = () => {
           return;
         }
 
-        // البحث عن الاختبار بناءً على lessonId و subjectId
-        const response = await axios.get(
-          `http://localhost:3001/quizzes?lessonId=${lesson.id}&subjectId=${subjectId}`
-        );
-
-        if (response.data && response.data.length > 0) {
-          const quiz = response.data[0];
-          setQuizData(quiz);
-          setTimeLeft(quiz.timeLimit || 600);
-        } else {
-          // لو مفيش اختبار محدد، نجيب أول اختبار للمادة
-          const fallbackResponse = await axios.get(
-            `http://localhost:3001/quizzes?subjectId=${subjectId}`
-          );
-          if (fallbackResponse.data && fallbackResponse.data.length > 0) {
-            const quiz = fallbackResponse.data[0];
-            setQuizData(quiz);
-            setTimeLeft(quiz.timeLimit || 600);
-          } else {
-            setError('لا يوجد اختبار متاح لهذا الدرس.');
+        // ── 1. Real API: subjects/{s}/teachers/{t}/lessons/{l}/content ──────────
+        if (teacherId) {
+          try {
+            const contentRes = await api.get(
+              `/teachers/${teacherId}/lessons/${lesson.id}/content`
+            );
+            const videos = contentRes.data?.videos || [];
+            // ابحث عن أول video عنده quiz بأسئلة
+            for (const video of videos) {
+              const quizzes = video.quizzes || [];
+              for (const q of quizzes) {
+                const normalizedQs = (q.questions || []).map(normalizeQuestion);
+                if (normalizedQs.length > 0) {
+                  setQuizData({
+                    title:       q.lesson_name ?? lesson.title ?? 'اختبار',
+                    subtitle:    video.video_title ?? '',
+                    lessonTitle: q.lesson_name ?? lesson.title ?? '',
+                    questions:   normalizedQs,
+                    timeLimit:   600,
+                  });
+                  setRealParams({
+                    subjectId,
+                    teacherId,
+                    lessonId:  lesson.id,
+                    videoId:   video.video_id,
+                    quizId:    q.quiz_id,
+                  });
+                  setTimeLeft(600);
+                  setLoading(false);
+                  return; // تم التحميل من real API
+                }
+              }
+            }
+          } catch (err) {
+            console.warn('Real API quiz load failed:', err.message);
           }
         }
+
+        // لو مفيش quiz من الـ API، اعرض رسالة
+        if (!quizData) {
+          setError('لا يوجد اختبار متاح لهذا الدرس.');
+        }
       } catch (err) {
-        console.error("Quiz loading error:", err);
-        setError('تعذر تحميل الاختبار. تأكد من تشغيل json-server.');
+        console.error('Quiz loading error:', err);
+        setError('تعذر تحميل الاختبار.');
       } finally {
         setLoading(false);
       }
     };
 
     loadQuiz();
-  }, [lesson, subjectId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson?.id, subjectId, teacherId]);
 
   // دالة العداد التنازلي
   useEffect(() => {
@@ -95,7 +147,7 @@ const Quiz = () => {
   };
 
   // السؤال التالي
-  const handleNextQuestion = () => {
+  const handleNextQuestion = async () => {
     // Save current answer
     const updatedAnswers = { ...userAnswers, [currentQuestion]: selectedAnswer };
     setUserAnswers(updatedAnswers);
@@ -113,12 +165,12 @@ const Quiz = () => {
       setSelectedAnswer(null);
     } else {
       // This case theoretically handled by the button text check, but safe to have
-      finishQuizLogic(updatedAnswers);
+      await finishQuizLogic(updatedAnswers);
     }
   };
 
   // إنهاء الامتحان
-  const handleFinishQuiz = () => {
+  const handleFinishQuiz = async () => {
     // Save current answer before finishing (if any selected)
     let finalAnswers = { ...userAnswers };
     let finalScore = score;
@@ -130,20 +182,79 @@ const Quiz = () => {
       }
     }
 
-    finishQuizLogic(finalAnswers, finalScore);
+    await finishQuizLogic(finalAnswers, finalScore);
   };
 
-  const finishQuizLogic = (finalAnswers, finalScore = score) => {
+  const finishQuizLogic = async (finalAnswers, finalScore = score) => {
+    setSubmitting(true);
+
+    // ── Real API submit ────────────────────────────────────────────────────
+    if (realParams) {
+      try {
+        const token = localStorage.getItem('token');
+        const { subjectId: sId, teacherId: tId, lessonId: lId, videoId, quizId } = realParams;
+
+        // حوّل الإجابات: [{ question_id, answer_text }]
+        const answers = Object.entries(finalAnswers).map(([qIdx, aIdx]) => ({
+          question_id: questions[Number(qIdx)]?._realId ?? questions[Number(qIdx)]?.id,
+          answer_text:  questions[Number(qIdx)]?.options?.[aIdx] ?? String(aIdx),
+        }));
+
+        const res = await api.post(
+          `/quiz/${quizId}/answer`,
+          { answers }
+        );
+
+        const serverScore = res.data?.score ?? finalScore;
+
+        // حفظ إتمام الدرس في localStorage
+        try {
+          const completionData = JSON.parse(localStorage.getItem('lessonCompletions') || '{}');
+          completionData[lId] = {
+            subjectId: String(sId),
+            completed: true,
+            completedAt: new Date().toISOString().split('T')[0],
+          };
+          localStorage.setItem('lessonCompletions', JSON.stringify(completionData));
+        } catch { /* غير حرج */ }
+
+        navigate('/quiz-results', {
+          state: {
+            score:       serverScore,
+            total:       questions.length,
+            questions,
+            userAnswers: finalAnswers,
+            lesson,
+            subjectId:   sId,
+            teacherId:   tId,
+            subjectName: quizData?.subjectName,
+            fromRealApi: true,
+          },
+        });
+        return;
+      } catch (err) {
+        console.error('Real API submit error:', err);
+        // لو السيرفر وقع → نعرض خطأ بدل ما نروح لنتيجة غلط
+        setError('تعذّر إرسال الإجابات للسيرفر. تأكد من اتصالك وحاول مرة أخرى.');
+        setSubmitting(false);
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
+    // ── Mock / local fallback ──────────────────────────────────────────────
+    setSubmitting(false);
     navigate('/quiz-results', {
       state: {
-        score: finalScore,
-        total: questions.length,
-        questions: questions,
+        score:       finalScore,
+        total:       questions.length,
+        questions,
         userAnswers: finalAnswers,
-        lesson: lesson,
-        subjectId: subjectId,
+        lesson,
+        subjectId,
         subjectName: quizData?.subjectName,
-      }
+      },
     });
   };
 
@@ -216,8 +327,8 @@ const Quiz = () => {
             <h1 className="font-bold text-gray-800 dark:text-white">{quizData.title}</h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">{quizData.subtitle || quizData.lessonTitle}</p>
           </div>
-          <button onClick={handleFinishQuiz} className="text-gray-400 hover:text-red-500 transition">
-            <span className="text-sm font-bold">{t('finish_quiz')}</span>
+          <button onClick={handleFinishQuiz} disabled={submitting} className="text-gray-400 hover:text-red-500 disabled:opacity-50 transition">
+            <span className="text-sm font-bold">{submitting ? '...' : t('finish_quiz')}</span>
           </button>
         </div>
       </header>
@@ -294,11 +405,11 @@ const Quiz = () => {
                 handleNextQuestion();
               }
             }}
-            disabled={selectedAnswer === null}
-            className="bg-[#103B66] hover:bg-[#0c2d4d] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:shadow-none transition flex items-center gap-2"
-          >
-            {currentQuestion === questions.length - 1 ? t('finish_quiz') : t('next_question')}
-            <ArrowRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
+            disabled={selectedAnswer === null || submitting}
+            className="bg-[#103B66] hover:bg-[#0c2d4d] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:shadow-none transition flex items-center gap-2">
+            {submitting
+              ? <><Loader2 className="w-5 h-5 animate-spin" /> جاري الإرسال...</>
+              : <>{currentQuestion === questions.length - 1 ? t('finish_quiz') : t('next_question')}<ArrowRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} /></>}
           </button>
         </div>
       </main>

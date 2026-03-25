@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import { Loader2 } from 'lucide-react';
 import { isValidEmail, isValidPassword, isValidFullName } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
@@ -46,69 +46,43 @@ const SignUp = () => {
 
     setLoading(true);
     try {
-      // عندما يكون الباكند جاهزاً، استبدل الكود التالي بـ:
-      // const response = await axios.post('http://localhost:8000/api/register', {
-      //   name: fullName, email, password, grade: academicYear, role: 'student'
-      // });
-      // const { token, user } = response.data;
-      // localStorage.setItem('token', token);
-      // localStorage.setItem('user', JSON.stringify(user));
-      // navigate('/dashboard');
-
-      // 1. التحقق من عدم تكرار البريد الإلكتروني
-      const checkResponse = await axios.get(
-        `http://localhost:3001/users?email=${encodeURIComponent(email)}`
+      // POST /api/register — بيرجع { data: { role, student_name, student_id, user_id }, token }
+      const response = await api.post(
+        '/register',
+        {
+          name:                  fullName,
+          email,
+          password,
+          password_confirmation: confirmPassword,
+          student:               true,
+        }
       );
-      if (checkResponse.data && checkResponse.data.length > 0) {
-        setError('هذا البريد الإلكتروني مسجل بالفعل. جرب تسجيل الدخول.');
-        setLoading(false);
-        return;
-      }
 
-      // 2. إنشاء المستخدم الجديد في json-server
-      const newUser = {
-        name: fullName,
+      // register بيلف الـ user في data key (مختلف عن login اللي بيستخدم user key)
+      const user  = response.data.data  ?? response.data.user;
+      const token = response.data.token;
+
+      // تطبيع المفاتيح — student_name → name  |  user_id → id
+      const normalizedUser = {
+        id:         String(user.user_id),
+        student_id: user.student_id ?? null,
+        name:       user.student_name ?? fullName,
         email,
-        password, // في الباكند الحقيقي، الباسورد هيتشفّر (hashed)
-        grade: academicYear,
-        role: 'student',
-        avatar: null,
+        role:       'student',
+        grade:      academicYear,
       };
 
-      const createResponse = await axios.post('http://localhost:3001/users', newUser);
-      const createdUser = createResponse.data;
-
-      // 3. إنشاء داشبورد خاص بالمستخدم الجديد
-      await axios.post('http://localhost:3001/user_dashboards', {
-        userId:       String(createdUser.id),
-        studentName:  fullName,
-        upcomingExams: 0,
-        weaknesses:   [],
-        stats: { completedLessons: 0, improvementRate: 0, studyHours: 0 },
-      });
-
-      // 4. إنشاء تقدم صفري لكل مادة للمستخدم الجديد
-      const subjectsRes = await axios.get('http://localhost:3001/subjects');
-      await Promise.all(
-        subjectsRes.data.map(s =>
-          axios.post('http://localhost:3001/user_subjects', {
-            userId:    String(createdUser.id),
-            subjectId: s.id,
-            progress:  0,
-            completed: 0,
-          })
-        )
-      );
-
-      // 5. حفظ بيانات الجلسة في localStorage (بدون كلمة المرور)
-      const { password: _, ...userWithoutPassword } = createdUser;
-      localStorage.setItem('token', `fake-jwt-token-${createdUser.id}-${Date.now()}`);
-      localStorage.setItem('user', JSON.stringify(userWithoutPassword));
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
 
       navigate('/dashboard');
     } catch (err) {
       console.error('SignUp error:', err);
-      setError(err.response?.data?.message || err.message || 'حدث خطأ أثناء إنشاء الحساب.');
+      const msg = err.response?.data?.message
+        ?? err.response?.data?.errors
+        ?? err.message
+        ?? 'حدث خطأ أثناء إنشاء الحساب.';
+      setError(typeof msg === 'object' ? Object.values(msg).flat().join(' — ') : msg);
     } finally {
       setLoading(false);
     }
@@ -255,3 +229,4 @@ const SignUp = () => {
 };
 
 export default SignUp;
+

@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import { useLanguage } from '../context/LanguageContext';
 import {
   Target, Timer, CheckCircle2, XCircle, Zap,
@@ -38,7 +38,7 @@ const FocusedQuiz = () => {
     setLoadingQ(true);
     setErrorQ(null);
     try {
-      const { data } = await axios.get(`${API}/focused_questions`);
+      const { data } = await api.get(`${API}/focused_questions`);
       // Mirror the original filtering logic: match by subtopic bidirectionally
       if (subtopic) {
         const lower    = subtopic.toLowerCase();

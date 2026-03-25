@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import {
   ArrowRight, BookOpen, PlayCircle, Loader2, CheckCircle2,
   ChevronDown, ChevronUp, Clock, AlertTriangle, RefreshCcw, Zap,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-
-const API = 'http://localhost:3001';
+import { MOCK_API, REAL_TO_MOCK_SUBJECT, SUBJECT_ICONS } from '../utils/subjectMapping';
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -154,18 +153,27 @@ const SubjectPage = () => {
 
   const [subject,        setSubject]        = useState(null);
   const [units,          setUnits]          = useState([]);
+  const [activeTeacherId, setActiveTeacherId] = useState(null); // محتاجلـ Quiz
   const [loadingSubject, setLoadingSubject] = useState(true);
   const [loadingUnits,   setLoadingUnits]   = useState(true);
   const [errorSubject,   setErrorSubject]   = useState(null);
   const [errorUnits,     setErrorUnits]     = useState(null);
 
-  // ── Fetch subject basic info ──────────────────────────────────────────────
+  // ── Fetch subject basic info from real backend ──────────────────────────
   const fetchSubject = useCallback(async () => {
     setLoadingSubject(true);
     setErrorSubject(null);
     try {
-      const { data } = await axios.get(`${API}/subjects/${subjectId}`);
-      setSubject(data);
+      const { data } = await api.get('/subjects');
+      const found = data.find(s => String(s.id) === String(subjectId));
+      if (!found) throw new Error('subject not found');
+      setSubject({
+        id:     found.id,
+        name:   found.title,
+        code:   found.code,
+        icon:   SUBJECT_ICONS[found.code] ?? '📚',
+        lessons: 0,
+      });
     } catch {
       setErrorSubject('تعذّر تحميل بيانات المادة.');
     } finally {
@@ -173,36 +181,173 @@ const SubjectPage = () => {
     }
   }, [subjectId]);
 
-  // ── Fetch all units (with nested lessons) for this subject ────────────────
+  // ── Fetch units from /subjects/{id}/subtopics ──────────────────────────
   const fetchUnits = useCallback(async () => {
     setLoadingUnits(true);
     setErrorUnits(null);
     try {
-      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = String(storedUser.id || '');
+      let unitsData = [];
+      let usedTeacherId = null;
 
-      const [unitsRes, progressRes] = await Promise.all([
-        axios.get(`${API}/subject_units?subjectId=${subjectId}&_sort=order`),
-        userId
-          ? axios.get(`${API}/user_lesson_progress?userId=${userId}&subjectId=${subjectId}`)
-          : Promise.resolve({ data: [] }),
-      ]);
+      // 1. /subjects/{id}/subtopics — بيرجع subject مع units → lessons → subtopics
+      try {
+        const { data } = await api.get(`/subjects/${subjectId}/subtopics`);
+        // الـ API بترجع الـ subject object مباشرة مع units كـ property
+        const rawUnits = data?.units || data || [];
+        if (Array.isArray(rawUnits) && rawUnits.length > 0) {
+          unitsData = rawUnits.map((u, idx) => ({
+            id:    u.id,
+            title: u.title,
+            order: idx + 1,
+            lessons: (u.lessons || []).map(l => ({
+              id:          l.id,
+              title:       l.title,
+              duration:    l.duration ?? '--',
+              chapter:     u.title,
+              description: l.description ?? '',
+              completed:   false,
+            })),
+          }));
+        }
+      } catch (err) {
+        console.log('subtopics API error:', err.message);
+        /* fallback below */
+      }
 
-      // بناء Set من معرّفات الدروس المكتملة لهذا المستخدم
+      // 2. fallback: /subjects/{id}/units → /units/{id}/lessons
+      if (unitsData.length === 0) {
+        try {
+          const unitsRes = await api.get(`/subjects/${subjectId}/units`);
+          const rawUnits = unitsRes.data?.units || unitsRes.data || [];
+          if (Array.isArray(rawUnits) && rawUnits.length > 0) {
+            // جلب الدروس لكل وحدة
+            const unitsWithLessons = await Promise.all(
+              rawUnits.map(async (u, idx) => {
+                try {
+                  const lessonsRes = await api.get(`/units/${u.id}/lessons`);
+                  const lessons = lessonsRes.data?.lessons || lessonsRes.data || [];
+                  return {
+                    id: u.id,
+                    title: u.title,
+                    order: idx + 1,
+                    lessons: lessons.map(l => ({
+                      id: l.id,
+                      title: l.title,
+                      duration: l.duration ?? '--',
+                      chapter: u.title,
+                      description: l.description ?? '',
+                      completed: false,
+                    })),
+                  };
+                } catch {
+                  return { id: u.id, title: u.title, order: idx + 1, lessons: [] };
+                }
+              })
+            );
+            unitsData = unitsWithLessons;
+          }
+        } catch (err) {
+          console.log('units API error:', err.message);
+        }
+      }
+
+      // 3. fallback: teachers → lessons (ابحث عن مدرس عنده دروس)
+      if (unitsData.length === 0) {
+        try {
+          const teachersRes = await api.get(`/subjects/${subjectId}/teachers`);
+          const allTeachers = teachersRes.data?.teachers || teachersRes.data || [];
+          // جرّب أول 10 مدرسين لحد ما نلاقي واحد عنده دروس
+          const teachersToTry = allTeachers.slice(0, 10);
+
+          for (const teacher of teachersToTry) {
+            const teacherId = teacher.teacher_id || teacher.id;
+            try {
+              const lessonsRes = await api.get(`/teachers/${teacherId}/lessons`);
+              const rawLessons = lessonsRes.data?.lessons || lessonsRes.data || [];
+
+              if (rawLessons.length > 0) {
+                usedTeacherId = teacherId;
+                console.log(`✅ Found teacher with lessons: ${teacherId} (${rawLessons.length} lessons)`);
+                const chapterMap = {};
+                rawLessons.forEach(l => {
+                  const key = l.chapter || 'الوحدة الأولى';
+                  if (!chapterMap[key]) {
+                    chapterMap[key] = {
+                      id: Object.keys(chapterMap).length + 1,
+                      title: key,
+                      order: Object.keys(chapterMap).length + 1,
+                      lessons: []
+                    };
+                  }
+                  chapterMap[key].lessons.push({
+                    id: l.id,
+                    title: l.title ?? l.name ?? `Lesson ${l.id}`,
+                    duration: l.duration ?? '--',
+                    chapter: l.chapter ?? '',
+                    description: l.description ?? '',
+                    completed: false,
+                  });
+                });
+                unitsData = Object.values(chapterMap);
+                break; // لقينا مدرس عنده دروس
+              }
+            } catch {
+              // جرّب المدرس التالي
+            }
+          }
+        } catch (err) {
+          console.log('teachers API error:', err.message);
+        }
+      }
+
+      // 4. جيب أول مدرس عنده دروس لصفحة الكويز
+      if (!usedTeacherId) {
+        try {
+          const teachersRes = await api.get(`/subjects/${subjectId}/teachers`);
+          const allTeachers = teachersRes.data?.teachers || teachersRes.data || [];
+          // جرّب أول 10 مدرسين
+          for (const teacher of allTeachers.slice(0, 10)) {
+            const tid = teacher.teacher_id || teacher.id;
+            try {
+              const lessonsRes = await axios.get(`teachers/${tid}/lessons`);
+              const lessons = lessonsRes.data?.lessons || lessonsRes.data || [];
+              if (lessons.length > 0) {
+                usedTeacherId = tid;
+                break;
+              }
+            } catch { /* جرّب التالي */ }
+          }
+          // fallback لأول مدرس لو مفيش حد عنده دروس
+          if (!usedTeacherId && allTeachers.length > 0) {
+            usedTeacherId = allTeachers[0].teacher_id || allTeachers[0].id;
+          }
+        } catch { /* ignore */ }
+      }
+      setActiveTeacherId(usedTeacherId);
+
+      // 5. لو مفيش data، الصفحة هتعرض "لا توجد دروس" (بدون mock fallback)
+
+      // 6. دمج تقدم المستخدم من localStorage
+      const completionData = JSON.parse(localStorage.getItem('lessonCompletions') || '{}');
       const completedSet = new Set(
-        progressRes.data.filter(p => p.completed).map(p => p.lessonId)
+        Object.keys(completionData)
+          .filter(k => completionData[k]?.subjectId === String(subjectId) && completionData[k]?.completed)
+          .map(k => Number(k))
       );
 
-      // دمج حالة الإتمام من بيانات المستخدم بدل الحالة العالمية
-      const merged = unitsRes.data.map(unit => ({
+      const merged = unitsData.map(unit => ({
         ...unit,
-        lessons: unit.lessons.map(lesson => ({
+        lessons: (unit.lessons || []).map(lesson => ({
           ...lesson,
           completed: completedSet.has(lesson.id),
         })),
       }));
 
       setUnits(merged);
+
+      // حدّث عدد الدروس في subject
+      const totalLessonCount = merged.reduce((s, u) => s + u.lessons.length, 0);
+      setSubject(prev => prev ? { ...prev, lessons: totalLessonCount } : prev);
     } catch {
       setErrorUnits('تعذّر تحميل وحدات المادة.');
     } finally {
@@ -224,10 +369,10 @@ const SubjectPage = () => {
 
   // ── Navigation helpers ────────────────────────────────────────────────────
   const handleStartLesson = (lesson, sid) =>
-    navigate('/course-details', { state: { lesson, subjectId: sid } });
+    navigate('/course-details', { state: { lesson, subjectId: sid, subjectName: subject?.name } });
 
   const handleQuiz = (lesson, sid) =>
-    navigate('/quiz', { state: { lessonId: lesson.id, subjectId: sid, lessonTitle: lesson.title } });
+    navigate('/quiz', { state: { lesson, subjectId: sid, teacherId: activeTeacherId, subjectName: subject?.name } });
 
   // ── Full-page loader (both sections loading simultaneously on first mount) ─
   if (loadingSubject && loadingUnits) {

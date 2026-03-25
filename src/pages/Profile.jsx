@@ -1,14 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import {
   ArrowRight, User, Mail, Lock, Loader2, CheckCircle2, AlertCircle, Settings,
   Flame, Trophy, TrendingUp, BookOpen, Clock, Target, RefreshCcw, AlertTriangle,
 } from 'lucide-react';
 import { isValidEmail, isValidPassword, isValidFullName } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
-
-const API = 'http://localhost:3001';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -43,13 +41,39 @@ const Profile = () => {
   const [errorStats,          setErrorStats]          = useState(null);
   const [errorAchievements,   setErrorAchievements]   = useState(null);
 
-  const fetchStats = useCallback(async (uid) => {
-    if (!uid) return;
+  const fetchStats = useCallback(async () => {
     setLoadingStats(true);
     setErrorStats(null);
     try {
-      const { data } = await axios.get(`${API}/profile_stats?userId=${uid}`);
-      setStats(data[0] ?? null);
+      const token = localStorage.getItem('token');
+      if (!token) { setStats(null); return; }
+      const { data } = await api.get('/students/attempts');
+      const attempts = data?.quizzesAttempt?.data || data?.quizzesAttempt || [];
+
+      // حساب الإحصائيات من بيانات المحاولات
+      const completedLessonsSet = new Set(attempts.map(a => a.lesson_title));
+      const totalScore = attempts.reduce((s, a) => s + (a.score || 0), 0);
+      const avgScore = attempts.length ? Math.round(totalScore / attempts.length) : 0;
+
+      // حساب سلسلة الاستمرار (بناءً على أيام المحاولات الأخيرة)
+      const dates = [...new Set(attempts.map(a => a.created_at?.split(' ')[0]).filter(Boolean))].sort().reverse();
+      let streak = 0;
+      const today = new Date();
+      for (let i = 0; i < dates.length; i++) {
+        const d = new Date(dates[i]);
+        const diff = Math.floor((today - d) / (1000 * 60 * 60 * 24));
+        if (diff <= i + 1) streak++;
+        else break;
+      }
+
+      setStats({
+        streak,
+        longestStreak: streak,
+        completedLessons: completedLessonsSet.size,
+        studyHours: 0,
+        avgQuizScore: avgScore,
+        totalQuizzes: attempts.length,
+      });
     } catch {
       setErrorStats('تعذّر تحميل الإحصائيات.');
     } finally {
@@ -57,14 +81,23 @@ const Profile = () => {
     }
   }, []);
 
-  const fetchAchievements = useCallback(async (uid) => {
-    if (!uid) return;
+  const fetchAchievements = useCallback(async () => {
     setLoadingAchievements(true);
     setErrorAchievements(null);
     try {
-      const { data } = await axios.get(`${API}/profile_achievements?userId=${uid}`);
-      // earned first, then locked
-      setAchievements(data.sort((a, b) => b.earned - a.earned));
+      const token = localStorage.getItem('token');
+      if (!token) { setAchievements([]); return; }
+      const { data } = await api.get('/students/attempts');
+      const attempts = data?.quizzesAttempt?.data || data?.quizzesAttempt || [];
+
+      // بناء إنجازات بسيطة من بيانات المحاولات
+      const badges = [
+        { id: 1, emoji: '🎯', title: 'أول اختبار', description: 'أكمل أول اختبار', earned: attempts.length >= 1, earnedDate: attempts[0]?.created_at },
+        { id: 2, emoji: '🔥', title: '5 اختبارات', description: 'أكمل 5 اختبارات', earned: attempts.length >= 5 },
+        { id: 3, emoji: '⭐', title: '10 اختبارات', description: 'أكمل 10 اختبارات', earned: attempts.length >= 10 },
+        { id: 4, emoji: '🏆', title: 'درجة كاملة', description: 'احصل على درجة كاملة في اختبار', earned: attempts.some(a => a.score > 0) },
+      ];
+      setAchievements(badges.sort((a, b) => Number(b.earned) - Number(a.earned)));
     } catch {
       setErrorAchievements('تعذّر تحميل الإنجازات.');
     } finally {
@@ -75,58 +108,38 @@ const Profile = () => {
   // fire when user id becomes available
   useEffect(() => {
     if (user?.id) {
-      fetchStats(user.id);
-      fetchAchievements(user.id);
+      fetchStats();
+      fetchAchievements();
     }
   }, [user?.id, fetchStats, fetchAchievements]);
 
   useEffect(() => {
     const loadUserData = async () => {
-      // جلب بيانات المستخدم من localStorage للحصول على ID
       const userJson = localStorage.getItem('user');
-      if (!userJson) {
-        navigate('/login');
-        return;
-      }
+      if (!userJson) { navigate('/login'); return; }
+
+      const cached = JSON.parse(userJson);
+      // سيّت البيانات المحلية فوراً عشان الصفحة متستناش
+      setUser(cached);
+      setName(cached.name   || '');
+      setEmail(cached.email || '');
+      setGrade(cached.grade || '');
+
+      // جلب أحدث بيانات من GET /api/me باستخدام JWT token
+      const token = localStorage.getItem('token');
+      if (!token) return;
 
       try {
-        const userData = JSON.parse(userJson);
-        
-        // جلب البيانات الحقيقية من json-server بناءً على user.id
-        // عندما يكون الباكند جاهزاً، استخدم:
-        // const token = localStorage.getItem('token');
-        // const response = await axios.get(`http://localhost:8000/api/users/${userData.id}`, {
-        //   headers: { Authorization: `Bearer ${token}` }
-        // });
-        
-        if (userData.id) {
-          const response = await axios.get(`http://localhost:3001/users/${userData.id}`);
-          const freshUserData = response.data;
-          
-          // تحديث state بالبيانات الحقيقية من json-server
-          setUser(freshUserData);
-          setName(freshUserData.name || '');
-          setEmail(freshUserData.email || '');
-          setGrade(freshUserData.grade || '');
-          
-          // تحديث localStorage بالبيانات الصحيحة
-          const { password: _, ...userWithoutPassword } = freshUserData;
-          localStorage.setItem('user', JSON.stringify(userWithoutPassword));
-        } else {
-          // Fallback: استخدام البيانات من localStorage لو مفيش id
-          setUser(userData);
-          setName(userData.name || '');
-          setEmail(userData.email || '');
-          setGrade(userData.grade || '');
-        }
-      } catch (err) {
-        console.error('Error loading user data:', err);
-        // Fallback: استخدام البيانات من localStorage في حالة الخطأ
-        const userData = JSON.parse(userJson);
-        setUser(userData);
-        setName(userData.name || '');
-        setEmail(userData.email || '');
-        setGrade(userData.grade || '');
+        // GET /api/me بيرجع { id, name, email, email_verified_at, ... }
+        const { data: fresh } = await api.get('/me');
+        // دمج مع البيانات المحلية (grade, role, student_id مش موجودين في /me)
+        const merged = { ...cached, name: fresh.name, email: fresh.email };
+        setUser(merged);
+        setName(fresh.name   || '');
+        setEmail(fresh.email || '');
+        localStorage.setItem('user', JSON.stringify(merged));
+      } catch {
+        // token منتهي أو خطأ في الشبكة — نفضل على البيانات المحلية
       }
     };
 
@@ -151,27 +164,11 @@ const Profile = () => {
 
     setLoading(true);
     try {
-      // محاكاة API call - عندما يكون الباكند جاهزاً، استخدم:
-      // const token = localStorage.getItem('token');
-      // const userId = user.id;
-      // await axios.patch(`http://localhost:8000/api/users/${userId}`, { name, email }, {
-      //   headers: { Authorization: `Bearer ${token}` }
-      // });
-
-      // محاكاة مع json-server
-      if (user && user.id) {
-        // تحديث البيانات في json-server
-        const response = await axios.patch(`http://localhost:3001/users/${user.id}`, { name, email });
-        const updatedUserData = response.data;
-        
-        // تحديث localStorage بالبيانات المحدثة (بدون كلمة المرور)
-        const { password: _, ...userWithoutPassword } = updatedUserData;
-        localStorage.setItem('user', JSON.stringify(userWithoutPassword));
-        
-        // تحديث state
-        setUser(userWithoutPassword);
-        setSuccess('تم حفظ التغييرات بنجاح!');
-      }
+      // تحديث localStorage مباشرة (endpoint تعديل بيانات المستخدم مش موجود في الـ backend لسه)
+      const updated = { ...user, name, email };
+      localStorage.setItem('user', JSON.stringify(updated));
+      setUser(updated);
+      setSuccess('تم حفظ التغييرات محلياً. (سيتم ربطها بالسيرفر قريباً)');
     } catch (err) {
       console.error('Profile update error:', err);
       setError('فشل حفظ التغييرات. حاول مرة أخرى.');
@@ -200,40 +197,8 @@ const Profile = () => {
       return;
     }
 
-    setPasswordLoading(true);
-    try {
-      // محاكاة API call - عندما يكون الباكند جاهزاً، استخدم:
-      // const token = localStorage.getItem('token');
-      // await axios.post(`http://localhost:8000/api/users/change-password`, {
-      //   currentPassword,
-      //   newPassword
-      // }, {
-      //   headers: { Authorization: `Bearer ${token}` }
-      // });
-
-      // محاكاة مع json-server (التحقق من كلمة المرور الحالية)
-      if (user && user.id) {
-        const userResponse = await axios.get(`http://localhost:3001/users/${user.id}`);
-        if (userResponse.data.password !== currentPassword) {
-          setPasswordError('كلمة المرور الحالية غير صحيحة.');
-          setPasswordLoading(false);
-          return;
-        }
-
-        // تحديث كلمة المرور
-        await axios.patch(`http://localhost:3001/users/${user.id}`, { password: newPassword });
-        
-        setPasswordSuccess('تم تغيير كلمة المرور بنجاح!');
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-      }
-    } catch (err) {
-      console.error('Password change error:', err);
-      setPasswordError('فشل تغيير كلمة المرور. حاول مرة أخرى.');
-    } finally {
-      setPasswordLoading(false);
-    }
+    // endpoint تغيير كلمة المرور مش موجود في الـ backend لسه
+    setPasswordError('هذه الميزة غير متوفرة حالياً. سيتم إضافتها قريباً.');
   };
 
   if (!user) {
@@ -291,7 +256,7 @@ const Profile = () => {
             <div className="py-4 flex flex-col items-center gap-2 text-center">
               <AlertTriangle className="w-6 h-6 text-amber-400" />
               <p className="text-sm text-gray-500 dark:text-gray-400">{errorStats}</p>
-              <button onClick={() => fetchStats(user?.id)} className="flex items-center gap-1.5 text-sm font-bold text-[#103B66] dark:text-blue-400 hover:underline">
+              <button onClick={() => fetchStats()} className="flex items-center gap-1.5 text-sm font-bold text-[#103B66] dark:text-blue-400 hover:underline">
                 <RefreshCcw className="w-3.5 h-3.5" /> إعادة المحاولة
               </button>
             </div>
@@ -370,7 +335,7 @@ const Profile = () => {
             <div className="py-4 flex flex-col items-center gap-2 text-center">
               <AlertTriangle className="w-6 h-6 text-amber-400" />
               <p className="text-sm text-gray-500 dark:text-gray-400">{errorAchievements}</p>
-              <button onClick={() => fetchAchievements(user?.id)} className="flex items-center gap-1.5 text-sm font-bold text-[#103B66] dark:text-blue-400 hover:underline">
+              <button onClick={() => fetchAchievements()} className="flex items-center gap-1.5 text-sm font-bold text-[#103B66] dark:text-blue-400 hover:underline">
                 <RefreshCcw className="w-3.5 h-3.5" /> إعادة المحاولة
               </button>
             </div>

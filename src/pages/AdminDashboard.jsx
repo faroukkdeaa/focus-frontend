@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import {
   ArrowRight, Users, BookOpen, ClipboardCheck, CheckCircle2,
   XCircle, Eye, Trash2, Brain, TrendingUp, ShieldCheck,
@@ -137,7 +137,7 @@ const AdminDashboard = () => {
     setLoadingKpi(true);
     setErrorKpi(null);
     try {
-      const { data } = await axios.get(`${API}/admin_kpi`);
+      const { data } = await api.get(`${API}/admin_kpi`);
       setKpi(data);
     } catch {
       setErrorKpi(t('error_title'));
@@ -150,7 +150,7 @@ const AdminDashboard = () => {
     setLoadingPending(true);
     setErrorPending(null);
     try {
-      const { data } = await axios.get(`${API}/admin_pending_teachers`);
+      const { data } = await api.get(`${API}/admin_pending_teachers`);
       setPendingTeachers(data);
     } catch {
       setErrorPending(t('error_title'));
@@ -163,7 +163,7 @@ const AdminDashboard = () => {
     setLoadingReports(true);
     setErrorReports(null);
     try {
-      const { data } = await axios.get(`${API}/admin_reports`);
+      const { data } = await api.get(`${API}/admin_reports`);
       setReports(data);
     } catch {
       setErrorReports(t('error_title'));
@@ -176,7 +176,7 @@ const AdminDashboard = () => {
     setLoadingActivity(true);
     setErrorActivity(null);
     try {
-      const { data } = await axios.get(`${API}/admin_activity`);
+      const { data } = await api.get(`${API}/admin_activity`);
       setActivityRaw(data);
     } catch {
       setErrorActivity(t('error_title'));
@@ -205,7 +205,7 @@ const AdminDashboard = () => {
     setLoadingId(`approve-${id}`);
     try {
       // DELETE from pending list in json-server
-      await axios.delete(`${API}/admin_pending_teachers/${id}`);
+      await api.delete(`${API}/admin_pending_teachers/${id}`);
       setPendingTeachers(prev => prev.filter(t => t.id !== id));
       showToast('success', t('approved_msg'));
     } catch {
@@ -218,7 +218,7 @@ const AdminDashboard = () => {
   const handleReject = async (id) => {
     setLoadingId(`reject-${id}`);
     try {
-      await axios.delete(`${API}/admin_pending_teachers/${id}`);
+      await api.delete(`${API}/admin_pending_teachers/${id}`);
       setPendingTeachers(prev => prev.filter(t => t.id !== id));
       showToast('error', t('rejected_msg'));
     } catch {
@@ -231,7 +231,7 @@ const AdminDashboard = () => {
   const handleRemoveContent = async (id) => {
     setLoadingId(`remove-${id}`);
     try {
-      await axios.delete(`${API}/admin_reports/${id}`);
+      await api.delete(`${API}/admin_reports/${id}`);
       setReports(prev => prev.filter(r => r.id !== id));
       showToast('info', t('content_removed_msg'));
     } catch {

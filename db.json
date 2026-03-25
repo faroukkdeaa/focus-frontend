@@ -2410,6 +2410,28 @@
       "total": 4,
       "percentage": 0,
       "date": "2026-02-25"
+    },
+    {
+      "id": "b251",
+      "userId": "584",
+      "lessonTitle": "الاتزان الكيميائي",
+      "subjectName": "الكيمياء",
+      "subjectId": "2",
+      "score": 0,
+      "total": 2,
+      "percentage": 0,
+      "date": "2026-02-26"
+    },
+    {
+      "id": "55e1",
+      "userId": "584",
+      "lessonTitle": "الفصل الثالث: الحث الكهرومغناطيسي",
+      "subjectName": "الفيزياء",
+      "subjectId": "1",
+      "score": 0,
+      "total": 1,
+      "percentage": 0,
+      "date": "2026-02-26"
     }
   ],
   "user_remediation_gaps": [
@@ -2520,6 +2542,28 @@
       "subjectId": "1",
       "lessonId": 2,
       "lessonTitle": "القانون الأول للحركة",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "6a18",
+      "userId": "584",
+      "gap": "الكيمياء - الاتزان الكيميائي",
+      "subject": "الكيمياء",
+      "subjectId": "2",
+      "lessonId": 1,
+      "lessonTitle": "الاتزان الكيميائي",
+      "difficulty": "hard",
+      "completed": false
+    },
+    {
+      "id": "4d1b",
+      "userId": "584",
+      "gap": "الفيزياء - الفصل الثالث: الحث الكهرومغناطيسي",
+      "subject": "الفيزياء",
+      "subjectId": "1",
+      "lessonId": 3,
+      "lessonTitle": "الفصل الثالث: الحث الكهرومغناطيسي",
       "difficulty": "hard",
       "completed": false
     }

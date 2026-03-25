@@ -1,6 +1,6 @@
 ﻿import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
 import {
@@ -360,11 +360,11 @@ const UploadWizard = () => {
         questions:    quizQuestions,
       };
 
-      const quizRes = await axios.post(`${API}/quizzes`, quizPayload);
+      const quizRes = await api.post(`${API}/quizzes`, quizPayload);
       const newQuizId = String(quizRes.data.id);
 
       // ── 2. نشر كل سؤال في focused_questions ─────────────────────────────
-      const fqRes = await axios.get(`${API}/focused_questions?_sort=id&_order=desc&_limit=1`);
+      const fqRes = await api.get(`${API}/focused_questions?_sort=id&_order=desc&_limit=1`);
       let nextFqId = fqRes.data.length > 0 ? (fqRes.data[0].id + 1) : 1;
 
       const fqPayloads = questions.map((q) => ({
@@ -378,14 +378,14 @@ const UploadWizard = () => {
         difficulty:  q.difficulty || '',
       }));
 
-      await Promise.all(fqPayloads.map(p => axios.post(`${API}/focused_questions`, p)));
+      await Promise.all(fqPayloads.map(p => api.post(`${API}/focused_questions`, p)));
 
       // ── 3. إضافة الدرس الجديد لـ subject_units ───────────────────────────
       // جلب الـ units الخاصة بالمادة
       const subjectIdMap = { Physics: '1', Chemistry: '2', Biology: '3', Mathematics: '4' };
       const subjectId = subjectIdMap[subject] || '1';
 
-      const unitsRes = await axios.get(
+      const unitsRes = await api.get(
         `${API}/subject_units?subjectId=${subjectId}&_sort=order`
       );
       const dbUnits = unitsRes.data;
@@ -405,7 +405,7 @@ const UploadWizard = () => {
           description: lessonDesc.trim() || '',
           quizId:      newQuizId,
         };
-        await axios.patch(`${API}/subject_units/${targetUnit.id}`, {
+        await api.patch(`${API}/subject_units/${targetUnit.id}`, {
           lessons: [...existingLessons, newLesson],
         });
       } else {
@@ -420,7 +420,7 @@ const UploadWizard = () => {
           description: lessonDesc.trim() || '',
           quizId:      newQuizId,
         };
-        await axios.post(`${API}/subject_units`, {
+        await api.post(`${API}/subject_units`, {
           subjectId,
           order:   maxOrder + 1,
           title:   unit,
@@ -429,14 +429,14 @@ const UploadWizard = () => {
       }
 
       // ── 4. تحديث teacher_dashboard stats ─────────────────────────────────
-      const tdRes = await axios.get(`${API}/teacher_dashboard`);
+      const tdRes = await api.get(`${API}/teacher_dashboard`);
       const td = tdRes.data;
       const updatedMyCourses = (td.my_courses || []).map(c =>
         String(c.subjectId) === subjectId
           ? { ...c, lessonsCount: (c.lessonsCount || 0) + 1 }
           : c
       );
-      await axios.patch(`${API}/teacher_dashboard`, {
+      await api.patch(`${API}/teacher_dashboard`, {
         stats: { ...td.stats, totalLessons: (td.stats?.totalLessons || 0) + 1 },
         my_courses: updatedMyCourses,
       });

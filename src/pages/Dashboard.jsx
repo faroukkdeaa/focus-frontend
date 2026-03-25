@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import { Brain, BookOpen, AlertTriangle, TrendingUp, PlayCircle, ChevronLeft, Loader2, RefreshCcw } from "lucide-react";
 import { useLanguage } from '../context/LanguageContext';
+import { SUBJECT_ICONS } from '../utils/subjectMapping';
 
 
 /**
@@ -41,36 +42,50 @@ const Dashboard = () => {
         return;
       }
 
-      // جلب بيانات الداشبورد الخاصة بالمستخدم + تقدمه في المواد + قائمة المواد الرئيسية
-      const [udRes, usRes, subjectsRes] = await Promise.all([
-        axios.get(`http://localhost:3001/user_dashboards?userId=${userId}`),
-        axios.get(`http://localhost:3001/user_subjects?userId=${userId}`),
-        axios.get('http://localhost:3001/subjects'),
+      // جلب المواد + تاريخ محاولات الكويز من الـ real API
+      const [subjectsRes, attemptsRes] = await Promise.all([
+        api.get('/subjects'),
+        api.get('/students/attempts')
+          .catch(() => ({ data: { quizzesAttempt: { data: [] } } })),
       ]);
 
-      // user_dashboards يرجع array — نأخذ العنصر الأول
-      const dashboardData = udRes.data[0] || {
-        studentName: storedUser.name || 'طالب',
+      const attempts = attemptsRes.data?.quizzesAttempt?.data
+                    || attemptsRes.data?.quizzesAttempt
+                    || [];
+
+      // حساب الإحصائيات من تاريخ المحاولات
+      const uniqueLessons = new Set(attempts.map(a => a.lesson_title)).size;
+      const avgScore = attempts.length
+        ? Math.round(attempts.reduce((s, a) => s + (a.score || 0), 0) / attempts.length)
+        : 0;
+
+      const dashboardData = {
+        studentName:   storedUser.name || storedUser.student_name || 'طالب',
         upcomingExams: 0,
-        weaknesses: [],
-        stats: { completedLessons: 0, improvementRate: 0, studyHours: 0 },
+        weaknesses:    [],
+        stats: { completedLessons: uniqueLessons, improvementRate: avgScore, studyHours: 0 },
       };
 
-      // دمج تقدم المستخدم مع القائمة الرئيسية للمواد
-      const progressMap = {};
-      usRes.data.forEach(us => { progressMap[us.subjectId] = us; });
+      // الـ real API بيرجع { id, title, code } — نحوّل لـ { id, name, icon }
+      const subjectsData = Array.isArray(subjectsRes.data)
+        ? subjectsRes.data
+        : (subjectsRes.data?.data || []);
 
-      const subjects = subjectsRes.data.map(s => ({
-        ...s,
-        progress:  progressMap[s.id]?.progress  ?? 0,
-        completed: progressMap[s.id]?.completed ?? 0,
+      const subjects = subjectsData.map(s => ({
+        id:        s.id,
+        name:      s.title,
+        code:      s.code,
+        icon:      SUBJECT_ICONS[s.code] ?? '📚',
+        progress:  0,
+        completed: 0,
+        lessons:   0,
       }));
 
       setData({ ...dashboardData, subjects });
 
     } catch (err) {
       console.error("Error:", err);
-      setError("تعذر الاتصال بالسيرفر. تأكد من تشغيل json-server.");
+      setError("تعذر الاتصال بالسيرفر.");
     } finally {
       setLoading(false);
     }

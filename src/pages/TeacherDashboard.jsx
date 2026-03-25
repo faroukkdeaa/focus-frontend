@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import { Brain, Users, BookOpen, Star, Plus, Loader2, RefreshCcw, X, AlertCircle, Upload, BarChart2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -48,12 +48,7 @@ const TeacherDashboard = () => {
 
       // جلب بيانات teacher_dashboard من json-server
       // عندما يكون الباكند جاهزاً، غيّر الرابط فقط
-      // const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:3001/teacher_dashboard', {
-        headers: {
-          // Authorization: `Bearer ${token}` // فعّل هذا عندما يكون الباكند جاهزاً
-        }
-      });
+      const response = await api.get('http://localhost:3001/teacher_dashboard');
 
       setData(response.data);
     } catch (err) {
@@ -71,7 +66,7 @@ const TeacherDashboard = () => {
 
     try {
       // 1. جلب الكورس الخاص بالمادة المختارة
-      const coursesResponse = await axios.get(
+      const coursesResponse = await api.get(
         `http://localhost:3001/courses?subjectId=${lessonSubject}`
       );
 
@@ -98,20 +93,20 @@ const TeacherDashboard = () => {
       };
 
       // 3. إضافة الدرس للكورس في json-server
-      await axios.patch(`http://localhost:3001/courses/${course.id}`, {
+      await api.patch(`http://localhost:3001/courses/${course.id}`, {
         lessons: [...existingLessons, newLesson],
         totalLessons: existingLessons.length + 1,
       });
 
       // 4. تحديث teacher_dashboard: رفع lessonsCount للكورس + totalLessons
-      const tdRes = await axios.get('http://localhost:3001/teacher_dashboard');
+      const tdRes = await api.get('http://localhost:3001/teacher_dashboard');
       const td = tdRes.data;
       const updatedCourses = (td.my_courses || []).map(c =>
         String(c.subjectId) === String(lessonSubject)
           ? { ...c, lessonsCount: (c.lessonsCount || 0) + 1 }
           : c
       );
-      await axios.patch('http://localhost:3001/teacher_dashboard', {
+      await api.patch('http://localhost:3001/teacher_dashboard', {
         stats: { ...td.stats, totalLessons: (td.stats?.totalLessons || 0) + 1 },
         my_courses: updatedCourses,
       });

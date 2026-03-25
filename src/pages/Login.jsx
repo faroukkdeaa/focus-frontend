@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/api';
 import { isValidLoginIdentifier, isValidPassword } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
@@ -50,7 +50,6 @@ const Login = () => {
     e.preventDefault();
     setError('');
 
-    // 1. التحقق من صحة البيانات (Validation)
     if (!isValidLoginIdentifier(email)) {
       setError('أدخل بريداً إلكترونياً أو رقم هاتف مصري صحيح.');
       return;
@@ -63,53 +62,46 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // الاتصال بـ json-server (db.json) - البحث عن المستخدم بالبريد وكلمة المرور
-      // عندما يكون الباكند جاهزاً، غيّر الرابط فقط إلى: http://localhost:8000/api/login
-      // واستخدم POST بدلاً من GET
-      const response = await axios.get(
-        `http://localhost:3001/users?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
-      );
+      // POST /api/login — بيرجع { user: { role, student_name|teacher_name, student_id|teacher_id, user_id }, token }
+      const response = await api.post('/login', { email, password });
 
-      // التحقق من وجود المستخدم
-      if (response.data && response.data.length > 0) {
-        const user = response.data[0];
+      const { user, token } = response.data;
 
-        // التحقق من نوع الحساب (student/teacher)
-        if (user.role !== accountType) {
-          setError(`هذا الحساب ليس حساب ${accountType === 'student' ? 'طالب' : 'مدرس'}.`);
-          setLoading(false);
-          return;
-        }
+      // التحقق من نوع الحساب اللي اختاره المستخدم
+      if (user.role !== accountType) {
+        setError(`هذا الحساب ليس حساب ${accountType === 'student' ? 'طالب' : 'مدرس'}.`);
+        return;
+      }
 
-        // حفظ بيانات المستخدم (بدون كلمة المرور)
-        const { password: _, ...userWithoutPassword } = user;
-        const userData = {
-          ...userWithoutPassword,
-          role: accountType
-        };
+      // تطبيع مفاتيح الـ API → مفاتيح موحدة تستخدمها كل صفحات الـ app
+      // student_name/teacher_name → name  |  user_id → id
+      const normalizedUser = {
+        id:           String(user.user_id),
+        student_id:   user.student_id   ?? null,
+        teacher_id:   user.teacher_id   ?? null,
+        name:         user.student_name ?? user.teacher_name ?? email,
+        email,
+        role:         user.role,
+        subject_id:   user.subject_id   ?? null,
+        subject_name: user.subject_name ?? null,
+      };
 
-        // حفظ التوكن الوهمي والبيانات
-        localStorage.setItem('token', `fake-jwt-token-${user.id}-${Date.now()}`);
-        localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
 
-        // التوجيه بناءً على نوع الحساب
-        if (userData.role === 'teacher') {
-          navigate('/teacher-dashboard');
-        } else {
-          navigate('/dashboard');
-        }
+      if (normalizedUser.role === 'teacher') {
+        navigate('/teacher-dashboard');
       } else {
-        // المستخدم غير موجود أو البيانات غير صحيحة
-        setError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
+        navigate('/dashboard');
       }
     } catch (err) {
       const message =
-        err.response?.data?.message ||
         err.response?.data?.error ||
+        err.response?.data?.message ||
         err.message ||
         'فشل تسجيل الدخول. تحقق من الاتصال والمعلومات.';
       setError(message);
-      console.error("Login error:", err);
+      console.error('Login error:', err);
     } finally {
       setLoading(false);
     }
