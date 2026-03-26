@@ -22,7 +22,7 @@ import TeacherAnalytics from './pages/TeacherAnalytics';
 import AdminDashboard from './pages/AdminDashboard';
 import Notifications from './pages/Notifications';
 import ProtectedRoute from './components/ProtectedRoute';
-import { ProtectedLayout } from './components/Layout';
+import { ProtectedLayout, PublicLayout } from './components/Layout';
 
 
 
@@ -36,10 +36,14 @@ function App() {
         <Route path="/signup" element={<SignUp />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
+        {/* ── Public Routes WITH PublicLayout (simple navbar for visitors) ── */}
+        <Route element={<PublicLayout />}>
+          <Route path="/subject/:subjectId" element={<SubjectPage />} />
+        </Route>
+
         {/* ── Protected Routes WITH global Layout (navbar + drawer) ── */}
         <Route element={<ProtectedLayout />}>
           <Route path="/dashboard"         element={<Dashboard />} />
-          <Route path="/subject/:subjectId" element={<SubjectPage />} />
           <Route path="/ai-chat"           element={<AiChat />} />
           <Route path="/remediation"       element={<Remediation />} />
           <Route path="/profile"           element={<Profile />} />

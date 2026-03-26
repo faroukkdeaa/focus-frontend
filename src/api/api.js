@@ -1,8 +1,11 @@
 import axios from 'axios';
 
-// إنشاء axios instance مع baseURL للـ Backend API
+const BASE_URL = 'http://127.0.0.1:8000/api';
+
+// ── Authenticated API Instance ────────────────────────────────────────────────
+// يُستخدم للطلبات المحمية التي تتطلب تسجيل دخول
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -33,6 +36,27 @@ api.interceptors.response.use(
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+    return Promise.reject(error);
+  }
+);
+
+// ── Public API Instance ───────────────────────────────────────────────────────
+// يُستخدم للطلبات العامة التي لا تتطلب تسجيل دخول (مثل تصفح المواد)
+// لا يُضيف Auth header ولا يعيد توجيه المستخدم عند خطأ 401
+export const publicApi = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+});
+
+// Interceptor بسيط للـ publicApi - فقط للتعامل مع الأخطاء بدون إعادة توجيه
+publicApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // لا نعيد توجيه المستخدم للـ login - فقط نرجع الخطأ
+    console.warn('Public API Error:', error.response?.status, error.message);
     return Promise.reject(error);
   }
 );

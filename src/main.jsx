@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { LanguageProvider } from './context/LanguageContext.jsx'
+import { ThemeProvider } from './context/ThemeContext.jsx'
 import { NotificationProvider } from './context/NotificationContext.jsx'
 
 // تطبيق الإعدادات المحفوظة عند بدء التطبيق
@@ -61,9 +62,11 @@ applyInitialSettings();
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <LanguageProvider>
-      <NotificationProvider>
-        <App />
-      </NotificationProvider>
+      <ThemeProvider>
+        <NotificationProvider>
+          <App />
+        </NotificationProvider>
+      </ThemeProvider>
     </LanguageProvider>
   </StrictMode>,
 )

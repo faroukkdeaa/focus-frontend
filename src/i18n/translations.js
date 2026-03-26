@@ -53,6 +53,8 @@ export const translations = {
     // ─── SignUp ───────────────────────────────────────────────────────────────
     signup_title: 'إنشاء حساب جديد',
     signup_subtitle: 'أدخل بياناتك للانضمام إلى FOCUS',
+    signup_as_student: 'التسجيل كطالب',
+    signup_as_teacher: 'التسجيل كمدرس',
     full_name: 'الاسم الكامل',
     email: 'البريد الإلكتروني',
     grade: 'الصف الدراسي',
@@ -60,11 +62,15 @@ export const translations = {
     grade_1: 'الأول الثانوي',
     grade_2: 'الثاني الثانوي',
     grade_3: 'الثالث الثانوي',
+    subject: 'المادة الدراسية',
+    select_subject: 'اختر المادة',
+    phone_number: 'رقم الهاتف',
     confirm_password: 'تأكيد كلمة المرور',
     creating_account: 'جاري إنشاء الحساب...',
     create_account: 'إنشاء الحساب',
     already_have_account: 'لديك حساب بالفعل؟',
     login_link: 'سجل الدخول',
+    teacher_signup_note: 'سيتم مراجعة حسابك من قبل الإدارة قبل التفعيل',
 
     // ─── Forgot Password ──────────────────────────────────────────────────────
     forgot_title: 'استعادة كلمة المرور',
@@ -553,6 +559,8 @@ export const translations = {
     // ─── SignUp ───────────────────────────────────────────────────────────────
     signup_title: 'Create New Account',
     signup_subtitle: 'Enter your details to join FOCUS',
+    signup_as_student: 'Register as Student',
+    signup_as_teacher: 'Register as Teacher',
     full_name: 'Full Name',
     email: 'Email',
     grade: 'Academic Year',
@@ -560,11 +568,15 @@ export const translations = {
     grade_1: 'First Year Secondary',
     grade_2: 'Second Year Secondary',
     grade_3: 'Third Year Secondary',
+    subject: 'Subject',
+    select_subject: 'Select Subject',
+    phone_number: 'Phone Number',
     confirm_password: 'Confirm Password',
     creating_account: 'Creating account...',
     create_account: 'Create Account',
     already_have_account: 'Already have an account?',
     login_link: 'Login',
+    teacher_signup_note: 'Your account will be reviewed by admin before activation',
 
     // ─── Forgot Password ──────────────────────────────────────────────────────
     forgot_title: 'Recover Password',

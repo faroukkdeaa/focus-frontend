@@ -36,6 +36,14 @@ const Quiz = () => {
   const location = useLocation();
   const { t, lang } = useLanguage();
 
+  // ── Auth guard: الزائر يتحوّل لتسجيل الدخول مع رابط العودة ──
+  const isLoggedIn = !!localStorage.getItem('token');
+  useEffect(() => {
+    if (!isLoggedIn) {
+      navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
+    }
+  }, [isLoggedIn, navigate]);
+
   // جلب بيانات الدرس من location.state
   const lesson     = location.state?.lesson;
   const subjectId  = location.state?.subjectId;

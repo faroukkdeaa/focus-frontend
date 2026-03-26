@@ -20,6 +20,14 @@ const LessonInterface = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, lang } = useLanguage();
+
+  // ── Auth guard: إذا المستخدم مش مسجّل → وجّهه لتسجيل الدخول مع رابط العودة ──
+  const isLoggedIn = !!localStorage.getItem('token');
+  useEffect(() => {
+    if (!isLoggedIn) {
+      navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
+    }
+  }, [isLoggedIn, navigate]);
   
   // 1. حالات التحكم (State)
   const [isPlaying, setIsPlaying] = useState(false);
@@ -61,11 +69,31 @@ const LessonInterface = () => {
           completed:   done.has(l.id),
         });
 
-        // 1. مدرسو المادة — real API
+        // 1. Get subject-scoped lessons (via unit hierarchy)
+        let subjectLessonIds = new Set();
+        try {
+          const unitsRes = await api.get(`/subjects/${subjectId}/units`);
+          const unitsRaw = unitsRes.data?.data || unitsRes.data || [];
+          const unitsList = Array.isArray(unitsRaw) ? unitsRaw : [];
+          const subjectLessonsArr = await Promise.all(
+            unitsList.map(async (unit) => {
+              try {
+                const lRes = await api.get(`/units/${unit.id}/lessons`);
+                const lRaw = lRes.data?.data || lRes.data || [];
+                return Array.isArray(lRaw) ? lRaw.map(l => l.id) : [];
+              } catch { return []; }
+            })
+          );
+          subjectLessonIds = new Set(subjectLessonsArr.flat());
+        } catch { /* continue without scoping */ }
+
+        // 2. مدرسو المادة — real API
         let mappedTeachers = [];
         try {
           const teachersResponse = await api.get(`/subjects/${subjectId}/teachers`);
-          const rawTeachers = teachersResponse.data?.teachers || teachersResponse.data || [];
+          // API response: { teachers: { data: [...] } } (paginated)
+          const rawTeachersData = teachersResponse.data?.teachers?.data || teachersResponse.data?.teachers || teachersResponse.data?.data || teachersResponse.data || [];
+          const rawTeachers = Array.isArray(rawTeachersData) ? rawTeachersData : [];
           mappedTeachers = rawTeachers.map(t => ({
             id: t.teacher_id || t.id,
             name: t.teacher_name || t.name || t.user?.name || `مدرس ${t.teacher_id || t.id}`,
@@ -77,7 +105,7 @@ const LessonInterface = () => {
           console.error('Failed to fetch teachers:', err.message);
         }
 
-        // 2. تقدم المستخدم — من localStorage
+        // 3. تقدم المستخدم — من localStorage
         const completionData = JSON.parse(localStorage.getItem('lessonCompletions') || '{}');
         const doneSet = new Set(
           Object.keys(completionData)
@@ -86,34 +114,42 @@ const LessonInterface = () => {
         );
         setCompletedIds(doneSet);
 
-        // 3. ابحث عن أول مدرس عنده دروس (جرّب أول 10 مدرسين)
+        // 4. ابحث عن المدرسين اللي عندهم الدرس الحالي تحديداً
         let finalLessons = [];
         let activeTeacherData = null;
         let subjectDisplayName = stateSubjectName;
-        const teachersToTry = mappedTeachers.slice(0, 10);
+        const teachersWithThisLesson = [];
 
-        for (const teacher of teachersToTry) {
+        for (const teacher of mappedTeachers) {
           try {
             const lessonsRes = await api.get(`/teachers/${teacher.id}/lessons`);
-            const rawLessons = lessonsRes.data?.lessons || lessonsRes.data || [];
-            if (rawLessons.length > 0) {
-              finalLessons = rawLessons.map(l => mapLesson(l, doneSet));
-              activeTeacherData = teacher;
-              subjectDisplayName = teacher.subject || stateSubjectName;
-              console.log(`✅ Found teacher with lessons: ${teacher.id} (${rawLessons.length} lessons)`);
-              break;
+            const rawLessonsData = lessonsRes.data?.lessons?.data || lessonsRes.data?.lessons || lessonsRes.data?.data || lessonsRes.data || [];
+            let rawLessons = Array.isArray(rawLessonsData) ? rawLessonsData : [];
+            // فلترة: فقط الدروس التابعة لهذه المادة
+            rawLessons = rawLessons.filter(l => subjectLessonIds.has(l.id));
+            // تحقق: هل هذا المدرس عنده الدرس الحالي؟
+            const hasThisLesson = rawLessons.some(l => l.id === parseInt(lessonId));
+            if (hasThisLesson) {
+              teachersWithThisLesson.push(teacher);
+              if (!activeTeacherData) {
+                // أول مدرس عنده الدرس → هو الـ active
+                finalLessons = rawLessons.map(l => mapLesson(l, doneSet));
+                activeTeacherData = teacher;
+                subjectDisplayName = teacher.subject || stateSubjectName;
+              }
             }
           } catch {
-            // جرّب المدرس التالي
+            // تجاهل
           }
         }
 
-        // لو مفيش مدرس عنده دروس، استخدم أول مدرس
-        if (!activeTeacherData && mappedTeachers.length > 0) {
+        // لو مفيش مدرس عنده الدرس الحالي، fallback لأول مدرس في المادة
+        if (teachersWithThisLesson.length === 0 && mappedTeachers.length > 0) {
           activeTeacherData = mappedTeachers[0];
         }
 
-        setTeachers(mappedTeachers);
+        // الشريط: فقط المدرسين اللي عندهم الدرس الحالي
+        setTeachers(teachersWithThisLesson.length > 0 ? teachersWithThisLesson : mappedTeachers);
         setActiveTeacher(activeTeacherData?.id ?? null);
 
         // لو مفيش دروس، الصفحة هتعرض رسالة "لا توجد دروس"
@@ -140,10 +176,32 @@ const LessonInterface = () => {
     try {
       let newLessons = [];
 
-      // حاول real API
+      // حاول real API — مع فلترة حسب المادة
       try {
+        // Get subject-scoped lesson IDs
+        let subjectLessonIds = new Set();
+        try {
+          const unitsRes = await api.get(`/subjects/${subjectId}/units`);
+          const unitsRaw = unitsRes.data?.data || unitsRes.data || [];
+          const unitsList = Array.isArray(unitsRaw) ? unitsRaw : [];
+          const subjectLessonsArr = await Promise.all(
+            unitsList.map(async (unit) => {
+              try {
+                const lRes = await api.get(`/units/${unit.id}/lessons`);
+                const lRaw = lRes.data?.data || lRes.data || [];
+                return Array.isArray(lRaw) ? lRaw.map(l => l.id) : [];
+              } catch { return []; }
+            })
+          );
+          subjectLessonIds = new Set(subjectLessonsArr.flat());
+        } catch { /* continue without scoping */ }
+
         const res = await api.get(`/teachers/${teacherId}/lessons`);
-        newLessons = (res.data?.lessons || res.data || []).map(l => ({
+        const rawLessonsData = res.data?.lessons?.data || res.data?.lessons || res.data?.data || res.data || [];
+        let rawLessons = Array.isArray(rawLessonsData) ? rawLessonsData : [];
+        // فلترة: فقط دروس المادة الحالية
+        rawLessons = rawLessons.filter(l => subjectLessonIds.has(l.id));
+        newLessons = rawLessons.map(l => ({
           id:          l.id,
           title:       l.title ?? l.name ?? `Lesson ${l.id}`,
           duration:    l.duration ?? '--',
@@ -514,7 +572,13 @@ const LessonInterface = () => {
               )}
 
               <button 
-                onClick={() => navigate('/quiz', { state: { lesson: currentLesson, subjectId, teacherId: activeTeacher, videoId: currentVideo?.video_id } })}
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
+                    return;
+                  }
+                  navigate('/quiz', { state: { lesson: currentLesson, subjectId, teacherId: activeTeacher, videoId: currentVideo?.video_id } });
+                }}
                 className="flex-[2] bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-3 rounded-lg shadow-md transition transform hover:-translate-y-0.5"
               >
                 {t('start_quiz')}

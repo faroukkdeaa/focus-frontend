@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import {
   Brain, Menu, X, LayoutDashboard, TrendingUp, MessageSquare,
-  User, Settings, LogOut, BarChart2, Upload, ShieldCheck, Bell,
+  User, Settings, LogOut, BarChart2, Upload, ShieldCheck, Bell, LogIn, ChevronDown,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from './LangToggle';
@@ -285,6 +285,172 @@ export const ProtectedLayout = () => {
   const token = localStorage.getItem('token');
   if (!token) return <Navigate to="/login" replace />;
   return <Layout />;
+};
+
+// ── PublicLayout — Simple navbar for public pages ────────────────────────────
+// Use this for pages that should be accessible without authentication.
+
+export const PublicLayout = () => {
+  const { t, lang } = useLanguage();
+  const navigate = useNavigate();
+  const isRtl = lang === 'ar';
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  
+  // Check if user is logged in and get user data
+  const token = localStorage.getItem('token');
+  const isLoggedIn = !!token;
+  const user = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}'); }
+    catch { return {}; }
+  })();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setDropdownOpen(false);
+    navigate('/');
+  };
+
+  return (
+    <div
+      className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']"
+      dir={isRtl ? 'rtl' : 'ltr'}
+    >
+      {/* ══════════════════════════════════════════════════════════════
+          SIMPLE TOP NAVBAR FOR PUBLIC PAGES
+      ══════════════════════════════════════════════════════════════ */}
+      <header className="h-16 sticky top-0 z-30 bg-white dark:bg-gray-800 border-b
+        border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
+        <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-3">
+          
+          {/* ── Left: Logo ── */}
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 group"
+          >
+            <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-xl shadow-sm
+              group-hover:shadow-md transition-shadow">
+              <Brain className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-black text-[#103B66] dark:text-blue-400 text-lg
+              tracking-tight hidden sm:block select-none">
+              {t('app_name')}
+            </span>
+          </button>
+
+          {/* ── Right: Action buttons ── */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <LangToggle />
+            
+            {isLoggedIn ? (
+              <div className="relative">
+                {/* User Avatar Button */}
+                <button
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="flex items-center gap-2 p-1 rounded-xl hover:bg-gray-100 
+                    dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#103B66] to-blue-500
+                    dark:from-blue-600 dark:to-blue-400 flex items-center justify-center
+                    text-white font-black text-sm shadow-sm">
+                    {(user.name || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform
+                    ${dropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {dropdownOpen && (
+                  <>
+                    {/* Backdrop */}
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setDropdownOpen(false)} 
+                    />
+                    
+                    {/* Menu */}
+                    <div className={`absolute top-full mt-2 ${isRtl ? 'left-0' : 'right-0'} 
+                      w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border 
+                      border-gray-200 dark:border-gray-700 py-2 z-20`}>
+                      
+                      {/* User Info */}
+                      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                        <p className="font-bold text-gray-800 dark:text-white text-sm truncate">
+                          {user.name || 'المستخدم'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                          {user.role === 'teacher' ? t('teacher') || 'مدرس' : t('student') || 'طالب'}
+                        </p>
+                      </div>
+
+                      {/* Menu Items */}
+                      <div className="py-1">
+                        <button
+                          onClick={() => { navigate(user.role === 'teacher' ? '/teacher-dashboard' : '/dashboard'); setDropdownOpen(false); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium
+                            text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                        >
+                          <LayoutDashboard className="w-4 h-4" />
+                          {t('dashboard') || 'لوحة التحكم'}
+                        </button>
+                        
+                        <button
+                          onClick={() => { navigate('/profile'); setDropdownOpen(false); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium
+                            text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                        >
+                          <User className="w-4 h-4" />
+                          {t('profile') || 'الملف الشخصي'}
+                        </button>
+
+                        <button
+                          onClick={() => { navigate('/settings'); setDropdownOpen(false); }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium
+                            text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                        >
+                          <Settings className="w-4 h-4" />
+                          {t('settings') || 'الإعدادات'}
+                        </button>
+                      </div>
+
+                      {/* Logout */}
+                      <div className="border-t border-gray-100 dark:border-gray-700 pt-1">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium
+                            text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          {t('logout') || 'تسجيل الخروج'}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => navigate('/login?redirect=' + encodeURIComponent(window.location.pathname))}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold
+                  bg-[#103B66] dark:bg-blue-600 text-white hover:bg-[#0c2d4d] 
+                  dark:hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                <LogIn className="w-4 h-4" />
+                <span className="hidden sm:inline">{t('login')}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ══════════════════════════════════════════════════════════════
+          PAGE CONTENT (nested route renders here)
+      ══════════════════════════════════════════════════════════════ */}
+      <main>
+        <Outlet />
+      </main>
+    </div>
+  );
 };
 
 export default Layout;

@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import api from '../api/api';
 import { isValidLoginIdentifier, isValidPassword } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
+import ThemeToggle from '../components/ThemeToggle';
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t, lang } = useLanguage();
   const [accountType, setAccountType] = useState('student'); // 'student' or 'teacher'
   const [email, setEmail] = useState('');
@@ -65,7 +67,14 @@ const Login = () => {
       // POST /api/login — بيرجع { user: { role, student_name|teacher_name, student_id|teacher_id, user_id }, token }
       const response = await api.post('/login', { email, password });
 
-      const { user, token } = response.data;
+      // الـ response ممكن يكون { user: {...}, token } أو { data: {...}, token }
+      const user = response.data.user ?? response.data.data;
+      const token = response.data.token;
+
+      if (!user || !token) {
+        setError('حدث خطأ في استلام بيانات تسجيل الدخول.');
+        return;
+      }
 
       // التحقق من نوع الحساب اللي اختاره المستخدم
       if (user.role !== accountType) {
@@ -76,11 +85,11 @@ const Login = () => {
       // تطبيع مفاتيح الـ API → مفاتيح موحدة تستخدمها كل صفحات الـ app
       // student_name/teacher_name → name  |  user_id → id
       const normalizedUser = {
-        id:           String(user.user_id),
+        id:           String(user.user_id ?? user.id ?? user.student_id ?? user.teacher_id ?? ''),
         student_id:   user.student_id   ?? null,
         teacher_id:   user.teacher_id   ?? null,
-        name:         user.student_name ?? user.teacher_name ?? email,
-        email,
+        name:         user.student_name ?? user.teacher_name ?? user.name ?? email,
+        email:        user.email ?? email,
         role:         user.role,
         subject_id:   user.subject_id   ?? null,
         subject_name: user.subject_name ?? null,
@@ -89,10 +98,60 @@ const Login = () => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(normalizedUser));
 
+      // التحقق من وجود مسار عودة محفوظ (من AuthModal)
+      const authRedirect = sessionStorage.getItem('authRedirect');
+      const pendingLesson = sessionStorage.getItem('pendingLesson');
+
+      if (pendingLesson) {
+        // المستخدم كان يحاول الدخول لدرس/كويز
+        try {
+          const pending = JSON.parse(pendingLesson);
+          sessionStorage.removeItem('pendingLesson');
+          sessionStorage.removeItem('authRedirect');
+          
+          if (pending.type === 'quiz') {
+            navigate('/quiz', { 
+              state: { 
+                lesson: pending.lesson, 
+                subjectId: pending.subjectId, 
+                teacherId: pending.teacherId, 
+                subjectName: pending.subjectName 
+              } 
+            });
+          } else {
+            navigate('/course-details', { 
+              state: { 
+                lesson: pending.lesson, 
+                subjectId: pending.subjectId, 
+                subjectName: pending.subjectName 
+              } 
+            });
+          }
+          return;
+        } catch {
+          // في حالة خطأ في parse، تجاهل وأكمل العادي
+        }
+      }
+
+      if (authRedirect) {
+        // عودة لمسار محدد من sessionStorage
+        sessionStorage.removeItem('authRedirect');
+        navigate(authRedirect);
+        return;
+      }
+
+      // التحقق من query parameter: ?redirect=/path
+      const redirectParam = searchParams.get('redirect');
+      if (redirectParam) {
+        navigate(redirectParam);
+        return;
+      }
+
+      // المسار الافتراضي - التوجيه للرئيسية بدلاً من Dashboard
       if (normalizedUser.role === 'teacher') {
         navigate('/teacher-dashboard');
       } else {
-        navigate('/dashboard');
+        navigate('/'); // الطالب يذهب للرئيسية
       }
     } catch (err) {
       const message =
@@ -110,8 +169,9 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-4 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
 
-      {/* Language Toggle */}
-      <div className="absolute top-4 end-4">
+      {/* Language & Theme Toggles */}
+      <div className="absolute top-4 end-4 flex items-center gap-3">
+        <ThemeToggle />
         <LangToggle />
       </div>
 
@@ -214,7 +274,7 @@ const Login = () => {
         {/* روابط سفلية */}
         <div className="mt-6 text-center space-y-2">
           <p className="text-gray-500 dark:text-gray-400 text-sm">
-            {t('no_account')} <Link to="/signup" className="text-[#103B66] font-bold hover:underline">{t('register_now')}</Link>
+            {t('no_account')} <Link to={`/signup${searchParams.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : ''}`} className="text-[#103B66] font-bold hover:underline">{t('register_now')}</Link>
           </p>
           <Link to="/forgot-password" className="block text-gray-400 dark:text-gray-500 text-sm hover:text-gray-600 dark:hover:text-gray-300">{t('forgot_password')}</Link>
         </div>

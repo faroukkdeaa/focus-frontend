@@ -3,18 +3,31 @@ import { useNavigate } from 'react-router-dom';
 import {
   GraduationCap, Brain, TrendingUp, Target, LogIn, UserPlus, LayoutDashboard,
   ClipboardList, ScanSearch, FileBarChart2, Compass,
-  Users, BookOpen, Zap, CheckCircle2, XCircle, ArrowRight, Quote,
+  Users, BookOpen, Zap, CheckCircle2, XCircle, ArrowRight, Quote, Loader2,
 } from "lucide-react";
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
+import ThemeToggle from '../components/ThemeToggle';
+import { publicApi } from '../api/api';
 
 const LOGIN_PATH = '/login';
 const DASHBOARD_PATH = '/dashboard';
+
+// Subject icons and colors mapping
+const SUBJECT_STYLES = {
+  PHYSICS:   { icon: "⚡️", color: "from-blue-500 to-blue-600" },
+  CHEMISTRY: { icon: "🧪", color: "from-green-500 to-green-600" },
+  BIOLOGY:   { icon: "🧬", color: "from-emerald-500 to-emerald-600" },
+  MATH:      { icon: "📐", color: "from-purple-500 to-purple-600" },
+  DEFAULT:   { icon: "📚", color: "from-gray-500 to-gray-600" },
+};
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const { t, lang } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('token'));
+  const [subjects, setSubjects] = useState([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -22,8 +35,30 @@ const LandingPage = () => {
     return () => cancelAnimationFrame(id);
   }, []);
 
+  // Fetch subjects from API
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        const { data } = await publicApi.get('/subjects');
+        // API response is paginated: { data: [...], current_page, total }
+        const list = Array.isArray(data) ? data : (data.data || []);
+        setSubjects(list);
+      } catch (err) {
+        console.warn('Failed to fetch subjects:', err.message);
+        setSubjects([]);
+      } finally {
+        setLoadingSubjects(false);
+      }
+    };
+    fetchSubjects();
+  }, []);
+
   const goToAuthOrDashboard = () => {
     navigate(isLoggedIn ? DASHBOARD_PATH : LOGIN_PATH);
+  };
+
+  const goToSubject = (subjectId) => {
+    navigate(`/subject/${subjectId}`);
   };
 
   return (
@@ -42,6 +77,7 @@ const LandingPage = () => {
             
             {/* Nav Buttons */}
             <div className="flex gap-3 items-center">
+              <ThemeToggle />
               <LangToggle />
               {isLoggedIn ? (
                 <button
@@ -358,25 +394,42 @@ const LandingPage = () => {
             <p className="text-gray-600 dark:text-gray-400 text-lg">{t('all_subjects_desc')}</p>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { name: t('subject_physics'),   icon: "⚡️", color: "from-blue-500 to-blue-600"     },
-              { name: t('subject_chemistry'),  icon: "🧪", color: "from-green-500 to-green-600"   },
-              { name: t('subject_biology'),    icon: "🧬", color: "from-emerald-500 to-emerald-600"},
-              { name: t('subject_math'),       icon: "📐", color: "from-purple-500 to-purple-600" }
-            ].map((subject, idx) => (
-              <div 
-                key={idx}
-                className="group bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-2xl p-6
-                  hover:border-[#0F4C81] hover:shadow-xl transition-all cursor-pointer text-center"
-              >
-                <div className={`w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br ${subject.color} flex items-center justify-center text-4xl mb-4 group-hover:scale-110 transition duration-300 shadow-md`}>
-                  {subject.icon}
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 dark:text-white group-hover:text-[#0F4C81] transition">{subject.name}</h3>
-              </div>
-            ))}
-          </div>
+          {loadingSubjects ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="w-10 h-10 animate-spin text-[#0F4C81]" />
+            </div>
+          ) : subjects.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {subjects.map((subject) => {
+                const style = SUBJECT_STYLES[subject.code] || SUBJECT_STYLES.DEFAULT;
+                return (
+                  <button 
+                    key={subject.id}
+                    onClick={() => goToSubject(subject.id)}
+                    className="group bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-2xl p-6
+                      hover:border-[#0F4C81] hover:shadow-xl transition-all cursor-pointer text-center"
+                  >
+                    <div className={`w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br ${style.color} flex items-center justify-center text-4xl mb-4 group-hover:scale-110 transition duration-300 shadow-md`}>
+                      {style.icon}
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 dark:text-white group-hover:text-[#0F4C81] transition">
+                      {subject.name || subject.title}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                      {t('browse_subject') || 'تصفح المادة'}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            // لا توجد مواد متاحة — تأكد من تشغيل الـ Backend
+            <div className="text-center py-12">
+              <p className="text-gray-500 dark:text-gray-400 text-lg">
+                {t('no_subjects_available') || 'لا توجد مواد متاحة حالياً. تأكد من تشغيل السيرفر.'}
+              </p>
+            </div>
+          )}
         </div>
       </section>
 

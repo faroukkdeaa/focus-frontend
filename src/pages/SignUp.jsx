@@ -1,27 +1,53 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import axios from 'axios';
 import api from '../api/api';
-import { Loader2 } from 'lucide-react';
+import { Loader2, GraduationCap, BookOpen } from 'lucide-react';
 import { isValidEmail, isValidPassword, isValidFullName } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
-
-const ACADEMIC_YEARS = [
-  { value: '1st', label: 'الأول الثانوي' },
-  { value: '2nd', label: 'الثاني الثانوي' },
-  { value: '3rd', label: 'الثالث الثانوي' },
-];
+import ThemeToggle from '../components/ThemeToggle';
 
 const SignUp = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t, lang } = useLanguage();
+  const [accountType, setAccountType] = useState('student'); // 'student' or 'teacher'
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [academicYear, setAcademicYear] = useState('');
+  const [subjectId, setSubjectId] = useState('');
+  const [subjects, setSubjects] = useState([]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // جلب المواد من الـ API عند اختيار تسجيل المدرس
+  useEffect(() => {
+    if (accountType === 'teacher' && subjects.length === 0) {
+      // استخدام axios بدون headers أو token
+      axios({
+        method: 'get',
+        url: 'http://localhost:8000/api/subjects',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        }
+      })
+        .then(res => {
+          console.log('Subjects API response:', res.data);
+          // الـ API بيرجع paginated response: { data: [...], current_page, total }
+          const subjectsData = res.data.data || res.data;
+          console.log('Extracted subjects:', subjectsData);
+          setSubjects(Array.isArray(subjectsData) ? subjectsData : []);
+        })
+        .catch(err => {
+          console.error('Failed to fetch subjects:', err);
+          console.error('Error details:', err.response?.data);
+          setError('فشل تحميل المواد الدراسية. تأكد من تشغيل الـ backend.');
+        });
+    }
+  }, [accountType, subjects.length]);
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -43,42 +69,113 @@ const SignUp = () => {
       setError('كلمة المرور وتأكيدها غير متطابقتين.');
       return;
     }
+    if (accountType === 'teacher' && !subjectId) {
+      setError('يرجى اختيار المادة الدراسية.');
+      return;
+    }
 
     setLoading(true);
     try {
-      // POST /api/register — بيرجع { data: { role, student_name, student_id, user_id }, token }
-      const response = await api.post(
-        '/register',
-        {
-          name:                  fullName,
-          email,
-          password,
-          password_confirmation: confirmPassword,
-          student:               true,
-        }
-      );
+      const isStudent = accountType === 'student';
+      
+      // بناء الـ payload حسب نوع الحساب
+      const payload = {
+        name: fullName,
+        email,
+        password,
+        password_confirmation: confirmPassword,
+      };
 
-      // register بيلف الـ user في data key (مختلف عن login اللي بيستخدم user key)
-      const user  = response.data.data  ?? response.data.user;
+      // إضافة الحقول حسب نوع الحساب
+      if (isStudent) {
+        payload.student = true;
+      } else {
+        payload.teacher = true;
+        payload.subject_id = subjectId;
+      }
+
+      console.log('=== SignUp Request ===');
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+
+      const response = await api.post('/register', payload);
+
+      console.log('=== SignUp Response ===');
+      console.log('Response data:', JSON.stringify(response.data, null, 2));
+
+      // الـ response ممكن يكون { data: {...}, token } أو { user: {...}, token }
+      const user  = response.data.data ?? response.data.user;
       const token = response.data.token;
 
-      // تطبيع المفاتيح — student_name → name  |  user_id → id
+      // تطبيع المفاتيح زي اللي في Login
       const normalizedUser = {
-        id:         String(user.user_id),
-        student_id: user.student_id ?? null,
-        name:       user.student_name ?? fullName,
+        id:           String(user.user_id ?? user.id),
+        student_id:   user.student_id   ?? null,
+        teacher_id:   user.teacher_id   ?? null,
+        name:         user.student_name ?? user.teacher_name ?? user.name ?? fullName,
         email,
-        role:       'student',
-        grade:      academicYear,
+        role:         user.role ?? (isStudent ? 'student' : 'teacher'),
+        subject_id:   user.subject_id   ?? null,
+        subject_name: user.subject_name ?? null,
       };
 
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(normalizedUser));
 
-      navigate('/dashboard');
+      // التحقق من وجود مسار عودة محفوظ (من AuthModal)
+      const authRedirect = sessionStorage.getItem('authRedirect');
+      const pendingLesson = sessionStorage.getItem('pendingLesson');
+
+      if (pendingLesson) {
+        // المستخدم كان يحاول الدخول لدرس/كويز
+        try {
+          const pending = JSON.parse(pendingLesson);
+          sessionStorage.removeItem('pendingLesson');
+          sessionStorage.removeItem('authRedirect');
+          
+          if (pending.type === 'quiz') {
+            navigate('/quiz', { 
+              state: { 
+                lesson: pending.lesson, 
+                subjectId: pending.subjectId, 
+                teacherId: pending.teacherId, 
+                subjectName: pending.subjectName 
+              } 
+            });
+          } else {
+            navigate('/course-details', { 
+              state: { 
+                lesson: pending.lesson, 
+                subjectId: pending.subjectId, 
+                subjectName: pending.subjectName 
+              } 
+            });
+          }
+          return;
+        } catch {
+          // في حالة خطأ في parse، تجاهل وأكمل العادي
+        }
+      }
+
+      if (authRedirect) {
+        // عودة لمسار محدد
+        sessionStorage.removeItem('authRedirect');
+        navigate(authRedirect);
+        return;
+      }
+
+      // التحقق من query parameter: ?redirect=/path
+      const redirectParam = searchParams.get('redirect');
+      if (redirectParam) {
+        navigate(redirectParam);
+        return;
+      }
+
+      // المسار الافتراضي - التوجيه للرئيسية بدلاً من Dashboard
+      navigate(normalizedUser.role === 'teacher' ? '/teacher-dashboard' : '/');
     } catch (err) {
       console.error('SignUp error:', err);
       const msg = err.response?.data?.message
+        ?? err.response?.data?.error
         ?? err.response?.data?.errors
         ?? err.message
         ?? 'حدث خطأ أثناء إنشاء الحساب.';
@@ -90,8 +187,9 @@ const SignUp = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-4 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      {/* Language Toggle */}
-      <div className="absolute top-4 end-4">
+      {/* Language & Theme Toggles */}
+      <div className="absolute top-4 end-4 flex items-center gap-3">
+        <ThemeToggle />
         <LangToggle />
       </div>
       {/* 1. اللوجو والعنوان */}
@@ -110,6 +208,34 @@ const SignUp = () => {
       <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl w-full max-w-md p-8">
         <h2 className="text-2xl font-bold text-center text-gray-800 dark:text-white mb-2">{t('signup_title')}</h2>
         <p className="text-center text-gray-400 dark:text-gray-500 mb-6 text-sm">{t('signup_subtitle')}</p>
+
+        {/* تبويبات نوع الحساب */}
+        <div className="flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => { setAccountType('student'); setError(''); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold transition-all duration-200 ${
+              accountType === 'student'
+                ? 'bg-[#103B66] text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            <GraduationCap className="w-5 h-5" />
+            {t('student')}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setAccountType('teacher'); setError(''); }}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold transition-all duration-200 ${
+              accountType === 'teacher'
+                ? 'bg-[#103B66] text-white shadow-lg'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            <BookOpen className="w-5 h-5" />
+            {t('teacher')}
+          </button>
+        </div>
 
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm text-center">
@@ -145,21 +271,33 @@ const SignUp = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('grade')}</label>
-            <select
-              value={academicYear}
-              onChange={(e) => setAcademicYear(e.target.value)}
-              disabled={loading}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] disabled:opacity-60 dark:text-white"
-              required
-            >
-              <option value="">{t('select_grade')}</option>
-              <option value="1st">{t('grade_1')}</option>
-              <option value="2nd">{t('grade_2')}</option>
-              <option value="3rd">{t('grade_3')}</option>
-            </select>
-          </div>
+          {/* حقول خاصة بالمدرس */}
+          {accountType === 'teacher' && (
+            <div>
+              <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('subject')}</label>
+              <select
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                disabled={loading}
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] disabled:opacity-60 dark:text-white"
+                required
+              >
+                <option value="">{t('select_subject')}</option>
+                {subjects.length > 0 ? (
+                  subjects.map(sub => {
+                    console.log('Rendering subject:', sub);
+                    return (
+                      <option key={sub.id} value={sub.id}>
+                        {lang === 'ar' ? (sub.name || sub.title) : (sub.name_en || sub.title_en || sub.name || sub.title)}
+                      </option>
+                    );
+                  })
+                ) : (
+                  <option disabled>جاري التحميل...</option>
+                )}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('password')}</label>
@@ -189,6 +327,12 @@ const SignUp = () => {
             />
           </div>
 
+          {accountType === 'teacher' && (
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm text-center">
+              {t('teacher_signup_note')}
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -208,7 +352,7 @@ const SignUp = () => {
         <div className="mt-6 text-center">
           <p className="text-gray-500 dark:text-gray-400 text-sm">
             {t('already_have_account')}{' '}
-            <Link to="/login" className="text-[#103B66] font-bold hover:underline">
+            <Link to={`/login${searchParams.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : ''}`} className="text-[#103B66] font-bold hover:underline">
               {t('login_link')}
             </Link>
           </p>
