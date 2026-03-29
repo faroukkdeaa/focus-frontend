@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/api';
-import { ArrowRight, Play, Pause, Volume2, Settings, ChevronLeft, ChevronRight, CheckCircle2, User, Loader2 } from "lucide-react";
+import { ArrowRight, Play, Pause, Volume2, Settings, ChevronLeft, ChevronRight, CheckCircle2, User, Loader2, Zap } from "lucide-react";
 import { useLanguage } from '../context/LanguageContext';
 import { MOCK_API, REAL_TO_MOCK_SUBJECT } from '../utils/subjectMapping';
 
@@ -31,7 +31,7 @@ const LessonInterface = () => {
   
   // 1. حالات التحكم (State)
   const [isPlaying, setIsPlaying] = useState(false);
-  const [activeTeacher, setActiveTeacher] = useState("teacher1");
+  const [activeTeacher, setActiveTeacher] = useState(null); // ✅ Start with null, set from API
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [completingLesson, setCompletingLesson] = useState(false);
@@ -39,37 +39,32 @@ const LessonInterface = () => {
 
   // بيانات من الـ API
   const [teachers, setTeachers] = useState([]);
-  const [teacherPage, setTeacherPage] = useState(0); // للـ slider
-  const TEACHERS_PER_PAGE = 3;
   const [course, setCourse] = useState(null);
   const [currentLesson, setCurrentLesson] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [completedIds, setCompletedIds] = useState(new Set()); // per-user
   const [currentVideo, setCurrentVideo]   = useState(null);     // فيديو الدرس الحالي من real API
+  const [lessonQuizzes, setLessonQuizzes] = useState([]); // الكويزات المتاحة للدرس
   const [videoLoading, setVideoLoading]   = useState(false);
 
-  // جلب lessonId و subjectId و subjectName من location.state
-  const lessonId         = location.state?.lesson?.id  || 1;
+  // جلب lessonId و subjectId و subjectName و teacherId من location.state
+  // ✅ Clean lesson ID - remove any ":1" suffix from hasManyThrough
+  const rawLessonId = location.state?.lesson?.id || 1;
+  const lessonId = typeof rawLessonId === 'string' && rawLessonId.includes(':') 
+    ? parseInt(rawLessonId.split(':')[0], 10) 
+    : parseInt(rawLessonId, 10);
   const subjectId        = location.state?.subjectId   || 1;
   const stateSubjectName = location.state?.subjectName ?? ''; // للـ mock fallback
+  const autoScrollToQuiz = location.state?.autoScrollToQuiz ?? false;
+  const preSelectedTeacherId = location.state?.teacherId; // ✅ Get selected teacher ID from navigation
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadInitialData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // ── helper: يحوّل درس real API لشكل موحد ──────────────────────────
-        const mapLesson = (l, done) => ({
-          id:          l.id,
-          title:       l.title ?? l.name ?? `Lesson ${l.id}`,
-          duration:    l.duration ?? '--',
-          chapter:     l.chapter ?? '',
-          description: l.description ?? '',
-          completed:   done.has(l.id),
-        });
-
-        // 1. Get subject-scoped lessons (via unit hierarchy)
+        // 1. Get subject-scoped lesson IDs (once)
         let subjectLessonIds = new Set();
         try {
           const unitsRes = await api.get(`/subjects/${subjectId}/units`);
@@ -87,11 +82,10 @@ const LessonInterface = () => {
           subjectLessonIds = new Set(subjectLessonsArr.flat());
         } catch { /* continue without scoping */ }
 
-        // 2. مدرسو المادة — real API
+        // 2. Fetch teachers for this subject
         let mappedTeachers = [];
         try {
           const teachersResponse = await api.get(`/subjects/${subjectId}/teachers`);
-          // API response: { teachers: { data: [...] } } (paginated)
           const rawTeachersData = teachersResponse.data?.teachers?.data || teachersResponse.data?.teachers || teachersResponse.data?.data || teachersResponse.data || [];
           const rawTeachers = Array.isArray(rawTeachersData) ? rawTeachersData : [];
           mappedTeachers = rawTeachers.map(t => ({
@@ -105,7 +99,7 @@ const LessonInterface = () => {
           console.error('Failed to fetch teachers:', err.message);
         }
 
-        // 3. تقدم المستخدم — من localStorage
+        // 3. Load user progress
         const completionData = JSON.parse(localStorage.getItem('lessonCompletions') || '{}');
         const doneSet = new Set(
           Object.keys(completionData)
@@ -114,70 +108,41 @@ const LessonInterface = () => {
         );
         setCompletedIds(doneSet);
 
-        // 4. ابحث عن المدرسين اللي عندهم الدرس الحالي تحديداً
-        let finalLessons = [];
-        let activeTeacherData = null;
-        let subjectDisplayName = stateSubjectName;
-        const teachersWithThisLesson = [];
-
-        for (const teacher of mappedTeachers) {
-          try {
-            const lessonsRes = await api.get(`/teachers/${teacher.id}/lessons`);
-            const rawLessonsData = lessonsRes.data?.lessons?.data || lessonsRes.data?.lessons || lessonsRes.data?.data || lessonsRes.data || [];
-            let rawLessons = Array.isArray(rawLessonsData) ? rawLessonsData : [];
-            // فلترة: فقط الدروس التابعة لهذه المادة
-            rawLessons = rawLessons.filter(l => subjectLessonIds.has(l.id));
-            // تحقق: هل هذا المدرس عنده الدرس الحالي؟
-            const hasThisLesson = rawLessons.some(l => l.id === parseInt(lessonId));
-            if (hasThisLesson) {
-              teachersWithThisLesson.push(teacher);
-              if (!activeTeacherData) {
-                // أول مدرس عنده الدرس → هو الـ active
-                finalLessons = rawLessons.map(l => mapLesson(l, doneSet));
-                activeTeacherData = teacher;
-                subjectDisplayName = teacher.subject || stateSubjectName;
-              }
-            }
-          } catch {
-            // تجاهل
-          }
+        // 4. Set teachers list (don't fetch lessons yet)
+        setTeachers(mappedTeachers);
+        
+        // 5. Set active teacher: prioritize teacher from navigation, fallback to first teacher
+        if (mappedTeachers.length > 0) {
+          // ✅ If user selected a specific teacher from SubjectPage, use it
+          const targetTeacher = preSelectedTeacherId 
+            ? mappedTeachers.find(t => t.id === preSelectedTeacherId) || mappedTeachers[0]
+            : mappedTeachers[0];
+            
+          setActiveTeacher(targetTeacher.id);
+          setCourse({ subjectName: targetTeacher.subject || stateSubjectName, lessons: [] });
         }
-
-        // لو مفيش مدرس عنده الدرس الحالي، fallback لأول مدرس في المادة
-        if (teachersWithThisLesson.length === 0 && mappedTeachers.length > 0) {
-          activeTeacherData = mappedTeachers[0];
-        }
-
-        // الشريط: فقط المدرسين اللي عندهم الدرس الحالي
-        setTeachers(teachersWithThisLesson.length > 0 ? teachersWithThisLesson : mappedTeachers);
-        setActiveTeacher(activeTeacherData?.id ?? null);
-
-        // لو مفيش دروس، الصفحة هتعرض رسالة "لا توجد دروس"
-
-        setLessons(finalLessons);
-        setCourse({ subjectName: subjectDisplayName, lessons: finalLessons });
-        const target = finalLessons.find(l => l.id === parseInt(lessonId)) || finalLessons[0] || null;
-        setCurrentLesson(target);
       } catch (err) {
-        console.error("LessonInterface error:", err);
-        setError("تعذر تحميل بيانات الدرس.");
+        console.error("LessonInterface init error:", err);
+        setError("تعذر تحميل بيانات المادة.");
       } finally {
         setLoading(false);
       }
     };
 
-    loadData();
-  }, [subjectId, lessonId, stateSubjectName]);
+    loadInitialData();
+  }, [subjectId, stateSubjectName, preSelectedTeacherId]); // ✅ Re-run if pre-selected teacher changes
 
-  // تغيير المدرس وإعادة جلب دروسه — real API أولاً، fallback لـ mock
-  const handleTeacherChange = async (teacherId) => {
-    if (teacherId === activeTeacher) return;
-    setActiveTeacher(teacherId);
-    try {
-      let newLessons = [];
-
-      // حاول real API — مع فلترة حسب المادة
+  // ✅ OPTIMIZED: Fetch lessons ONLY for the active teacher (runs once per teacher change)
+  useEffect(() => {
+    // Guard: Don't fetch if no active teacher selected
+    if (!activeTeacher || !subjectId) return;
+    
+    let cancelled = false;
+    
+    const fetchTeacherLessons = async () => {
       try {
+        console.log(`🔄 Fetching lessons for teacher ${activeTeacher}...`);
+        
         // Get subject-scoped lesson IDs
         let subjectLessonIds = new Set();
         try {
@@ -196,12 +161,27 @@ const LessonInterface = () => {
           subjectLessonIds = new Set(subjectLessonsArr.flat());
         } catch { /* continue without scoping */ }
 
-        const res = await api.get(`/teachers/${teacherId}/lessons`);
+        // Fetch lessons for ONLY this teacher (single request)
+        const res = await api.get(`/teachers/${activeTeacher}/lessons`);
+        
+        if (cancelled) return; // Prevent state updates if unmounted
+        
+        console.log(`✅ Teacher ${activeTeacher} lessons response:`, res.data);
+        
         const rawLessonsData = res.data?.lessons?.data || res.data?.lessons || res.data?.data || res.data || [];
         let rawLessons = Array.isArray(rawLessonsData) ? rawLessonsData : [];
-        // فلترة: فقط دروس المادة الحالية
-        rawLessons = rawLessons.filter(l => subjectLessonIds.has(l.id));
-        newLessons = rawLessons.map(l => ({
+        
+        console.log(`📊 Extracted ${rawLessons.length} lessons for teacher ${activeTeacher}`);
+        
+        // Filter by subject lessons if available
+        if (subjectLessonIds.size > 0) {
+          const beforeFilter = rawLessons.length;
+          rawLessons = rawLessons.filter(l => subjectLessonIds.has(l.id));
+          console.log(`🔍 Filtered: ${beforeFilter} → ${rawLessons.length} lessons`);
+        }
+        
+        // Map lessons to display format
+        const mappedLessons = rawLessons.map(l => ({
           id:          l.id,
           title:       l.title ?? l.name ?? `Lesson ${l.id}`,
           duration:    l.duration ?? '--',
@@ -209,51 +189,144 @@ const LessonInterface = () => {
           description: l.description ?? '',
           completed:   completedIds.has(l.id),
         }));
+        
+        setLessons(mappedLessons);
+        setCourse(prev => ({ ...prev, lessons: mappedLessons }));
+        
+        // Set current lesson (first one or matching lessonId)
+        const target = mappedLessons.find(l => l.id === parseInt(lessonId)) || mappedLessons[0] || null;
+        setCurrentLesson(target);
+        
+        console.log(`✅ Set ${mappedLessons.length} lessons for teacher ${activeTeacher}`);
       } catch (err) {
-        console.log('Failed to fetch teacher lessons:', err.message);
+        if (!cancelled) {
+          console.error(`❌ Failed to fetch lessons for teacher ${activeTeacher}:`, err);
+          setLessons([]);
+        }
       }
+    };
+    
+    fetchTeacherLessons();
+    
+    // Cleanup function to prevent state updates on unmounted component
+    return () => { cancelled = true; };
+  }, [activeTeacher, subjectId, lessonId, completedIds]); // ✅ Only runs when active teacher changes
 
-      // لو مفيش دروس، الصفحة هتعرض حالة فارغة
-
-      setLessons(newLessons);
-      setCourse(prev => ({ ...prev, lessons: newLessons }));
-      const target = newLessons.find(l => l.id === parseInt(lessonId)) || newLessons[0] || null;
-      setCurrentLesson(target);
-    } catch (err) {
-      console.error('handleTeacherChange error:', err);
-    }
+  // ✅ تغيير المدرس (simplified - fetching handled by useEffect)
+  const handleTeacherChange = (teacherId) => {
+    if (teacherId === activeTeacher) return;
+    console.log(`🔄 Switching to teacher ${teacherId}`);
+    setActiveTeacher(teacherId); // ✅ useEffect will automatically fetch lessons
   };
 
-  // جلب فيديو الدرس الحالي من real API
+  // جلب فيديو والكويزات الخاصة بالدرس الحالي من real API
   useEffect(() => {
-    if (!currentLesson?.id || !activeTeacher || !subjectId) return;
+    if (!currentLesson?.id) return;
     let cancelled = false;
-    const fetchVideo = async () => {
+    
+    const fetchLessonData = async () => {
       setVideoLoading(true);
       setCurrentVideo(null);
+      setLessonQuizzes([]);
+      
+      // 🔍 DEBUG: Log current lesson object to identify ID format issue
+      console.log('━━━ Current Lesson Object ━━━');
+      console.log('currentLesson:', currentLesson);
+      console.log('currentLesson.id:', currentLesson.id);
+      console.log('typeof currentLesson.id:', typeof currentLesson.id);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       try {
-        const res = await api.get(
-          `/teachers/${activeTeacher}/lessons/${currentLesson.id}/content`
-        );
-        if (!cancelled) setCurrentVideo((res.data?.videos || [])[0] ?? null);
-      } catch {
-        if (!cancelled) setCurrentVideo(null);
+        const safeId = parseInt(String(currentLesson?.id).split(':')[0], 10);
+        const lessonRes = await api.get(`/teachers/${activeTeacher}/lessons/${safeId}/content`);
+        
+        // 🔍 DEBUG: Log the full API response to see the exact structure
+        console.log(`━━━ API Response from /lessons/${safeId} ━━━`);
+        console.log('Full response.data:', lessonRes.data);
+        console.log('response.data.quizzes:', lessonRes.data?.quizzes);
+        console.log('response.data.quizzes.data:', lessonRes.data?.quizzes?.data);
+        console.log('response.data.data?.quizzes:', lessonRes.data?.data?.quizzes);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        if (!cancelled) {
+          // Extract videos (filter by active teacher if needed)
+          const videosData = lessonRes.data?.videos?.data || lessonRes.data?.videos || [];
+          const videosList = Array.isArray(videosData) ? videosData : [];
+          
+          // If multiple videos, prefer the one from the active teacher
+          let selectedVideo = null;
+          if (activeTeacher && videosList.length > 0) {
+            const teacherVideo = videosList.find(v => v.teacher_id === activeTeacher);
+            selectedVideo = teacherVideo || videosList[0];
+          } else {
+            selectedVideo = videosList[0];
+          }
+          setCurrentVideo(selectedVideo ?? null);
+          
+          // ✅ Extract quizzes - Try multiple possible paths
+          const quizzesData = 
+            lessonRes.data?.quizzes?.data || 
+            lessonRes.data?.quizzes || 
+            lessonRes.data?.data?.quizzes?.data ||
+            lessonRes.data?.data?.quizzes ||
+            lessonRes.data?.lesson?.quizzes?.data ||
+            lessonRes.data?.lesson?.quizzes ||
+            [];
+          const quizzesList = Array.isArray(quizzesData) ? quizzesData : [];
+          
+          // Show quizzes for current teacher - if no teacher_id on quiz, show it anyway
+          // This makes quizzes more accessible instead of being too strict
+          const filteredQuizzes = quizzesList.filter(q => {
+            // If quiz has no teacher_id, it's available for all teachers
+            if (!q.teacher_id) return true;
+            // If we have an active teacher, match it
+            if (activeTeacher && q.teacher_id === activeTeacher) return true;
+            // Fallback: show all quizzes if no active teacher
+            return !activeTeacher;
+          });
+          
+          setLessonQuizzes(filteredQuizzes);
+          
+          console.log('[LessonInterface] Loaded:', {
+            lesson: currentLesson.id,
+            videos: videosList.length,
+            quizzes: filteredQuizzes.length,
+            activeTeacher,
+            rawQuizzesData: quizzesData
+          });
+        }
+      } catch (err) {
+        console.error('[LessonInterface] Failed to fetch lesson data:', err);
+        if (!cancelled) {
+          setCurrentVideo(null);
+          setLessonQuizzes([]);
+        }
       } finally {
         if (!cancelled) setVideoLoading(false);
       }
     };
-    fetchVideo();
+    
+    fetchLessonData();
     return () => { cancelled = true; };
-  }, [currentLesson?.id, activeTeacher, subjectId]);
+  }, [currentLesson?.id, activeTeacher]);
 
-  // حساب التقدم (من بيانات المستخدم)
+  // تأثير التمرير التلقائي لقسم الاختبارات
+  useEffect(() => {
+    if (autoScrollToQuiz && !videoLoading && lessonQuizzes.length > 0) {
+      setTimeout(() => {
+        const el = document.getElementById('quizzes-section');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 500);
+    }
+  }, [autoScrollToQuiz, videoLoading, lessonQuizzes.length]);
+
   const completedCount = completedIds.size;
   const totalCount = lessons.length;
   const progressPercent = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
 
   // التنقل بين الدروس
   const currentIndex    = lessons.findIndex(l => l.id === currentLesson?.id);
-  const parsedVideoUrl  = currentVideo ? parseVideoUrl(currentVideo.video_url) : null;
+  const parsedVideoUrl  = currentVideo ? parseVideoUrl(currentVideo.url || currentVideo.video_url) : null;
 
   const handlePreviousLesson = () => {
     if (currentIndex > 0) {
@@ -380,76 +453,36 @@ const LessonInterface = () => {
           {/* 2. منطقة الفيديو (تاخد مساحة عمودين) */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* التبديل بين المدرسين — Slider */}
+            {/* معلومات المدرس الحالي */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-              {/* شريط السلايدر */}
-              <div className="bg-gray-50 dark:bg-gray-700 p-2">
-                <div className="flex items-center gap-2">
-                  {/* سهم للخلف */}
-                  <button
-                    onClick={() => setTeacherPage(p => Math.max(0, p - 1))}
-                    disabled={teacherPage === 0}
-                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-500 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-
-                  {/* المدرسون المعروضون في الصفحة الحالية */}
-                  <div className="flex flex-1 gap-2 overflow-hidden">
-                    {teachers
-                      .slice(teacherPage * TEACHERS_PER_PAGE, (teacherPage + 1) * TEACHERS_PER_PAGE)
-                      .map((teacher) => (
-                        <button
-                          key={teacher.id}
-                          onClick={() => handleTeacherChange(teacher.id)}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg transition-all duration-200 min-w-0 ${
-                            activeTeacher === teacher.id
-                              ? 'bg-[#103B66] text-white shadow-md'
-                              : 'bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-500'
-                          }`}
-                        >
-                          <div className={`p-1.5 rounded-full shrink-0 ${
-                            activeTeacher === teacher.id ? 'bg-white/20' : 'bg-gray-100 dark:bg-gray-500'
-                          }`}>
-                            <User className="w-4 h-4" />
-                          </div>
-                          <div className="text-right min-w-0">
-                            <p className="font-bold text-sm truncate">{teacher.name}</p>
-                            {teacher.rating != null && (
-                              <p className={`text-xs ${
-                                activeTeacher === teacher.id ? 'text-blue-200' : 'text-gray-400'
-                              }`}>⭐ {teacher.rating}</p>
-                            )}
-                          </div>
-                        </button>
-                      ))
-                    }
+              {/* شريط معلومات المدرس */}
+              <div className="bg-gradient-to-r from-[#103B66] to-[#1a5a99] dark:from-gray-700 dark:to-gray-600 p-4">
+                {teachers.find(t => t.id === activeTeacher) ? (
+                  <div className="flex items-center gap-4">
+                    {/* أيقونة المدرس */}
+                    <div className="p-3 rounded-full bg-white/20 backdrop-blur-sm shrink-0">
+                      <User className="w-8 h-8 text-white" />
+                    </div>
+                    
+                    {/* بيانات المدرس */}
+                    <div className="flex-1 text-right">
+                      <p className="text-xs text-white/80 mb-1">المدرس</p>
+                      <h3 className="font-bold text-xl text-white mb-1">
+                        {teachers.find(t => t.id === activeTeacher)?.name}
+                      </h3>
+                      {teachers.find(t => t.id === activeTeacher)?.rating != null && (
+                        <div className="flex items-center gap-2 justify-end">
+                          <span className="text-sm text-white/90">
+                            ⭐ {teachers.find(t => t.id === activeTeacher)?.rating}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-
-                  {/* سهم للأمام */}
-                  <button
-                    onClick={() => setTeacherPage(p => Math.min(Math.ceil(teachers.length / TEACHERS_PER_PAGE) - 1, p + 1))}
-                    disabled={teacherPage >= Math.ceil(teachers.length / TEACHERS_PER_PAGE) - 1}
-                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-500 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* مؤشر الصفحات (dots) */}
-                {teachers.length > TEACHERS_PER_PAGE && (
-                  <div className="flex justify-center gap-1.5 mt-2">
-                    {Array.from({ length: Math.ceil(teachers.length / TEACHERS_PER_PAGE) }).map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setTeacherPage(i)}
-                        className={`rounded-full transition-all ${
-                          i === teacherPage
-                            ? 'w-4 h-1.5 bg-[#103B66] dark:bg-blue-400'
-                            : 'w-1.5 h-1.5 bg-gray-300 dark:bg-gray-500 hover:bg-gray-400'
-                        }`}
-                      />
-                    ))}
+                ) : (
+                  <div className="flex items-center justify-center gap-2 py-2">
+                    <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    <p className="text-white">جاري تحميل بيانات المدرس...</p>
                   </div>
                 )}
               </div>
@@ -489,7 +522,7 @@ const LessonInterface = () => {
                   /* ─── MP4 / Direct ─── */
                   <video
                     key={currentVideo.video_id}
-                    src={currentVideo.video_url}
+                    src={currentVideo.url || currentVideo.video_url}
                     className="absolute inset-0 w-full h-full"
                     controls
                   />
@@ -510,9 +543,9 @@ const LessonInterface = () => {
                       <p className="text-white/60 text-sm">
                         {teachers.find(t => t.id === activeTeacher)?.name || 'غير محدد'}
                       </p>
-                      {currentVideo?.video_url && (
+                      {(currentVideo?.url || currentVideo?.video_url) && (
                         <a
-                          href={currentVideo.video_url}
+                          href={currentVideo.url || currentVideo.video_url}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-1 inline-flex items-center gap-1.5 text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-full transition"
@@ -544,54 +577,77 @@ const LessonInterface = () => {
             </div>
 
             {/* أزرار التنقل والاختبار */}
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={handlePreviousLesson}
-                disabled={currentIndex === 0}
-                className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <ChevronRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
-                {t('prev_lesson')}
-              </button>
-              
-              {/* زر إتمام الدرس */}
-              {completedIds.has(currentLesson?.id) ? (
-                <div className="flex-[2] bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 py-3 rounded-lg text-center font-bold flex items-center justify-center gap-2">
-                  <CheckCircle2 className="w-5 h-5" />
-                  تمّ الإتمام
-                </div>
-              ) : (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-4 w-full">
                 <button
-                  onClick={handleCompleteLesson}
-                  disabled={completingLesson}
-                  className="flex-[2] bg-[#103B66] hover:bg-[#0c2d4d] disabled:bg-gray-400 text-white text-base font-bold py-3 rounded-lg shadow-md transition flex items-center justify-center gap-2"
+                  onClick={handlePreviousLesson}
+                  disabled={currentIndex === 0}
+                  className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {completingLesson ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                  {completingLesson ? 'جاري الحفظ...' : 'إتمام الدرس'}
+                  <ChevronRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
+                  {t('prev_lesson')}
                 </button>
-              )}
 
-              <button 
-                onClick={() => {
-                  if (!isLoggedIn) {
-                    navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
-                    return;
-                  }
-                  navigate('/quiz', { state: { lesson: currentLesson, subjectId, teacherId: activeTeacher, videoId: currentVideo?.video_id } });
-                }}
-                className="flex-[2] bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-3 rounded-lg shadow-md transition transform hover:-translate-y-0.5"
-              >
-                {t('start_quiz')}
-              </button>
-              
-              <button 
-                onClick={handleNextLesson}
-                disabled={currentIndex === lessons.length - 1}
-                className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {t('next_lesson')}
-                <ChevronLeft className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
-              </button>
+                {/* زر اختبار الدرس - يظهر دائماً */}
+                <button
+                  onClick={() => {
+                    if (!isLoggedIn) {
+                      navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
+                      return;
+                    }
+                    
+                    // إذا كان هناك كويزات محملة، استخدم الكويز الأول
+                    if (lessonQuizzes.length > 0) {
+                      const mainQuiz = lessonQuizzes[0];
+                      const qId = mainQuiz.quiz_id || mainQuiz.id;
+                      navigate(`/quiz/${lessonId}/${activeTeacher}/${qId}`);
+                    } else {
+                      // إذا لم تكن هناك كويزات محملة، اعرض رسالة
+                      alert('لا يوجد اختبار متاح لهذا الدرس حالياً');
+                    }
+                  }}
+                  disabled={lessonQuizzes.length === 0}
+                  className={`flex-1 text-white text-base font-bold py-3 rounded-lg shadow-lg transition transform flex items-center justify-center gap-2 ${
+                    lessonQuizzes.length > 0 
+                      ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 hover:scale-105 cursor-pointer'
+                      : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  <Zap className={`w-5 h-5 ${lessonQuizzes.length > 0 ? 'text-yellow-300' : 'text-gray-200'}`} />
+                  {lessonQuizzes.length > 0 ? 'اختبار الدرس' : 'لا يوجد اختبار'}
+                </button>
+
+                <button
+                  onClick={handleNextLesson}
+                  disabled={currentIndex === lessons.length - 1}
+                  className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {t('next_lesson')}
+                  <ChevronLeft className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+
+              {/* قسم الكويزات */}
+              {lessonQuizzes.length > 0 && (
+                <div id="quizzes-section" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 w-full animate-fade-in-up">
+                  {lessonQuizzes.map((quiz, qIdx) => (
+                    <button
+                      key={quiz.quiz_id || quiz.id || qIdx}
+                      onClick={() => {
+                        if (!isLoggedIn) {
+                          navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
+                          return;
+                        }
+                        navigate(`/quiz/${quiz.quiz_id || quiz.id}`);
+                      }}
+                      className="bg-purple-600 hover:bg-purple-700 text-white text-base font-bold py-3 px-4 rounded-lg shadow-md transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
+                      <Zap className="w-5 h-5 text-yellow-300" />
+                      {lessonQuizzes.length > 1 ? `بدء اختبار ${qIdx + 1}` : t('start_quiz')}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* وصف الدرس */}

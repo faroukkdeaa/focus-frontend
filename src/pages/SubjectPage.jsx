@@ -158,16 +158,16 @@ const UnitCard = ({ unit, subjectId, onStartLesson, onQuiz, isLoggedIn }) => {
 
               {/* Action buttons */}
               <div className="flex items-center gap-1.5 shrink-0">
-                {lesson.quizId && (
-                  <button
-                    onClick={() => onQuiz(lesson, subjectId)}
-                    className="text-xs px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1
-                      bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400
-                      hover:bg-violet-200 dark:hover:bg-violet-900/50"
-                  >
-                    <Zap className="w-3 h-3" /> اختبار
-                  </button>
-                )}
+                {/* ✅ زر الكويز يظهر دائماً - سيتحقق من وجود الكويز عند الضغط */}
+                <button
+                  onClick={() => onQuiz(lesson, subjectId)}
+                  className="text-xs px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1
+                    bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400
+                    hover:bg-violet-200 dark:hover:bg-violet-900/50"
+                  title="اضغط لبدء الاختبار"
+                >
+                  <Zap className="w-3 h-3" /> اختبار
+                </button>
                 <button
                   onClick={() => onStartLesson(lesson, subjectId)}
                   className={`text-xs px-3 py-1 rounded-lg font-bold transition flex items-center gap-1
@@ -196,15 +196,23 @@ const SubjectPage = () => {
 
   // ── State ──
   const [subject,         setSubject]         = useState(null);
-  const [teachers,        setTeachers]        = useState([]);
+  const [allTeachers,     setAllTeachers]     = useState([]); // المدرسين المحملين حتى الآن
+  const [teachersApiPage, setTeachersApiPage] = useState(1);  // صفحة الـ API الحالية
+  const [teachersLastPage,setTeachersLastPage]= useState(1);  // آخر صفحة في الـ API
+  const [loadingMoreTeachers, setLoadingMoreTeachers] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
   const [units,           setUnits]           = useState([]);
   const [loadingSubject,  setLoadingSubject]  = useState(true);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
   const [loadingLessons,  setLoadingLessons]  = useState(false);
+  const [loadingTeacherQuizzes, setLoadingTeacherQuizzes] = useState(false);
   const [errorSubject,    setErrorSubject]    = useState(null);
   const [errorTeachers,   setErrorTeachers]   = useState(null);
   const [errorLessons,    setErrorLessons]    = useState(null);
+  const [teacherQuizLinks, setTeacherQuizLinks] = useState([]);
+
+  // هل في مدرسين كمان في الـ API؟
+  const hasMoreTeachers = teachersApiPage < teachersLastPage;
 
   // ── Auth Modal State ──
   const [authModal, setAuthModal] = useState({
@@ -240,116 +248,191 @@ const SubjectPage = () => {
     }
   }, [subjectId]);
 
-  // ── Fetch teachers for this subject ──
-  // ── Helper: fetch all lesson IDs that belong to the current subject ──
-  const fetchSubjectLessonIds = useCallback(async () => {
-    try {
-      // 1. Fetch subject units
-      const unitsRes = await publicApi.get(`/subjects/${subjectId}/units`);
-      const unitsRaw = unitsRes.data?.data || unitsRes.data || [];
-      const unitsList = Array.isArray(unitsRaw) ? unitsRaw : [];
-
-      // 2. Fetch lessons for each unit
-      const allLessons = await Promise.all(
-        unitsList.map(async (unit) => {
-          try {
-            const lessonsRes = await publicApi.get(`/units/${unit.id}/lessons`);
-            const lessonsRaw = lessonsRes.data?.data || lessonsRes.data || [];
-            const lessons = Array.isArray(lessonsRaw) ? lessonsRaw : [];
-            return lessons.map(l => ({ ...l, _unitTitle: unit.title }));
-          } catch {
-            return [];
-          }
-        })
-      );
-
-      return allLessons.flat();
-    } catch {
-      return [];
+  // ── Fetch teachers for this subject (paginated) ──
+  const fetchTeachers = useCallback(async (page = 1) => {
+    if (page === 1) {
+      setLoadingTeachers(true);
+      setErrorTeachers(null);
+      setAllTeachers([]);
+    } else {
+      setLoadingMoreTeachers(true);
     }
-  }, [subjectId]);
-
-  const fetchTeachers = useCallback(async () => {
-    setLoadingTeachers(true);
-    setErrorTeachers(null);
     try {
-      const { data } = await publicApi.get(`/subjects/${subjectId}/teachers`);
-      // API response: { teachers: { data: [...] } } (paginated inside teachers key)
+      const { data } = await publicApi.get(`/subjects/${subjectId}/teachers?page=${page}`);
+      // API response: { teachers: { data: [...], meta: { last_page } } }
       const teachersRaw = data?.teachers?.data || data?.teachers || data?.data || data || [];
       const teachersList = Array.isArray(teachersRaw) ? teachersRaw : [];
+      const lastPage = data?.teachers?.meta?.last_page || data?.teachers?.last_page || data?.last_page || 1;
 
-      // Get subject-scoped lesson IDs
-      const subjectLessons = await fetchSubjectLessonIds();
-      const subjectLessonIds = new Set(subjectLessons.map(l => l.id));
-      
-      // Get lessons count for each teacher (only counting subject-scoped lessons)
-      const teachersWithCount = await Promise.all(
-        teachersList.map(async (teacher) => {
-          const teacherId = teacher.teacher_id || teacher.id;
-          try {
-            const lessonsRes = await publicApi.get(`/teachers/${teacherId}/lessons`);
-            // API response: { teacher: {...}, lessons: { data: [...] } }
-            const lessonsRaw = lessonsRes.data?.lessons?.data || lessonsRes.data?.lessons || lessonsRes.data?.data || lessonsRes.data || [];
-            const allLessons = Array.isArray(lessonsRaw) ? lessonsRaw : [];
-            // فلترة: فقط الدروس التابعة لهذه المادة
-            const scopedLessons = allLessons.filter(l => subjectLessonIds.has(l.id));
-            return {
-              id: teacherId,
-              name: teacher.teacher_name || teacher.name || `مدرس ${teacherId}`,
-              lessons_count: scopedLessons.length,
-            };
-          } catch {
-            return {
-              id: teacherId,
-              name: teacher.teacher_name || teacher.name || `مدرس ${teacherId}`,
-              lessons_count: 0,
-            };
-          }
-        })
-      );
-      
-      // Filter teachers with lessons and sort by lessons count
-      const filtered = teachersWithCount.filter(t => t.lessons_count > 0);
-      filtered.sort((a, b) => b.lessons_count - a.lessons_count);
-      // لو مفيش مدرسين عندهم دروس، اعرض كلهم (حتى اللي بدون دروس)
-      setTeachers(filtered.length > 0 ? filtered : teachersWithCount);
+      const mapped = teachersList.map((teacher) => ({
+        id: teacher.teacher_id || teacher.id,
+        name: teacher.teacher_name || teacher.name || `مدرس ${teacher.teacher_id || teacher.id}`,
+        image: teacher.image || teacher.avatar || null,
+      }));
+
+      setAllTeachers(prev => page === 1 ? mapped : [...prev, ...mapped]);
+      setTeachersApiPage(page);
+      setTeachersLastPage(lastPage);
     } catch {
       setErrorTeachers('تعذّر تحميل قائمة المدرسين. تأكد من تشغيل السيرفر.');
     } finally {
       setLoadingTeachers(false);
+      setLoadingMoreTeachers(false);
     }
-  }, [subjectId, fetchSubjectLessonIds]);
+  }, [subjectId]);
 
-  // ── Fetch lessons for selected teacher (scoped to current subject) ──
+  // ── Fetch lessons for selected teacher ──
+  // ✅ يجلب دروس المدرس فقط عند اختياره (بدلاً من جلب دروس كل المدرسين مسبقاً)
   const fetchTeacherLessons = useCallback(async (teacherId) => {
     setLoadingLessons(true);
+    setLoadingTeacherQuizzes(true);
     setErrorLessons(null);
     setUnits([]);
+    setTeacherQuizLinks([]);
     
     try {
-      // 1. Get subject lessons (organized by unit/chapter)
-      const subjectLessons = await fetchSubjectLessonIds();
-      const subjectLessonIds = new Set(subjectLessons.map(l => l.id));
-
-      // 2. Get teacher's lessons
-      const { data } = await publicApi.get(`/teachers/${teacherId}/lessons`);
-      const lessonsRaw = data?.lessons?.data || data?.lessons || data?.data || data || [];
-      const teacherLessons = Array.isArray(lessonsRaw) ? lessonsRaw : [];
-
-      // 3. Cross-reference: only keep lessons the teacher has AND that belong to this subject
-      const teacherLessonIds = new Set(teacherLessons.map(l => l.id));
-      const rawLessons = subjectLessons
-        .filter(l => teacherLessonIds.has(l.id))
-        .map(sl => {
-          // Merge with any extra data from teacher's response
-          const teacherData = teacherLessons.find(tl => tl.id === sl.id) || {};
-          return { ...sl, ...teacherData, _unitTitle: sl._unitTitle };
-        });
+      // 1. جلب وحدات المادة أولاً
+      const unitsRes = await publicApi.get(`/subjects/${subjectId}/units`);
+      const unitsRaw = unitsRes.data?.data || unitsRes.data || [];
+      const unitsList = Array.isArray(unitsRaw) ? unitsRaw : [];
       
+      // 2. جلب الدروس من كل وحدة
+      const allSubjectLessons = [];
+      for (const unit of unitsList) {
+        try {
+          const lessonsRes = await publicApi.get(`/units/${unit.id}/lessons`);
+          const lessonsRaw = lessonsRes.data?.data || lessonsRes.data || [];
+          const lessons = Array.isArray(lessonsRaw) ? lessonsRaw : [];
+          lessons.forEach(l => {
+            allSubjectLessons.push({ ...l, _unitTitle: unit.title || unit.name });
+          });
+        } catch {
+          // تجاهل الخطأ والمتابعة
+        }
+      }
+      
+      // 3. جلب الدروس عبر فيديوهات المدرس + كويزات المدرس مباشرة (قد يوجد كويز بلا صف فيديو)
+      const teacherLessonsRes = await publicApi.get(`/teachers/${teacherId}/lessons`);
+
+      let teacherQuizzesRows = [];
+      try {
+        const teacherQuizzesRes = await publicApi.get(`/teachers/${teacherId}/quizzes`);
+        const teacherQuizzesPayload = teacherQuizzesRes.data?.quizzes;
+        teacherQuizzesRows = Array.isArray(teacherQuizzesPayload?.data)
+          ? teacherQuizzesPayload.data
+          : (Array.isArray(teacherQuizzesPayload) ? teacherQuizzesPayload : []);
+      } catch {
+        // سيرفر قديم بلا مسار /teachers/{id}/quizzes
+      }
+
+      // ✅ Extract lessons with proper fallback chaining
+      const teacherLessonsRaw = 
+        teacherLessonsRes.data?.lessons?.data ||  // Paginated Laravel: { lessons: { data: [...] } }
+        teacherLessonsRes.data?.lessons ||        // Direct nested: { lessons: [...] }
+        teacherLessonsRes.data?.data ||           // Paginated direct: { data: [...] }
+        teacherLessonsRes.data ||                 // Direct array: [...]
+        [];
+      
+      const teacherLessonsList = Array.isArray(teacherLessonsRaw) ? teacherLessonsRaw : [];
+
+      // ✅ Use teacher's lessons directly (backend already filters by teacher+video relationship)
+      // Match them with unit info from allSubjectLessons for enrichment
+      const enrichedLessons = teacherLessonsList.map(teacherLesson => {
+        // Try to find matching lesson in allSubjectLessons to get unit info
+        const subjectLesson = allSubjectLessons.find(sl => sl.id === teacherLesson.id);
+        
+        return {
+          ...teacherLesson,
+          _unitTitle: subjectLesson?._unitTitle || teacherLesson.unit_title || teacherLesson.chapter || 'دروس عامة',
+          quiz_id: teacherLesson.quiz_id || subjectLesson?.quiz_id || null,
+          has_quiz: !!(teacherLesson.quiz_id || subjectLesson?.quiz_id),
+        };
+      });
+
+      // ✅ Build a teacher-scoped quiz map with lesson titles.
+      // If quiz_id is missing on lesson object, fallback to /lessons/:id details.
+      const quizLinkCandidates = [];
+      const lessonsMissingQuizId = [];
+
+      enrichedLessons.forEach((lesson) => {
+        if (lesson.quiz_id) {
+          quizLinkCandidates.push({
+            quizId: lesson.quiz_id,
+            lessonId: lesson.id,
+            lessonTitle: lesson.title ?? lesson.name ?? `درس ${lesson.id}`,
+          });
+        } else {
+          lessonsMissingQuizId.push(lesson);
+        }
+      });
+
+      if (lessonsMissingQuizId.length > 0) {
+        const lessonQuizResponses = await Promise.all(
+          lessonsMissingQuizId.map(async (lesson) => {
+            try {
+              const lessonRes = await publicApi.get(`/lessons/${lesson.id}`);
+              const quizzesRaw =
+                lessonRes.data?.quizzes?.data ||
+                lessonRes.data?.quizzes ||
+                lessonRes.data?.data?.quizzes?.data ||
+                lessonRes.data?.data?.quizzes ||
+                [];
+
+              const quizzesList = Array.isArray(quizzesRaw) ? quizzesRaw : [];
+              const teacherMatched = quizzesList.filter((q) => q?.teacher_id === teacherId);
+              const usableQuizzes = teacherMatched.length > 0
+                ? teacherMatched
+                : quizzesList.filter((q) => !q?.teacher_id);
+
+              return usableQuizzes.map((q) => ({
+                quizId: q?.quiz_id || q?.id,
+                lessonId: lesson.id,
+                lessonTitle: lesson.title ?? lesson.name ?? `درس ${lesson.id}`,
+              }));
+            } catch {
+              return [];
+            }
+          })
+        );
+
+        lessonQuizResponses.flat().forEach((item) => quizLinkCandidates.push(item));
+      }
+
+      // كويزات من الـ API المخصص (تشمل دروساً بدون فيديو للمدرس)
+      teacherQuizzesRows.forEach((row) => {
+        const qid = row.quiz_id ?? row.id;
+        const lid = row.lesson_id;
+        if (!qid || !lid) return;
+        const fromCatalog = allSubjectLessons.find((sl) => Number(sl.id) === Number(lid));
+        const lessonTitle =
+          row.lesson_title ||
+          row.title ||
+          fromCatalog?.title ||
+          fromCatalog?.name ||
+          `درس ${lid}`;
+        quizLinkCandidates.push({
+          quizId: qid,
+          lessonId: lid,
+          lessonTitle,
+        });
+      });
+
+      const uniqueQuizLinks = Array.from(
+        new Map(
+          quizLinkCandidates
+            .filter((item) => item.quizId && item.lessonId)
+            .map((item) => [`${item.quizId}-${item.lessonId}`, item])
+        ).values()
+      );
+
+      setTeacherQuizLinks(uniqueQuizLinks);
+
+      const enrichedLessonIds = new Set(enrichedLessons.map((l) => Number(l.id)));
+
       // Group lessons by unit (chapter)
       const chapterMap = {};
-      rawLessons.forEach(l => {
-        const key = l._unitTitle || l.chapter || 'دروس عامة';
+      enrichedLessons.forEach(l => {
+        const key = l._unitTitle || l.unit_title || l.chapter || 'دروس عامة';
         if (!chapterMap[key]) {
           chapterMap[key] = {
             id: Object.keys(chapterMap).length + 1,
@@ -365,10 +448,12 @@ const SubjectPage = () => {
           chapter: key,
           description: l.description ?? '',
           completed: false,
-          quizId: l.quiz_id || null,
+          quizId: l.quiz_id || null, // ✅ الآن يحتوي على quiz_id إذا كان موجوداً
+          hasQuiz: l.has_quiz || false,
         });
       });
-      
+
+
       // Merge with localStorage completion data
       const completionData = JSON.parse(localStorage.getItem('lessonCompletions') || '{}');
       const completedSet = new Set(
@@ -390,8 +475,9 @@ const SubjectPage = () => {
       setErrorLessons('تعذّر تحميل دروس المدرس.');
     } finally {
       setLoadingLessons(false);
+      setLoadingTeacherQuizzes(false);
     }
-  }, [subjectId, fetchSubjectLessonIds]);
+  }, [subjectId]);
 
   // ── Effects ──
   useEffect(() => {
@@ -450,14 +536,19 @@ const SubjectPage = () => {
       }));
       return;
     }
-    navigate('/course-details', { state: { lesson, subjectId: sid, subjectName: subject?.name } });
+    navigate('/course-details', { 
+      state: { 
+        lesson, 
+        subjectId: sid, 
+        subjectName: subject?.name,
+        teacherId: selectedTeacher?.id  // ✅ Pass teacher ID
+      } 
+    });
   };
 
   const handleQuiz = (lesson, sid) => {
     if (!isLoggedIn) {
-      // عرض Modal بدلاً من التوجيه المباشر
       openAuthModal('quiz', lesson);
-      // حفظ البيانات في sessionStorage للعودة بعد تسجيل الدخول
       sessionStorage.setItem('pendingLesson', JSON.stringify({
         type: 'quiz',
         lesson,
@@ -467,7 +558,44 @@ const SubjectPage = () => {
       }));
       return;
     }
-    navigate('/quiz', { state: { lesson, subjectId: sid, teacherId: selectedTeacher?.id, subjectName: subject?.name } });
+    
+    // ✅ إذا كان الدرس يحتوي على quiz_id، انتقل مباشرة للكويز
+    if (lesson.quizId && selectedTeacher?.id) {
+      navigate(`/quiz/${lesson.id}/${selectedTeacher.id}/${lesson.quizId}`);
+    } else {
+      // Fallback: الذهاب لواجهة الدرس التي تعرض الفيديوهات والكويزات بشكل منظم
+      navigate('/course-details', { 
+        state: { 
+          lesson, 
+          subjectId: sid, 
+          subjectName: subject?.name, 
+          teacherId: selectedTeacher?.id,  // ✅ Pass teacher ID
+          autoScrollToQuiz: true 
+        } 
+      });
+    }
+  };
+
+  const handleTeacherQuizEntry = (quizItem) => {
+    if (!isLoggedIn) {
+      openAuthModal('quiz', { title: quizItem.lessonTitle });
+      sessionStorage.setItem('pendingLesson', JSON.stringify({
+        type: 'quiz',
+        lesson: {
+          id: quizItem.lessonId,
+          title: quizItem.lessonTitle,
+          quizId: quizItem.quizId,
+        },
+        subjectId,
+        subjectName: subject?.name,
+        teacherId: selectedTeacher?.id,
+      }));
+      return;
+    }
+
+    if (selectedTeacher?.id && quizItem?.quizId && quizItem?.lessonId) {
+      navigate(`/quiz/${quizItem.lessonId}/${selectedTeacher.id}/${quizItem.quizId}`);
+    }
   };
 
   const handleBack = () => {
@@ -562,9 +690,9 @@ const SubjectPage = () => {
                 <div>
                   <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{subject.name}</h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {teachers.length > 0 
-                      ? `${teachers.length} مدرس متاح`
-                      : 'جاري تحميل المدرسين...'
+                    {loadingTeachers 
+                      ? 'جاري تحميل المدرسين...'
+                      : `${allTeachers.length} مدرس متاح`
                     }
                   </p>
                 </div>
@@ -597,13 +725,18 @@ const SubjectPage = () => {
             <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
               {t('choose_teacher') || 'اختر مدرساً لعرض دروسه'}
+              {allTeachers.length > 0 && (
+                <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
+                  ({allTeachers.length} مدرس)
+                </span>
+              )}
             </h3>
 
             {errorTeachers ? (
               <SectionError message={errorTeachers} onRetry={fetchTeachers} />
             ) : loadingTeachers ? (
               <SectionLoader rows={4} />
-            ) : teachers.length === 0 ? (
+            ) : allTeachers.length === 0 ? (
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-10 text-center">
                 <GraduationCap className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p className="text-gray-500 dark:text-gray-400 font-medium">
@@ -611,16 +744,31 @@ const SubjectPage = () => {
                 </p>
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {teachers.map(teacher => (
-                  <TeacherCard
-                    key={teacher.id}
-                    teacher={teacher}
-                    isSelected={false}
-                    onSelect={handleSelectTeacher}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {allTeachers.map(teacher => (
+                    <TeacherCard
+                      key={teacher.id}
+                      teacher={teacher}
+                      isSelected={false}
+                      onSelect={handleSelectTeacher}
+                    />
+                  ))}
+                </div>
+                
+                {/* زر عرض المزيد */}
+                {hasMoreTeachers && (
+                  <button
+                    onClick={() => fetchTeachers(teachersApiPage + 1)}
+                    disabled={loadingMoreTeachers}
+                    className="mt-4 w-full py-3 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600
+                      text-gray-600 dark:text-gray-400 font-bold hover:border-[#103B66] hover:text-[#103B66]
+                      dark:hover:border-blue-500 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
+                  >
+                    {loadingMoreTeachers ? '⏳ جاري التحميل...' : 'عرض المزيد من المدرسين'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
@@ -637,7 +785,10 @@ const SubjectPage = () => {
                 <div className="flex-1">
                   <p className="font-bold text-lg">{selectedTeacher.name}</p>
                   <p className="text-blue-100 text-sm">
-                    📚 {selectedTeacher.lessons_count} درس متاح
+                    {loadingLessons 
+                      ? '⏳ جاري تحميل الدروس...'
+                      : `📚 ${totalLessons} درس متاح`
+                    }
                   </p>
                 </div>
                 <button
@@ -650,6 +801,44 @@ const SubjectPage = () => {
             </div>
 
             {/* Lessons */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 mb-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h4 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-violet-500" />
+                  اختبارات المدرس
+                </h4>
+                {!loadingTeacherQuizzes && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-bold">
+                    {teacherQuizLinks.length} اختبار
+                  </span>
+                )}
+              </div>
+
+              {loadingTeacherQuizzes ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">⏳ جاري تجهيز الاختبارات...</p>
+              ) : teacherQuizLinks.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">لا يوجد اختبار متاح لهذا المدرس حالياً.</p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {teacherQuizLinks.map((quizItem) => (
+                    <button
+                      key={`${quizItem.quizId}-${quizItem.lessonId}`}
+                      onClick={() => handleTeacherQuizEntry(quizItem)}
+                      className="text-right border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20
+                        hover:bg-violet-100 dark:hover:bg-violet-900/30 rounded-lg p-3 transition"
+                    >
+                      <p className="text-sm font-bold text-violet-800 dark:text-violet-300 truncate">
+                        {quizItem.lessonTitle}
+                      </p>
+                      <p className="text-xs text-violet-600 dark:text-violet-400 mt-1 truncate">
+                        {selectedTeacher.name} — {t('take_quiz') || 'أخذ الاختبار'}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
               {t('lessons_catalog') || 'كتالوج الدروس'}

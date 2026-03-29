@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import {
   Brain, Menu, X, LayoutDashboard, TrendingUp, MessageSquare,
   User, Settings, LogOut, BarChart2, Upload, ShieldCheck, Bell, LogIn, ChevronDown,
@@ -103,8 +103,8 @@ const Layout = () => {
             </button>
 
             {/* Logo */}
-            <button
-              onClick={() => navigate(homeRoute)}
+            <Link
+              to={homeRoute}
               className="flex items-center gap-2 group"
             >
               <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-xl shadow-sm
@@ -115,7 +115,7 @@ const Layout = () => {
                 tracking-tight hidden sm:block select-none">
                 {t('app_name')}
               </span>
-            </button>
+            </Link>
           </div>
 
           {/* ── Center: Desktop nav links ── */}
@@ -194,14 +194,14 @@ const Layout = () => {
           >
             {/* Drawer header */}
             <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-lg">
+              <Link to={homeRoute} onClick={closeDrawer} className="flex items-center gap-2 group">
+                <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-lg group-hover:shadow-md transition-shadow">
                   <Brain className="w-4 h-4 text-white" />
                 </div>
                 <span className="font-black text-[#103B66] dark:text-blue-400 text-lg tracking-tight">
                   {t('app_name')}
                 </span>
-              </div>
+              </Link>
               <button
                 onClick={closeDrawer}
                 className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
@@ -324,8 +324,8 @@ export const PublicLayout = () => {
         <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-3">
           
           {/* ── Left: Logo ── */}
-          <button
-            onClick={() => navigate('/')}
+          <Link
+            to="/"
             className="flex items-center gap-2 group"
           >
             <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-xl shadow-sm
@@ -336,7 +336,7 @@ export const PublicLayout = () => {
               tracking-tight hidden sm:block select-none">
               {t('app_name')}
             </span>
-          </button>
+          </Link>
 
           {/* ── Right: Action buttons ── */}
           <div className="flex items-center gap-2 flex-shrink-0">

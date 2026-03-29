@@ -110,7 +110,8 @@ const Login = () => {
           sessionStorage.removeItem('authRedirect');
           
           if (pending.type === 'quiz') {
-            navigate('/quiz', { 
+            // ✅ استخدام URL parameters للكويز
+            navigate(`/quiz/${pending.lesson.id}/${pending.teacherId}/${pending.subjectId}`, { 
               state: { 
                 lesson: pending.lesson, 
                 subjectId: pending.subjectId, 

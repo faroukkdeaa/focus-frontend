@@ -58,7 +58,7 @@ function App() {
         </Route>
 
         {/* ── Protected Routes WITHOUT Layout (fullscreen / wizard flows) ── */}
-        <Route path="/quiz" element={<ProtectedRoute><Quiz /></ProtectedRoute>} />
+        <Route path="/quiz/:lessonId/:teacherId/:quizId" element={<ProtectedRoute><Quiz /></ProtectedRoute>} />
         <Route path="/focused-quiz" element={<ProtectedRoute><FocusedQuiz /></ProtectedRoute>} />
         <Route path="/course-details" element={<ProtectedRoute><LessonInterface /></ProtectedRoute>} />
         <Route path="/upload-wizard" element={<ProtectedRoute><UploadWizard /></ProtectedRoute>} />

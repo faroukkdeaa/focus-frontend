@@ -46,14 +46,54 @@ const TeacherDashboard = () => {
       setLoading(true);
       setError(null);
 
-      // جلب بيانات teacher_dashboard من json-server
-      // عندما يكون الباكند جاهزاً، غيّر الرابط فقط
-      const response = await api.get('http://localhost:3001/teacher_dashboard');
+      // 1. Get teacher profile from localStorage
+      const userJson = localStorage.getItem('user');
+      let userData = null;
+      if (userJson) {
+        userData = JSON.parse(userJson);
+      }
 
-      setData(response.data);
+      if (!userData || !userData.teacher_id) {
+        // Fallback if not standard TeacherResource
+        const meRes = await api.get('/me');
+        userData = meRes.data?.user || meRes.data;
+      }
+
+      const teacherId = userData?.teacher_id || userData?.id;
+      const subjectId = userData?.subject_id;
+      const subjectName = userData?.subject_name || 'المادة الخاصة بي';
+
+      // 2. Fetch lessons count & stats from backend
+      let lessonsCount = 0;
+      if (teacherId) {
+        try {
+          const lessonsRes = await api.get(`/teachers/${teacherId}/lessons`);
+          lessonsCount = lessonsRes.data?.lessons?.total || lessonsRes.data?.lessons?.data?.length || 0;
+        } catch (err) {
+          console.warn("Could not fetch teacher lessons:", err);
+        }
+      }
+
+      // 3. Update dashboard data
+      setData({
+        stats: {
+          totalStudents: 0,
+          totalLessons: lessonsCount,
+          averageRating: userData?.rating || 'N/A'
+        },
+        my_courses: subjectId ? [{
+          id: subjectId,
+          subjectId: subjectId,
+          title: subjectName,
+          grade: 'الصفوف الدراسية',
+          lessonsCount: lessonsCount
+        }] : [],
+        enrolled_students: []
+      });
+
     } catch (err) {
       console.error("TeacherDashboard error:", err);
-      setError("تعذر الاتصال بالسيرفر. تأكد من تشغيل json-server.");
+      setError("تعذر جلب بيانات المدرس من الخادم. تأكد من اتصالك.");
     } finally {
       setLoading(false);
     }
@@ -270,16 +310,26 @@ const TeacherDashboard = () => {
             <div
               key={course.id}
               className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg dark:hover:shadow-blue-900/20 transition cursor-pointer"
-              onClick={() => navigate(`/subject/${course.subjectId}`)}
+              onClick={() => navigate('/teacher-analytics')}
             >
-              <h4 className="text-xl font-bold text-gray-800 dark:text-white mb-2">{course.title}</h4>
+              <div className="flex items-center gap-3 mb-2 border-b border-gray-100 dark:border-gray-700 pb-3">
+                <div className="bg-blue-100 dark:bg-blue-900/40 p-2.5 rounded-lg flex-shrink-0">
+                  <BookOpen className="w-6 h-6 text-[#103B66] dark:text-blue-400" />
+                </div>
+                <h4 className="text-xl font-bold text-gray-800 dark:text-white">{course.title}</h4>
+              </div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{course.grade}</p>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600 dark:text-gray-400">{course.lessonsCount} {t('lessons_tab')}</span>
-                <span className="text-[#103B66] dark:text-blue-400 text-sm font-bold">{t('continue_learning')} →</span>
+                <span className="text-[#103B66] dark:text-blue-400 text-sm font-bold">إدارة الدروس ←</span>
               </div>
             </div>
           ))}
+          {data.my_courses.length === 0 && (
+            <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
+              لم يتم تعيين مادة لك حتى الآن.
+            </div>
+          )}
         </div>
 
         {/* Enrolled Students */}

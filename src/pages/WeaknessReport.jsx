@@ -52,6 +52,7 @@ const WeaknessReport = () => {
     userAnswers,
     lesson,
     subjectId,
+    teacherId,
     subjectName,
   } = location.state || {};
 
@@ -147,7 +148,14 @@ const WeaknessReport = () => {
   };
 
   const handleTryAgain = () => {
-    navigate('/quiz', { state: { lesson, subjectId } });
+    if (lesson?.id && teacherId && subjectId) {
+      navigate(`/quiz/${lesson.id}/${teacherId}/${subjectId}`, { 
+        state: { lesson, subjectId, teacherId } 
+      });
+    } else {
+      // fallback: old format
+      navigate('/dashboard');
+    }
   };
 
   const handleBackToLesson = () => {

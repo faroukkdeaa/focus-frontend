@@ -9,13 +9,21 @@ const QuizResults = () => {
   const { t, lang } = useLanguage();
   const savedRef = useRef(false);
 
-  const { score, total, questions, userAnswers, lesson, subjectId, subjectName } = location.state || {};
+  const stateData = location.state || (() => {
+    try {
+      const saved = sessionStorage.getItem('lastQuizResults');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  })();
 
-  const percentage = location.state ? Math.round((score / total) * 100) : 0;
+  const { score, total, questions, userAnswers, lesson, subjectId, teacherId, lessonId, subjectName, quizId } = stateData || {};
+
+
+  const percentage = stateData ? Math.round((score / total) * 100) : 0;
 
   // حفظ الثغرات في localStorage (النتيجة الفعلية محفوظة بالفعل في الـ backend من Quiz.jsx)
   useEffect(() => {
-    if (!location.state || savedRef.current) return;
+    if (!stateData || savedRef.current) return;
     savedRef.current = true;
 
     try {
@@ -49,7 +57,7 @@ const QuizResults = () => {
   }, []);
 
   // Redirect if no data (e.g., direct access)
-  if (!location.state) {
+  if (!stateData) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         <div className="bg-yellow-50 p-8 rounded-2xl text-center border border-yellow-200 max-w-md">
@@ -128,8 +136,8 @@ const QuizResults = () => {
 
         {/* Action Buttons */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button 
-                onClick={() => navigate('/quiz', { state: { lesson, subjectId } })}
+            <button
+                onClick={() => navigate(`/quiz/${quizId}`)}
                 className="bg-[#103B66] text-white py-4 rounded-xl font-bold hover:bg-[#0c2d4d] transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10"
             >
                 <RefreshCcw className="w-5 h-5" /> {t('retake_quiz')}

@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -11,19 +11,7 @@ import {
 
 // ── Static data ───────────────────────────────────────────────────────────────
 
-const SUBJECTS = [
-  { value: 'Mathematics', label: 'الرياضيات' },
-  { value: 'Physics',     label: 'الفيزياء'   },
-  { value: 'Chemistry',   label: 'الكيمياء'   },
-  { value: 'Biology',     label: 'الأحياء'    },
-];
-
-const UNITS_MAP = {
-  Mathematics: ['الجبر والمعادلات', 'الهندسة التحليلية', 'حساب المثلثات', 'التفاضل والتكامل', 'الإحصاء والاحتمالات'],
-  Physics:     ['الميكانيكا', 'الكهرباء والمغناطيسية', 'الموجات والصوت', 'الضوء والبصريات', 'الفيزياء الحديثة'],
-  Chemistry:   ['الكيمياء العضوية', 'الكيمياء غير العضوية', 'التفاعلات الكيميائية', 'الاتزان الكيميائي', 'الكيمياء الكهربائية'],
-  Biology:     ['الخلية والأنسجة', 'الوراثة والتطور', 'التشريح الوظيفي', 'المناعة والأمراض', 'علم البيئة'],
-};
+// ── Dynamic Data will be loaded via API instead of hardcoded ──
 
 const COGNITIVE_SKILLS = [
   { value: 'Remember',  label: 'تذكر'   },
@@ -54,7 +42,7 @@ const mkQuestion = () => ({
   text:       '',
   options:    ['', '', '', ''],
   correct:    null,
-  subtopic:   '',
+  subtopic:   '', // This will store the subtopic ID now
   skill:      '',
   difficulty: '',
   distractor: '',
@@ -62,10 +50,10 @@ const mkQuestion = () => ({
 
 // ── QuestionCard (extracted to prevent re-creation on parent re-render) ────────
 
-const QuestionCard = ({ q, qIdx, onPatch, onPatchOption, onRemove, canRemove, showValidation }) => {
+const QuestionCard = ({ q, qIdx, apiSubtopics, onPatch, onPatchOption, onRemove, canRemove, showValidation }) => {
   const incomplete =
     showValidation &&
-    (!q.text.trim() || q.options.some(o => !o.trim()) || q.correct === null);
+    (!q.text.trim() || q.options.some(o => !o.trim()) || q.correct === null || !q.subtopic);
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-2xl border p-5 transition-colors ${
@@ -154,14 +142,22 @@ const QuestionCard = ({ q, qIdx, onPatch, onPatchOption, onRemove, canRemove, sh
         {/* Metadata tags */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">الموضوع الفرعي</label>
-            <input
-              type="text"
+            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">الموضوع الفرعي <span className="text-red-500">*</span></label>
+            <select
               value={q.subtopic}
               onChange={e => onPatch(q.id, { subtopic: e.target.value })}
-              placeholder="مثال: قانون أوم"
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-[#103B66] dark:focus:ring-blue-500"
-            />
+              className={`w-full bg-gray-50 dark:bg-gray-700 border rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#103B66] dark:focus:ring-blue-500 transition ${
+                showValidation && !q.subtopic ? 'border-red-400' : 'border-gray-200 dark:border-gray-600'
+              }`}
+            >
+              <option value="">اختر الموضوع الفرعي</option>
+              {apiSubtopics.map(st => (
+                <option key={st.id} value={st.id}>{st.title || st.name}</option>
+              ))}
+            </select>
+            {showValidation && !q.subtopic && (
+              <p className="text-red-500 text-[10px] mt-1">مطلوب</p>
+            )}
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">المهارة المعرفية</label>
@@ -224,7 +220,7 @@ const UploadWizard = () => {
   // ── Step 1 state ──
   const [subject,     setSubject]     = useState('');
   const [unit,        setUnit]        = useState('');
-  const [lessonName,  setLessonName]  = useState('');
+  const [lessonId,    setLessonId]    = useState('');
   const [lessonDesc,  setLessonDesc]  = useState('');
   const [step1Errors, setStep1Errors] = useState({});
 
@@ -243,9 +239,63 @@ const UploadWizard = () => {
   const [publishing, setPublishing] = useState(false);
   const [toast,      setToast]      = useState(null); // { type, message }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── API Data states ──
+  const [apiSubjects,   setApiSubjects]   = useState([]);
+  const [apiUnits,      setApiUnits]      = useState([]);
+  const [apiLessons,    setApiLessons]    = useState([]);
+  const [apiSubtopics,  setApiSubtopics]  = useState([]);
+  const [loadingOpts,   setLoadingOpts]   = useState(false);
 
-  const units = UNITS_MAP[subject] ?? [];
+  // Fetch subjects on mount
+  useEffect(() => {
+    setLoadingOpts(true);
+    api.get('/subjects')
+      .then(res => {
+        const data = res.data?.data || res.data || [];
+        setApiSubjects(Array.isArray(data) ? data : []);
+      })
+      .catch(err => console.error('Failed to fetch subjects', err))
+      .finally(() => setLoadingOpts(false));
+  }, []);
+
+  // Fetch units/subtopics when subject changes
+  useEffect(() => {
+    if (!subject) {
+      setApiUnits([]);
+      setApiSubtopics([]);
+      return;
+    }
+    setLoadingOpts(true);
+    Promise.all([
+      api.get(`/subjects/${subject}/units`),
+      api.get(`/subjects/${subject}/subtopics`)
+    ])
+      .then(([resUnits, resSubtopics]) => {
+        const dUnits = resUnits.data?.data || resUnits.data || [];
+        const dSub = resSubtopics.data?.data || resSubtopics.data || [];
+        setApiUnits(Array.isArray(dUnits) ? dUnits : []);
+        setApiSubtopics(Array.isArray(dSub) ? dSub : []);
+      })
+      .catch(err => console.error('Failed to fetch units or subtopics', err))
+      .finally(() => setLoadingOpts(false));
+  }, [subject]);
+
+  // Fetch lessons when unit changes
+  useEffect(() => {
+    if (!unit) {
+      setApiLessons([]);
+      setLessonId('');
+      return;
+    }
+    setLoadingOpts(true);
+    api.get(`/units/${unit}/lessons`)
+      .then(res => {
+        const dLessons = res.data?.data || res.data || [];
+        setApiLessons(Array.isArray(dLessons) ? dLessons : []);
+      })
+      .catch(err => console.error('Failed to fetch lessons', err))
+      .finally(() => setLoadingOpts(false));
+  }, [unit]);
 
   const formatBytes = (bytes) => {
     if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -270,16 +320,17 @@ const UploadWizard = () => {
 
   // ── Validation ────────────────────────────────────────────────────────────
 
-  const isStep1Valid = () => !!subject && !!unit && lessonName.trim().length > 0;
-  const isStep3Valid = () =>
-    questions.length >= 15 &&
-    questions.every(q => q.text.trim() && q.options.every(o => o.trim()) && q.correct !== null);
+  const isStep1Valid = () => !!subject && !!unit && !!lessonId;
+  const isStep3Valid = () => {
+    if (questions.length === 0) return true; // Questions are entirely optional
+    return questions.every(q => q.text.trim() && q.options.every(o => o.trim()) && q.correct !== null && q.subtopic);
+  };
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
   const goNext = () => {
     if (step === 1) {
-      const errors = { subject: !subject, unit: !unit, lessonName: !lessonName.trim() };
+      const errors = { subject: !subject, unit: !unit, lessonId: !lessonId };
       if (!isStep1Valid()) { setStep1Errors(errors); return; }
     }
     if (step === 2 && !videoFile) return;
@@ -330,118 +381,50 @@ const UploadWizard = () => {
   const handlePublish = async () => {
     setPublishing(true);
     try {
-      const API = 'http://localhost:3001';
+      // الاستناد للدرس المختار الموجود فعلياً بدلاً من إنشائه
+      const selectedLesson = apiLessons.find(l => String(l.id) === String(lessonId));
+      const actualLessonName = selectedLesson ? (selectedLesson.title || selectedLesson.name) : 'درس جديد';
+      const actualLessonId = selectedLesson ? selectedLesson.id : lessonId;
 
-      // ── 1. بناء كائن الكويز وحفظه ────────────────────────────────────────
-      const subjectNameMap = {
-        Mathematics: 'الرياضيات',
-        Physics:     'الفيزياء',
-        Chemistry:   'الكيمياء',
-        Biology:     'الأحياء',
-      };
-      // تحويل الأسئلة لصيغة quizzes
-      const quizQuestions = questions.map((q, idx) => ({
-        id:        idx + 1,
-        question:  q.text.trim(),
-        options:   q.options,
-        correct:   q.correct,
-        subtopic:  q.subtopic || unit,
-        skill:     q.skill || '',
-        difficulty: q.difficulty || '',
-        distractor: q.distractor || '',
-      }));
+      const selectedSubjectObj = apiSubjects.find(s => String(s.id) === String(subject));
+      const actualSubjectName = selectedSubjectObj ? (selectedSubjectObj.name || selectedSubjectObj.title) : subject;
 
-      const quizPayload = {
-        lessonTitle:  lessonName.trim(),
-        subjectName:  subjectNameMap[subject] || subject,
-        title:        `اختبار ${subjectNameMap[subject] || subject} - ${lessonName.trim()}`,
-        subtitle:     unit,
-        timeLimit:    600,
-        questions:    quizQuestions,
-      };
+      // 1. معالجة الفيديو ورفعه (مرتبط بالدرس المختار)
+      const formData = new FormData();
+      formData.append('title', `${actualSubjectName} - ${actualLessonName}`);
+      formData.append('lesson_id', actualLessonId);
+      formData.append('file', videoFile);
 
-      const quizRes = await api.post(`${API}/quizzes`, quizPayload);
-      const newQuizId = String(quizRes.data.id);
+      const videoRes = await api.post('/videos', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      const newVideoId = videoRes.data.id;
 
-      // ── 2. نشر كل سؤال في focused_questions ─────────────────────────────
-      const fqRes = await api.get(`${API}/focused_questions?_sort=id&_order=desc&_limit=1`);
-      let nextFqId = fqRes.data.length > 0 ? (fqRes.data[0].id + 1) : 1;
+      // 3. رفع الكويز والأسئلة (اختياري فقط إذا توفرت أسئلة كاملة)
+      if (questions.length > 0 && questions[0].text.trim() !== '') {
+        const quizQuestions = questions.map((q) => ({
+          question: q.text.trim(),
+          option: q.options,
+          correct_answer: q.options[q.correct], // Laravel backend expects the exact string
+          subtopic_id: parseInt(q.subtopic, 10),
+          difficulty: q.difficulty || null,
+          cognitive_skill: q.skill || null,
+        }));
 
-      const fqPayloads = questions.map((q) => ({
-        id:          nextFqId++,
-        subtopics:   [q.subtopic || unit],
-        question:    q.text.trim(),
-        options:     q.options,
-        correct:     q.correct,
-        explanation: q.distractor || '',
-        skill:       q.skill || '',
-        difficulty:  q.difficulty || '',
-      }));
-
-      await Promise.all(fqPayloads.map(p => api.post(`${API}/focused_questions`, p)));
-
-      // ── 3. إضافة الدرس الجديد لـ subject_units ───────────────────────────
-      // جلب الـ units الخاصة بالمادة
-      const subjectIdMap = { Physics: '1', Chemistry: '2', Biology: '3', Mathematics: '4' };
-      const subjectId = subjectIdMap[subject] || '1';
-
-      const unitsRes = await api.get(
-        `${API}/subject_units?subjectId=${subjectId}&_sort=order`
-      );
-      const dbUnits = unitsRes.data;
-
-      // إيجاد unit يطابق الـ unit المختار، أو آخر unit
-      let targetUnit = dbUnits.find(u => u.title.includes(unit)) || dbUnits[dbUnits.length - 1];
-
-      if (targetUnit) {
-        const existingLessons = targetUnit.lessons || [];
-        const maxId = existingLessons.reduce((m, l) => Math.max(m, l.id || 0), 0);
-        const newLesson = {
-          id:          maxId + 1,
-          title:       lessonName.trim(),
-          duration:    '00:00',
-          completed:   false,
-          videoUrl:    null,
-          description: lessonDesc.trim() || '',
-          quizId:      newQuizId,
+        const quizPayload = {
+          title: `اختبار الدرس: ${actualLessonName}`,
+          video_id: newVideoId,
+          questions: quizQuestions,
         };
-        await api.patch(`${API}/subject_units/${targetUnit.id}`, {
-          lessons: [...existingLessons, newLesson],
-        });
-      } else {
-        // إنشاء unit جديد إذا لم يوجد
-        const maxOrder = dbUnits.reduce((m, u) => Math.max(m, u.order || 0), 0);
-        const newLessonObj = {
-          id:          1,
-          title:       lessonName.trim(),
-          duration:    '00:00',
-          completed:   false,
-          videoUrl:    null,
-          description: lessonDesc.trim() || '',
-          quizId:      newQuizId,
-        };
-        await api.post(`${API}/subject_units`, {
-          subjectId,
-          order:   maxOrder + 1,
-          title:   unit,
-          lessons: [newLessonObj],
-        });
+
+        // رفع الاختبار
+        await api.post('/quizzes', quizPayload);
       }
 
-      // ── 4. تحديث teacher_dashboard stats ─────────────────────────────────
-      const tdRes = await api.get(`${API}/teacher_dashboard`);
-      const td = tdRes.data;
-      const updatedMyCourses = (td.my_courses || []).map(c =>
-        String(c.subjectId) === subjectId
-          ? { ...c, lessonsCount: (c.lessonsCount || 0) + 1 }
-          : c
-      );
-      await api.patch(`${API}/teacher_dashboard`, {
-        stats: { ...td.stats, totalLessons: (td.stats?.totalLessons || 0) + 1 },
-        my_courses: updatedMyCourses,
-      });
-
-      // ── 5. نجاح ──────────────────────────────────────────────────────────
+      // 5. نجاح ──────────────────────────────────────────────────────────
       setToast({ type: 'success', message: t('publish_success') });
       setTimeout(() => navigate('/teacher-dashboard'), 2800);
     } catch (err) {
@@ -458,15 +441,17 @@ const UploadWizard = () => {
 
   // ── Derived (Step 4) ──────────────────────────────────────────────────────
 
-  const uniqueSubtopics = [...new Set(questions.map(q => q.subtopic).filter(Boolean))];
+  const uniqueSubtopics = [...new Set(questions.map(q => q.subtopic).filter(Boolean))].map(subId => {
+    return apiSubtopics.find(st => String(st.id) === String(subId))?.title || subId;
+  });
 
   const checklist = [
     { label: 'المادة الدراسية',                                                        ok: !!subject },
     { label: 'الوحدة',                                                                 ok: !!unit },
-    { label: 'اسم الدرس',                                                              ok: !!lessonName.trim() },
+    { label: 'الدرس المختار',                                                           ok: !!lessonId },
     { label: 'ملف الفيديو (MP4)',                                                      ok: !!videoFile },
-    { label: `عدد الأسئلة ≥ 15 (الحالي: ${questions.length})`,                        ok: questions.length >= 15 },
-    { label: 'جميع الأسئلة مكتملة (نص + 4 خيارات + إجابة صحيحة)', ok: questions.length > 0 && questions.every(q => q.text.trim() && q.options.every(o => o.trim()) && q.correct !== null) },
+    { label: `عدد الأسئلة (اختياري - الحالي: ${questions.length})`,                    ok: true },
+    { label: 'جميع الأسئلة مكتملة المعالم (إن وجدت)', ok: questions.length === 0 || questions.every(q => q.text.trim() && q.options.every(o => o.trim()) && q.correct !== null && q.subtopic) },
   ];
 
   const allOk = checklist.every(c => c.ok);
@@ -576,10 +561,16 @@ const UploadWizard = () => {
                     step1Errors.subject ? 'border-red-400' : 'border-gray-200 dark:border-gray-600'
                   }`}
                 >
-                  <option value="">{t('select_subject')}</option>
-                  {SUBJECTS.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
+                  {loadingOpts ? (
+                    <option value="">جاري التحميل...</option>
+                  ) : (
+                    <>
+                      <option value="">{t('select_subject')}</option>
+                      {apiSubjects.map(s => (
+                        <option key={s.id} value={s.id}>{s.name || s.title}</option>
+                      ))}
+                    </>
+                  )}
                 </select>
                 {step1Errors.subject && (
                   <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
@@ -601,10 +592,16 @@ const UploadWizard = () => {
                     step1Errors.unit ? 'border-red-400' : 'border-gray-200 dark:border-gray-600'
                   }`}
                 >
-                  <option value="">{subject ? t('select_unit') : (lang === 'ar' ? 'اختر المادة أولاً' : 'Select subject first')}</option>
-                  {units.map(u => (
-                    <option key={u} value={u}>{u}</option>
-                  ))}
+                  {loadingOpts && subject ? (
+                    <option value="">جاري تحميل الوحدات...</option>
+                  ) : (
+                    <>
+                      <option value="">{subject ? t('select_unit') : (lang === 'ar' ? 'اختر المادة أولاً' : 'Select subject first')}</option>
+                      {apiUnits.map(u => (
+                        <option key={u.id} value={u.id}>{u.title || u.name}</option>
+                      ))}
+                    </>
+                  )}
                 </select>
                 {step1Errors.unit && (
                   <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
@@ -613,23 +610,33 @@ const UploadWizard = () => {
                 )}
               </div>
 
-              {/* Lesson Name */}
+              {/* Lesson Dropdown */}
               <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  {t('lesson_name')} <span className="text-red-500">*</span>
+                  اختر الدرس <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={lessonName}
-                  onChange={e => { setLessonName(e.target.value); setStep1Errors(p => ({ ...p, lessonName: false })); }}
-                  placeholder="مثال: قانون أوم والدارات الكهربائية"
-                  className={`w-full bg-gray-50 dark:bg-gray-700 border rounded-xl px-4 py-3 text-gray-800 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#103B66] dark:focus:ring-blue-500 transition ${
-                    step1Errors.lessonName ? 'border-red-400' : 'border-gray-200 dark:border-gray-600'
+                <select
+                  value={lessonId}
+                  onChange={e => { setLessonId(e.target.value); setStep1Errors(p => ({ ...p, lessonId: false })); }}
+                  disabled={!unit}
+                  className={`w-full bg-gray-50 dark:bg-gray-700 border rounded-xl px-4 py-3 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#103B66] dark:focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition ${
+                    step1Errors.lessonId ? 'border-red-400' : 'border-gray-200 dark:border-gray-600'
                   }`}
-                />
-                {step1Errors.lessonName && (
+                >
+                  {loadingOpts && unit ? (
+                    <option value="">جاري تحميل الدروس...</option>
+                  ) : (
+                    <>
+                      <option value="">{unit ? 'اختر الدرس' : (lang === 'ar' ? 'اختر الوحدة أولاً' : 'Select unit first')}</option>
+                      {apiLessons.map(l => (
+                        <option key={l.id} value={l.id}>{l.title || l.name}</option>
+                      ))}
+                    </>
+                  )}
+                </select>
+                {step1Errors.lessonId && (
                   <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" /> يُرجى إدخال اسم الدرس
+                    <AlertCircle className="w-3 h-3" /> يُرجى اختيار الدرس
                   </p>
                 )}
               </div>
@@ -800,16 +807,10 @@ const UploadWizard = () => {
             </div>
 
             {/* Validation banners */}
-            {showQuizVal && questions.length < 15 && (
-              <div className="flex items-center gap-2 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl text-orange-700 dark:text-orange-400 text-sm font-medium">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                يجب إضافة 15 سؤالاً على الأقل. الحالي: {questions.length}
-              </div>
-            )}
-            {showQuizVal && questions.length >= 15 && !isStep3Valid() && (
+            {showQuizVal && questions.length > 0 && !isStep3Valid() && (
               <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-400 text-sm font-medium">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                بعض الأسئلة غير مكتملة — تأكد من نص السؤال، الخيارات الأربعة، والإجابة الصحيحة.
+                بعض الأسئلة غير مكتملة — تأكد من نص السؤال، الخيارات، الإجابة، واختيار الموضوع الفرعي لكل سؤال أو قم بحذف الأسئلة لإكمال الرفع بدون أسئلة.
               </div>
             )}
 
@@ -823,8 +824,9 @@ const UploadWizard = () => {
                   onPatch={patchQuestion}
                   onPatchOption={patchOption}
                   onRemove={() => removeQuestion(q.id)}
-                  canRemove={questions.length > 1}
+                  canRemove={true}
                   showValidation={showQuizVal}
+                  apiSubtopics={apiSubtopics}
                 />
               ))}
             </div>
@@ -865,7 +867,7 @@ const UploadWizard = () => {
                 <div>
                   <p className="text-gray-500 dark:text-gray-400 text-xs mb-0.5">المادة الدراسية</p>
                   <p className="font-bold text-gray-800 dark:text-white">
-                    {SUBJECTS.find(s => s.value === subject)?.label || '—'}
+                    {apiSubjects.find(s => String(s.id) === String(subject))?.name || apiSubjects.find(s => String(s.id) === String(subject))?.title || '—'}
                   </p>
                 </div>
                 <div>
@@ -874,7 +876,9 @@ const UploadWizard = () => {
                 </div>
                 <div>
                   <p className="text-gray-500 dark:text-gray-400 text-xs mb-0.5">اسم الدرس</p>
-                  <p className="font-bold text-gray-800 dark:text-white">{lessonName || '—'}</p>
+                  <p className="font-bold text-gray-800 dark:text-white">
+                    {apiLessons.find(l => String(l.id) === String(lessonId))?.title || apiLessons.find(l => String(l.id) === String(lessonId))?.name || '—'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-gray-500 dark:text-gray-400 text-xs mb-0.5">ملف الفيديو</p>
