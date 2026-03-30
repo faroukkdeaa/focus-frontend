@@ -229,70 +229,63 @@ const LessonInterface = () => {
       setCurrentVideo(null);
       setLessonQuizzes([]);
       
-      // 🔍 DEBUG: Log current lesson object to identify ID format issue
-      console.log('━━━ Current Lesson Object ━━━');
-      console.log('currentLesson:', currentLesson);
-      console.log('currentLesson.id:', currentLesson.id);
-      console.log('typeof currentLesson.id:', typeof currentLesson.id);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
       try {
         const safeId = parseInt(String(currentLesson?.id).split(':')[0], 10);
         const lessonRes = await api.get(`/teachers/${activeTeacher}/lessons/${safeId}/content`);
         
-        // 🔍 DEBUG: Log the full API response to see the exact structure
-        console.log(`━━━ API Response from /lessons/${safeId} ━━━`);
-        console.log('Full response.data:', lessonRes.data);
-        console.log('response.data.quizzes:', lessonRes.data?.quizzes);
-        console.log('response.data.quizzes.data:', lessonRes.data?.quizzes?.data);
-        console.log('response.data.data?.quizzes:', lessonRes.data?.data?.quizzes);
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
         if (!cancelled) {
-          // Extract videos (filter by active teacher if needed)
+          // 1. استخراج الفيديوهات
           const videosData = lessonRes.data?.videos?.data || lessonRes.data?.videos || [];
           const videosList = Array.isArray(videosData) ? videosData : [];
           
-          // If multiple videos, prefer the one from the active teacher
-          let selectedVideo = null;
-          if (activeTeacher && videosList.length > 0) {
-            const teacherVideo = videosList.find(v => v.teacher_id === activeTeacher);
-            selectedVideo = teacherVideo || videosList[0];
-          } else {
-            selectedVideo = videosList[0];
+          let selectedVideo = videosList.length > 0 ? videosList[0] : null;
+          setCurrentVideo(selectedVideo);
+          
+          // 2. استخراج الكويزات من جوه الفيديو المختار (زي ما شوفنا في بوستمان)
+          let finalQuizzes = [];
+          
+          if (selectedVideo && Array.isArray(selectedVideo.quizzes)) {
+            // الباك إند بيرجع أرقام (مثال: [1])، هنحولها لـ Objects عشان الزراير تشتغل
+            const quizPromises = selectedVideo.quizzes.map(async q => {
+              const actualId = typeof q === 'object' ? (q.quiz_id || q.id) : q;
+              const quizObj = {
+                id: actualId,
+                quiz_id: actualId,
+                teacher_id: activeTeacher,
+                has_attempted: false,
+                score: 0
+              };
+              
+              // ✅ Fetch attempt data for this quiz if user is logged in
+              if (isLoggedIn) {
+                try {
+                  const attemptRes = await api.get(`/students/attempts`, {
+                    params: { quiz_id: actualId }
+                  });
+                  const attempts = attemptRes.data?.data || attemptRes.data || [];
+                  if (attempts.length > 0) {
+                    const latestAttempt = attempts[0];
+                    quizObj.has_attempted = true;
+                    quizObj.score = latestAttempt.score || 0;
+                  }
+                } catch (err) {
+                  console.warn(`Failed to fetch attempts for quiz ${actualId}:`, err);
+                }
+              }
+              
+              return quizObj;
+            });
+            
+            finalQuizzes = await Promise.all(quizPromises);
           }
-          setCurrentVideo(selectedVideo ?? null);
           
-          // ✅ Extract quizzes - Try multiple possible paths
-          const quizzesData = 
-            lessonRes.data?.quizzes?.data || 
-            lessonRes.data?.quizzes || 
-            lessonRes.data?.data?.quizzes?.data ||
-            lessonRes.data?.data?.quizzes ||
-            lessonRes.data?.lesson?.quizzes?.data ||
-            lessonRes.data?.lesson?.quizzes ||
-            [];
-          const quizzesList = Array.isArray(quizzesData) ? quizzesData : [];
+          setLessonQuizzes(finalQuizzes);
           
-          // Show quizzes for current teacher - if no teacher_id on quiz, show it anyway
-          // This makes quizzes more accessible instead of being too strict
-          const filteredQuizzes = quizzesList.filter(q => {
-            // If quiz has no teacher_id, it's available for all teachers
-            if (!q.teacher_id) return true;
-            // If we have an active teacher, match it
-            if (activeTeacher && q.teacher_id === activeTeacher) return true;
-            // Fallback: show all quizzes if no active teacher
-            return !activeTeacher;
-          });
-          
-          setLessonQuizzes(filteredQuizzes);
-          
-          console.log('[LessonInterface] Loaded:', {
-            lesson: currentLesson.id,
-            videos: videosList.length,
-            quizzes: filteredQuizzes.length,
-            activeTeacher,
-            rawQuizzesData: quizzesData
+          console.log('✅ الخلاصة اللي الرياكت شافها:', {
+            lessonId: safeId,
+            videoFound: !!selectedVideo,
+            quizzesFound: finalQuizzes.length,
+            extractedQuizzes: finalQuizzes
           });
         }
       } catch (err) {
@@ -590,31 +583,38 @@ const LessonInterface = () => {
 
                 {/* زر اختبار الدرس - يظهر دائماً */}
                 <button
-                  onClick={() => {
+                  onClick={lessonQuizzes.length > 0 && !lessonQuizzes[0]?.has_attempted ? () => {
                     if (!isLoggedIn) {
                       navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
                       return;
                     }
                     
-                    // إذا كان هناك كويزات محملة، استخدم الكويز الأول
-                    if (lessonQuizzes.length > 0) {
-                      const mainQuiz = lessonQuizzes[0];
-                      const qId = mainQuiz.quiz_id || mainQuiz.id;
-                      navigate(`/quiz/${lessonId}/${activeTeacher}/${qId}`);
-                    } else {
-                      // إذا لم تكن هناك كويزات محملة، اعرض رسالة
-                      alert('لا يوجد اختبار متاح لهذا الدرس حالياً');
-                    }
-                  }}
+                    const mainQuiz = lessonQuizzes[0];
+                    const qId = mainQuiz.quiz_id || mainQuiz.id;
+                    navigate(`/quiz/${lessonId}/${activeTeacher}/${qId}`);
+                  } : undefined}
                   disabled={lessonQuizzes.length === 0}
-                  className={`flex-1 text-white text-base font-bold py-3 rounded-lg shadow-lg transition transform flex items-center justify-center gap-2 ${
-                    lessonQuizzes.length > 0 
-                      ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 hover:scale-105 cursor-pointer'
-                      : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60'
+                  className={`flex-1 text-white text-base font-bold py-3 rounded-lg shadow-lg transition flex items-center justify-center gap-2 ${
+                    lessonQuizzes.length > 0 && lessonQuizzes[0]?.has_attempted
+                      ? 'bg-green-600 cursor-default opacity-90'
+                      : lessonQuizzes.length > 0 
+                        ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 hover:scale-105 transform cursor-pointer'
+                        : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60'
                   }`}
                 >
-                  <Zap className={`w-5 h-5 ${lessonQuizzes.length > 0 ? 'text-yellow-300' : 'text-gray-200'}`} />
-                  {lessonQuizzes.length > 0 ? 'اختبار الدرس' : 'لا يوجد اختبار'}
+                  <Zap className={`w-5 h-5 ${
+                    lessonQuizzes.length > 0 && lessonQuizzes[0]?.has_attempted 
+                      ? 'text-green-200' 
+                      : lessonQuizzes.length > 0 
+                        ? 'text-yellow-300' 
+                        : 'text-gray-200'
+                  }`} />
+                  {lessonQuizzes.length > 0 
+                    ? lessonQuizzes[0]?.has_attempted 
+                      ? `تم الاختبار - النتيجة: ${lessonQuizzes[0].score}%`
+                      : 'بدء الاختبار'
+                    : 'لا يوجد اختبار'
+                  }
                 </button>
 
                 <button
@@ -633,17 +633,26 @@ const LessonInterface = () => {
                   {lessonQuizzes.map((quiz, qIdx) => (
                     <button
                       key={quiz.quiz_id || quiz.id || qIdx}
-                      onClick={() => {
+                      onClick={!quiz.has_attempted ? () => {
                         if (!isLoggedIn) {
                           navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
                           return;
                         }
-                        navigate(`/quiz/${quiz.quiz_id || quiz.id}`);
-                      }}
-                      className="bg-purple-600 hover:bg-purple-700 text-white text-base font-bold py-3 px-4 rounded-lg shadow-md transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                        
+                        const qId = quiz.quiz_id || quiz.id;
+                        navigate(`/quiz/${lessonId}/${activeTeacher}/${qId}`);
+                      } : undefined}
+                      className={`text-white text-base font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 ${
+                        quiz.has_attempted
+                          ? 'bg-green-600 cursor-default opacity-90'
+                          : 'bg-purple-600 hover:bg-purple-700 transform hover:-translate-y-0.5 cursor-pointer'
+                      }`}
                     >
-                      <Zap className="w-5 h-5 text-yellow-300" />
-                      {lessonQuizzes.length > 1 ? `بدء اختبار ${qIdx + 1}` : t('start_quiz')}
+                      <Zap className={`w-5 h-5 ${quiz.has_attempted ? 'text-green-200' : 'text-yellow-300'}`} />
+                      {quiz.has_attempted 
+                        ? `تم الاختبار - النتيجة: ${quiz.score}%`
+                        : (lessonQuizzes.length > 1 ? `بدء اختبار ${qIdx + 1}` : 'بدء الاختبار')
+                      }
                     </button>
                   ))}
                 </div>
