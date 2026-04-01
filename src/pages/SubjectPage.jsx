@@ -453,6 +453,37 @@ const SubjectPage = () => {
         });
       });
 
+      // دروس تظهر فقط عبر الكويز (لا صف فيديو للمدرس على هذا الدرس)
+      teacherQuizzesRows.forEach((row) => {
+        const lid = row.lesson_id;
+        const qid = row.quiz_id ?? row.id;
+        if (!lid || !qid || enrichedLessonIds.has(Number(lid))) return;
+        const fromCatalog = allSubjectLessons.find((sl) => Number(sl.id) === Number(lid));
+        const key = fromCatalog?._unitTitle || 'دروس واختبارات';
+        if (!chapterMap[key]) {
+          chapterMap[key] = {
+            id: Object.keys(chapterMap).length + 1,
+            title: key,
+            order: Object.keys(chapterMap).length + 1,
+            lessons: [],
+          };
+        }
+        chapterMap[key].lessons.push({
+          id: lid,
+          title:
+            row.lesson_title ||
+            row.title ||
+            fromCatalog?.title ||
+            fromCatalog?.name ||
+            `درس ${lid}`,
+          duration: fromCatalog?.duration ?? '--',
+          chapter: key,
+          description: fromCatalog?.description ?? '',
+          completed: false,
+          quizId: qid,
+          hasQuiz: true,
+        });
+      });
 
       // Merge with localStorage completion data
       const completionData = JSON.parse(localStorage.getItem('lessonCompletions') || '{}');

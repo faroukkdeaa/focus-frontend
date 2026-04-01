@@ -71,7 +71,7 @@ const GlobalLayout = ({ children }) => {
   const isAdmin   = user.role === 'admin';
   const mainNav   = isTeacher ? TEACHER_NAV : STUDENT_NAV;
   const isRtl     = lang === 'ar';
-  const homeRoute = isTeacher ? '/teacher-dashboard' : '/dashboard';
+  const homeRoute = isTeacher ? '/landing-page' : '/landing-page';
 
   const handleLogout = () => {
     localStorage.removeItem('token');

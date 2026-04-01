@@ -15,6 +15,18 @@ const parseVideoUrl = (url) => {
   if (/\.(mp4|webm|ogg)(\?|$)/i.test(url)) return { type: 'direct' };
   return null; // رابط غير معروف
 };
+const unwrapList = (res) => {
+  const data = res?.data;
+  return Array.isArray(data?.data) ? data.data
+    : Array.isArray(data?.attempts) ? data.attempts
+    : Array.isArray(data) ? data
+    : [];
+};
+
+const unwrapItem = (res) => {
+  const data = res?.data;
+  return data?.data ?? data?.attempt ?? data?.quiz ?? data ?? null;
+};
 
 const LessonInterface = () => {
   const navigate = useNavigate();
@@ -43,9 +55,26 @@ const LessonInterface = () => {
   const [currentLesson, setCurrentLesson] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [completedIds, setCompletedIds] = useState(new Set()); // per-user
+  const [studentAttempts, setStudentAttempts] = useState([]); // سجل الكويزات اللي الطالب ممتحنها
   const [currentVideo, setCurrentVideo]   = useState(null);     // فيديو الدرس الحالي من real API
   const [lessonQuizzes, setLessonQuizzes] = useState([]); // الكويزات المتاحة للدرس
   const [videoLoading, setVideoLoading]   = useState(false);
+  const [lessonsLoading, setLessonsLoading] = useState(false); // حالة تحميل الدروس للمدرس
+
+  // ── جلب محاولات الطالب للاختبارات بمجرد فتح واجهة الدورة ──
+  useEffect(() => {
+    const fetchAttempts = async () => {
+      if (!isLoggedIn) return;
+      try {
+        const res = await api.get('/students/attempts');
+        const attemptsList = res.data?.data || res.data || [];
+        setStudentAttempts(attemptsList);
+      } catch (err) {
+        console.warn('Could not fetch student attempts in LessonInterface:', err);
+      }
+    };
+    fetchAttempts();
+  }, [isLoggedIn]);
 
   // جلب lessonId و subjectId و subjectName و teacherId من location.state
   // ✅ Clean lesson ID - remove any ":1" suffix from hasManyThrough
@@ -113,11 +142,28 @@ const LessonInterface = () => {
         
         // 5. Set active teacher: prioritize teacher from navigation, fallback to first teacher
         if (mappedTeachers.length > 0) {
-          // ✅ If user selected a specific teacher from SubjectPage, use it
-          const targetTeacher = preSelectedTeacherId 
-            ? mappedTeachers.find(t => t.id === preSelectedTeacherId) || mappedTeachers[0]
-            : mappedTeachers[0];
+          // ✅ Search for the intended target teacher
+          let targetTeacher = preSelectedTeacherId
+            ? mappedTeachers.find(t => String(t.id) === String(preSelectedTeacherId))
+            : null;
+
+          // If they came from page 2+ on SubjectPage, they won't be in mapping (which only fetches page 1)
+          // Ensure we append them to the sidebar list so we can show their lessons
+          if (!targetTeacher && preSelectedTeacherId) {
+            targetTeacher = {
+              id: preSelectedTeacherId,
+              name: location.state?.teacherName || `مدرس ${preSelectedTeacherId}`,
+              subject: stateSubjectName || '',
+            };
+            mappedTeachers.push(targetTeacher);
+          }
+
+          // Fallback to first loaded teacher if all else fails
+          if (!targetTeacher) {
+            targetTeacher = mappedTeachers[0];
+          }
             
+          setTeachers(mappedTeachers); // Re-set in case we appended
           setActiveTeacher(targetTeacher.id);
           setCourse({ subjectName: targetTeacher.subject || stateSubjectName, lessons: [] });
         }
@@ -140,6 +186,7 @@ const LessonInterface = () => {
     let cancelled = false;
     
     const fetchTeacherLessons = async () => {
+      setLessonsLoading(true);
       try {
         console.log(`🔄 Fetching lessons for teacher ${activeTeacher}...`);
         
@@ -203,6 +250,8 @@ const LessonInterface = () => {
           console.error(`❌ Failed to fetch lessons for teacher ${activeTeacher}:`, err);
           setLessons([]);
         }
+      } finally {
+        if (!cancelled) setLessonsLoading(false);
       }
     };
     
@@ -281,7 +330,7 @@ const LessonInterface = () => {
           
           setLessonQuizzes(finalQuizzes);
           
-          console.log('✅ الخلاصة اللي الرياكت شافها:', {
+          console.log(`[LessonInterface] Loaded content for lesson ${currentLesson.id}:`, {
             lessonId: safeId,
             videoFound: !!selectedVideo,
             quizzesFound: finalQuizzes.length,
@@ -316,6 +365,19 @@ const LessonInterface = () => {
   const completedCount = completedIds.size;
   const totalCount = lessons.length;
   const progressPercent = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  const mainQuiz = lessonQuizzes.length > 0 ? lessonQuizzes[0] : null;
+  const matchingAttempt = mainQuiz && Array.isArray(studentAttempts)
+    ? studentAttempts.find(a => String(a.quiz_id) === String(mainQuiz.id) || String(a.id) === String(mainQuiz.id))
+    : null;
+
+  const quizData = mainQuiz ? {
+    ...mainQuiz,
+    has_attempted: !!matchingAttempt,
+    score: matchingAttempt?.score ?? null
+  } : null;
+
+  const routeLessonId = currentLesson?.id ?? lessonId;
 
   // التنقل بين الدروس
   const currentIndex    = lessons.findIndex(l => l.id === currentLesson?.id);
@@ -360,7 +422,7 @@ const LessonInterface = () => {
     }
   };
 
-  if (loading) {
+  if (loading || lessonsLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-[#103B66] font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         <Loader2 className="w-12 h-12 animate-spin mb-4" />
@@ -581,41 +643,38 @@ const LessonInterface = () => {
                   {t('prev_lesson')}
                 </button>
 
-                {/* زر اختبار الدرس - يظهر دائماً */}
-                <button
-                  onClick={lessonQuizzes.length > 0 && !lessonQuizzes[0]?.has_attempted ? () => {
-                    if (!isLoggedIn) {
-                      navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
-                      return;
-                    }
-                    
-                    const mainQuiz = lessonQuizzes[0];
-                    const qId = mainQuiz.quiz_id || mainQuiz.id;
-                    navigate(`/quiz/${lessonId}/${activeTeacher}/${qId}`);
-                  } : undefined}
-                  disabled={lessonQuizzes.length === 0}
-                  className={`flex-1 text-white text-base font-bold py-3 rounded-lg shadow-lg transition flex items-center justify-center gap-2 ${
-                    lessonQuizzes.length > 0 && lessonQuizzes[0]?.has_attempted
-                      ? 'bg-green-600 cursor-default opacity-90'
-                      : lessonQuizzes.length > 0 
+                {/* زر اختبار الدرس — مسار التطبيق: /quiz/:lessonId/:teacherId/:quizId */}
+                {quizData?.has_attempted ? (
+                  <div
+                    role="status"
+                    className="flex-1 text-white text-base font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2 bg-green-600 cursor-default opacity-90 select-none"
+                  >
+                    <Zap className="w-5 h-5 text-green-200" />
+                    تم الاختبار - النتيجة: {quizData.score != null ? `${quizData.score}%` : '—'}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (lessonQuizzes.length === 0 || !quizData) return;
+                      if (!isLoggedIn) {
+                        navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
+                        return;
+                      }
+                      const qId = quizData.quiz_id ?? quizData.id;
+                      navigate(`/quiz/${routeLessonId}/${activeTeacher}/${qId}`);
+                    }}
+                    disabled={lessonQuizzes.length === 0}
+                    className={`flex-1 text-white text-base font-bold py-3 rounded-lg shadow-lg transition flex items-center justify-center gap-2 ${
+                      lessonQuizzes.length > 0
                         ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 hover:scale-105 transform cursor-pointer'
                         : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60'
-                  }`}
-                >
-                  <Zap className={`w-5 h-5 ${
-                    lessonQuizzes.length > 0 && lessonQuizzes[0]?.has_attempted 
-                      ? 'text-green-200' 
-                      : lessonQuizzes.length > 0 
-                        ? 'text-yellow-300' 
-                        : 'text-gray-200'
-                  }`} />
-                  {lessonQuizzes.length > 0 
-                    ? lessonQuizzes[0]?.has_attempted 
-                      ? `تم الاختبار - النتيجة: ${lessonQuizzes[0].score}%`
-                      : 'بدء الاختبار'
-                    : 'لا يوجد اختبار'
-                  }
-                </button>
+                    }`}
+                  >
+                    <Zap className={`w-5 h-5 ${lessonQuizzes.length > 0 ? 'text-yellow-300' : 'text-gray-200'}`} />
+                    {lessonQuizzes.length > 0 ? 'بدء الاختبار' : 'لا يوجد اختبار'}
+                  </button>
+                )}
 
                 <button
                   onClick={handleNextLesson}
@@ -630,31 +689,35 @@ const LessonInterface = () => {
               {/* قسم الكويزات */}
               {lessonQuizzes.length > 0 && (
                 <div id="quizzes-section" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 w-full animate-fade-in-up">
-                  {lessonQuizzes.map((quiz, qIdx) => (
-                    <button
-                      key={quiz.quiz_id || quiz.id || qIdx}
-                      onClick={!quiz.has_attempted ? () => {
-                        if (!isLoggedIn) {
-                          navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
-                          return;
-                        }
-                        
-                        const qId = quiz.quiz_id || quiz.id;
-                        navigate(`/quiz/${lessonId}/${activeTeacher}/${qId}`);
-                      } : undefined}
-                      className={`text-white text-base font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 ${
-                        quiz.has_attempted
-                          ? 'bg-green-600 cursor-default opacity-90'
-                          : 'bg-purple-600 hover:bg-purple-700 transform hover:-translate-y-0.5 cursor-pointer'
-                      }`}
-                    >
-                      <Zap className={`w-5 h-5 ${quiz.has_attempted ? 'text-green-200' : 'text-yellow-300'}`} />
-                      {quiz.has_attempted 
-                        ? `تم الاختبار - النتيجة: ${quiz.score}%`
-                        : (lessonQuizzes.length > 1 ? `بدء اختبار ${qIdx + 1}` : 'بدء الاختبار')
-                      }
-                    </button>
-                  ))}
+                  {lessonQuizzes.map((quiz, qIdx) =>
+                    quiz.has_attempted ? (
+                      <div
+                        key={quiz.quiz_id || quiz.id || qIdx}
+                        role="status"
+                        className="text-white text-base font-bold py-3 px-4 rounded-lg shadow-md flex items-center justify-center gap-2 bg-green-600 cursor-default opacity-90 select-none"
+                      >
+                        <Zap className="w-5 h-5 text-green-200" />
+                        تم الاختبار - النتيجة: {quiz.score != null ? `${quiz.score}%` : '—'}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        key={quiz.quiz_id || quiz.id || qIdx}
+                        onClick={() => {
+                          if (!isLoggedIn) {
+                            navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
+                            return;
+                          }
+                          const qId = quiz.quiz_id || quiz.id;
+                          navigate(`/quiz/${routeLessonId}/${activeTeacher}/${qId}`);
+                        }}
+                        className="text-white text-base font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 transform hover:-translate-y-0.5 cursor-pointer"
+                      >
+                        <Zap className="w-5 h-5 text-yellow-300" />
+                        {lessonQuizzes.length > 1 ? `بدء اختبار ${qIdx + 1}` : 'بدء الاختبار'}
+                      </button>
+                    )
+                  )}
                 </div>
               )}
             </div>

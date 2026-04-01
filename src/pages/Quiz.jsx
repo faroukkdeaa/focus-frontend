@@ -66,46 +66,59 @@ const Quiz = () => {
   const [submitting, setSubmitting] = useState(false);
   // real API params
   const [realParams, setRealParams] = useState(null);
+  const [showResults, setShowResults] = useState(false);
+  const [finalScoreData, setFinalScoreData] = useState(null);
 
   const questions = quizData?.questions || [];
 
-  // جلب بيانات الاختبار مباشرة برقم الكويز
+  // جلب بيانات الاختبار: GET /api/quizzes-details/{quizId}
   useEffect(() => {
     const loadQuiz = async () => {
+      if (!isLoggedIn) return;
+
       try {
         setLoading(true);
         setError(null);
+        setAlreadyAttempted(false);
 
-        if (!quizId) {
+        const rawQuizId = quizId != null ? String(quizId).trim() : '';
+        if (!rawQuizId) {
           setError('رقم الاختبار غير متوفر.');
-          setLoading(false);
           return;
         }
 
-        // جلب الأسئلة مباشرة من quizzes-details
-        const quizRes = await api.get(`/quizzes-details/${quizId}`);
-        const quizPayload = quizRes.data?.quiz;
-        const teacherData = quizRes.data?.teacher;
+        const quizRes = await api.get(`/quizzes-details/${rawQuizId}`);
+        const data = quizRes.data ?? {};
 
-        if (!quizPayload) {
-          setError('تعذّر تحميل أسئلة الاختبار. حاول مرة أخرى.');
-          setLoading(false);
-          return;
-        }
-
-        // تحقق: هل سبق للطالب محاولة هذا الكويز؟
-        if (quizPayload.quiz_attempt) {
+        // Laravel showQuiz: عند محاولة سابقة يرجع { message } فقط بدون مفتاح quiz
+        if (data.message && !data.quiz) {
           setAlreadyAttempted(true);
-          setLoading(false);
           return;
         }
 
-        const questionsRaw = quizPayload.questions?.data || quizPayload.questions || [];
-        const normalizedQs = questionsRaw.map(normalizeQuestion).filter(q => q.options.length > 0);
+        const quizPayload = data.quiz ?? data.data?.quiz;
+        const teacherData = data.teacher ?? data.data?.teacher;
+
+        if (!quizPayload || typeof quizPayload !== 'object') {
+          setError('تعذّر تحميل أسئلة الاختبار. حاول مرة أخرى.');
+          return;
+        }
+
+        if (quizPayload.quiz_attempt === true) {
+          setAlreadyAttempted(true);
+          return;
+        }
+
+        const questionsRaw = Array.isArray(quizPayload.questions)
+          ? quizPayload.questions
+          : (quizPayload.questions?.data ?? quizPayload.questions ?? []);
+
+        const normalizedQs = (Array.isArray(questionsRaw) ? questionsRaw : [])
+          .map(normalizeQuestion)
+          .filter((q) => q.options.length > 0);
 
         if (normalizedQs.length === 0) {
           setError('هذا الاختبار لا يحتوي على أسئلة بعد. تواصل مع المدرس.');
-          setLoading(false);
           return;
         }
 
@@ -117,9 +130,8 @@ const Quiz = () => {
           timeLimit:   600,
         });
 
-        // سنحفظ بعض البيانات المعادة لتحديث حالة الدرس بعد الانتهاء
         setRealParams({
-          quizId: quizId,
+          quizId: rawQuizId,
           lessonId: quizPayload.lesson_id,
           subjectId: teacherData?.subject_id,
           teacherId: teacherData?.teacher_id,
@@ -129,6 +141,8 @@ const Quiz = () => {
         console.error('[Quiz] Loading error:', err);
         if (err.response?.status === 401) {
           setError('يجب تسجيل الدخول لأداء الاختبار.');
+        } else if (err.response?.status === 404) {
+          setError('الاختبار غير موجود.');
         } else {
           setError('تعذّر تحميل الاختبار. تأكد من اتصالك وحاول مرة أخرى.');
         }
@@ -137,20 +151,20 @@ const Quiz = () => {
       }
     };
 
-    if (isLoggedIn) loadQuiz();
+    loadQuiz();
   }, [quizId, isLoggedIn]);
 
 
   // دالة العداد التنازلي
   useEffect(() => {
-    if (timeLeft > 0 && quizData) {
+    if (timeLeft > 0 && quizData && !showResults) {          // ← أضف && !showResults
       const timerId = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timerId);
-    } else if (timeLeft === 0) {
-      handleFinishQuiz(); // لو الوقت خلص سلم الامتحان
+    } else if (timeLeft === 0 && !showResults) {             // ← أضف && !showResults
+      handleFinishQuiz();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeLeft, quizData]);
+  }, [timeLeft, quizData, showResults]);                     // ← أضف showResults للديبندنسي
 
   // تحويل الوقت لدقائق وثواني
   const formatTime = (seconds) => {
@@ -188,8 +202,9 @@ const Quiz = () => {
   };
 
   // إنهاء الامتحان
-  const handleFinishQuiz = async () => {
-    // Save current answer before finishing (if any selected)
+    const handleFinishQuiz = async () => {
+    if (submitting || showResults) return;                   // ← أضف هذا السطر
+
     let finalAnswers = { ...userAnswers };
     let finalScore = score;
 
@@ -206,12 +221,10 @@ const Quiz = () => {
   const finishQuizLogic = async (finalAnswers, finalScore = score) => {
     setSubmitting(true);
 
-    // ── Real API submit ────────────────────────────────────────────────────
     if (realParams) {
       try {
         const { subjectId: sId, teacherId: tId, lessonId: lId, quizId } = realParams;
 
-        // حوّل الإجابات: [{ question_id, answer_text }]
         const answers = Object.entries(finalAnswers).map(([qIdx, aIdx]) => {
           const q = questions[Number(qIdx)];
           let ansText;
@@ -226,11 +239,7 @@ const Quiz = () => {
           };
         });
 
-        const res = await api.post(
-          `/quiz/${quizId}/answer`,
-          { answers }
-        );
-
+        const res = await api.post(`/quiz/${quizId}/answer`, { answers });
         const serverScore = res.data?.score ?? finalScore;
 
         // حفظ إتمام الدرس في localStorage
@@ -246,26 +255,12 @@ const Quiz = () => {
           } catch { /* غير حرج */ }
         }
 
-        const resultsPayload = {
-          score:       serverScore,
-          total:       questions.length,
-          questions,
-          userAnswers: finalAnswers,
-          lesson:      { id: lId, title: quizData?.lessonTitle },
-          subjectId:   sId,
-          teacherId:   tId,
-          lessonId:    lId,
-          quizId:      quizId,
-          subjectName: quizData?.subjectName,
-          fromRealApi: true,
-        };
-        // حفظ في sessionStorage حتى لا ينهار عند الـ refresh
-        try { sessionStorage.setItem('lastQuizResults', JSON.stringify(resultsPayload)); } catch {}
-        navigate('/quiz-results', { state: resultsPayload });
+        // ← عرض النتيجة في نفس الصفحة بدل الانتقال
+        setFinalScoreData({ score: serverScore, total: questions.length });
+        setShowResults(true);
         return;
       } catch (err) {
         console.error('Real API submit error:', err);
-        // لو السيرفر وقع → نعرض خطأ بدل ما نروح لنتيجة غلط
         setError('تعذّر إرسال الإجابات للسيرفر. تأكد من اتصالك وحاول مرة أخرى.');
         setSubmitting(false);
         return;
@@ -274,19 +269,9 @@ const Quiz = () => {
       }
     }
 
-    const resultsPayload = {
-      score:       finalScore,
-      total:       questions.length,
-      questions,
-      userAnswers: finalAnswers,
-      lesson:      { id: realParams?.lessonId, title: quizData?.lessonTitle },
-      subjectId:   realParams?.subjectId,
-      teacherId:   realParams?.teacherId,
-      quizId:      realParams?.quizId,
-      subjectName: quizData?.subjectName,
-    };
-    try { sessionStorage.setItem('lastQuizResults', JSON.stringify(resultsPayload)); } catch {}
-    navigate('/quiz-results', { state: resultsPayload });
+    // ← Fallback بدون realParams – نفس السلوك
+    setFinalScoreData({ score: finalScore, total: questions.length });
+    setShowResults(true);
   };
 
   // العودة للدرس الحالي
@@ -372,6 +357,73 @@ const Quiz = () => {
             className="text-gray-500 hover:text-gray-700 text-sm underline"
           >
             {t('back_to_lesson')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+    // ── واجهة عرض النتيجة ──────────────────────────────────────────
+  if (showResults && finalScoreData) {
+    const percentage = Math.round((finalScoreData.score / finalScoreData.total) * 100);
+    const passed = percentage >= 50;
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 font-['Cairo'] px-4" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+        <div className={`rounded-2xl p-10 text-center max-w-md w-full shadow-lg border
+          ${passed
+            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700'
+            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
+          }`}>
+
+          {/* أيقونة */}
+          <div className={`w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center
+            ${passed ? 'bg-emerald-100 dark:bg-emerald-800/30' : 'bg-red-100 dark:bg-red-800/30'}`}>
+            <Trophy className={`w-12 h-12 ${passed ? 'text-emerald-500' : 'text-red-500'}`} />
+          </div>
+
+          {/* العنوان */}
+          <h2 className={`text-2xl font-bold mb-2
+            ${passed ? 'text-emerald-800 dark:text-emerald-300' : 'text-red-800 dark:text-red-300'}`}>
+            {passed ? 'أحسنت! لقد نجحت' : 'لم تجتز الاختبار'}
+          </h2>
+
+          {/* الدرجة الدائرية */}
+          <div className="relative w-36 h-36 mx-auto my-6">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="52" fill="none"
+                className="stroke-gray-200 dark:stroke-gray-700" strokeWidth="10" />
+              <circle cx="60" cy="60" r="52" fill="none"
+                className={passed ? 'stroke-emerald-500' : 'stroke-red-500'}
+                strokeWidth="10" strokeLinecap="round"
+                strokeDasharray={`${(percentage / 100) * 327} 327`}
+                style={{ transition: 'stroke-dasharray 1s ease' }} />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className={`text-3xl font-black ${passed ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                {finalScoreData.score}
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                من {finalScoreData.total}
+              </span>
+            </div>
+          </div>
+
+          {/* النسبة المئوية */}
+          <p className={`text-lg font-bold mb-6
+            ${passed ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+            {percentage}%
+          </p>
+
+          {/* زر العودة فقط – بدون إعادة امتحان */}
+          <button
+            onClick={handleBackToLesson}
+            className={`w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold transition
+              ${passed
+                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}>
+            <BookOpen className="w-5 h-5" />
+            العودة للدرس
           </button>
         </div>
       </div>

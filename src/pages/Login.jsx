@@ -110,15 +110,19 @@ const Login = () => {
           sessionStorage.removeItem('authRedirect');
           
           if (pending.type === 'quiz') {
-            // ✅ استخدام URL parameters للكويز
-            navigate(`/quiz/${pending.lesson.id}/${pending.teacherId}/${pending.subjectId}`, { 
-              state: { 
-                lesson: pending.lesson, 
-                subjectId: pending.subjectId, 
-                teacherId: pending.teacherId, 
-                subjectName: pending.subjectName 
-              } 
-            });
+            const qId = pending.lesson?.quizId ?? pending.quizId;
+            if (pending.lesson?.id != null && pending.teacherId != null && qId != null) {
+              navigate(`/quiz/${pending.lesson.id}/${pending.teacherId}/${qId}`, {
+                state: {
+                  lesson: pending.lesson,
+                  subjectId: pending.subjectId,
+                  teacherId: pending.teacherId,
+                  subjectName: pending.subjectName,
+                },
+              });
+            } else {
+              navigate('/dashboard');
+            }
           } else {
             navigate('/course-details', { 
               state: { 
