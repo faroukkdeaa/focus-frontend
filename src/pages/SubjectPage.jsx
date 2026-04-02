@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { publicApi } from '../api/api';
 import {
   ArrowRight, BookOpen, PlayCircle, Loader2, CheckCircle2,
-  ChevronDown, ChevronUp, Clock, AlertTriangle, RefreshCcw, Zap,
+  ChevronDown, ChevronUp, Clock, AlertTriangle, RefreshCcw,
   Home, LogIn, User, GraduationCap, ChevronLeft, Users,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
@@ -75,7 +75,7 @@ const TeacherCard = ({ teacher, isSelected, onSelect }) => {
 
 // ── Unit card (self-contained, collapsible) ───────────────────────────────────
 
-const UnitCard = ({ unit, subjectId, onStartLesson, onQuiz, isLoggedIn }) => {
+const UnitCard = ({ unit, subjectId, onStartLesson, isLoggedIn }) => {
   const [expanded, setExpanded] = useState(false);
 
   const completedCount = unit.lessons.filter(l => l.completed).length;
@@ -158,16 +158,6 @@ const UnitCard = ({ unit, subjectId, onStartLesson, onQuiz, isLoggedIn }) => {
 
               {/* Action buttons */}
               <div className="flex items-center gap-1.5 shrink-0">
-                {/* ✅ زر الكويز يظهر دائماً - سيتحقق من وجود الكويز عند الضغط */}
-                <button
-                  onClick={() => onQuiz(lesson, subjectId)}
-                  className="text-xs px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1
-                    bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400
-                    hover:bg-violet-200 dark:hover:bg-violet-900/50"
-                  title="اضغط لبدء الاختبار"
-                >
-                  <Zap className="w-3 h-3" /> اختبار
-                </button>
                 <button
                   onClick={() => onStartLesson(lesson, subjectId)}
                   className={`text-xs px-3 py-1 rounded-lg font-bold transition flex items-center gap-1
@@ -205,11 +195,9 @@ const SubjectPage = () => {
   const [loadingSubject,  setLoadingSubject]  = useState(true);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
   const [loadingLessons,  setLoadingLessons]  = useState(false);
-  const [loadingTeacherQuizzes, setLoadingTeacherQuizzes] = useState(false);
   const [errorSubject,    setErrorSubject]    = useState(null);
   const [errorTeachers,   setErrorTeachers]   = useState(null);
   const [errorLessons,    setErrorLessons]    = useState(null);
-  const [teacherQuizLinks, setTeacherQuizLinks] = useState([]);
 
   // هل في مدرسين كمان في الـ API؟
   const hasMoreTeachers = teachersApiPage < teachersLastPage;
@@ -217,9 +205,9 @@ const SubjectPage = () => {
   // ── Auth Modal State ──
   const [authModal, setAuthModal] = useState({
     isOpen: false,
-    type: 'lesson', // 'lesson' | 'quiz'
+    type: 'lesson', // 'lesson'
     lessonTitle: '',
-    pendingAction: null, // { lesson, subjectId, type: 'lesson'|'quiz' }
+    pendingAction: null, // { lesson, subjectId, type: 'lesson' }
   });
 
   const isLoggedIn = !!localStorage.getItem('token');
@@ -282,13 +270,11 @@ const SubjectPage = () => {
   }, [subjectId]);
 
   // ── Fetch lessons for selected teacher ──
-  // ✅ يجلب دروس المدرس فقط عند اختياره (بدلاً من جلب دروس كل المدرسين مسبقاً)
+  // ✅ يجلب دروس المدرس فقط عند اختياره
   const fetchTeacherLessons = useCallback(async (teacherId) => {
     setLoadingLessons(true);
-    setLoadingTeacherQuizzes(true);
     setErrorLessons(null);
     setUnits([]);
-    setTeacherQuizLinks([]);
     
     try {
       // 1. جلب وحدات المادة أولاً
@@ -311,19 +297,8 @@ const SubjectPage = () => {
         }
       }
       
-      // 3. جلب الدروس عبر فيديوهات المدرس + كويزات المدرس مباشرة (قد يوجد كويز بلا صف فيديو)
+      // 3. جلب الدروس عبر فيديوهات المدرس
       const teacherLessonsRes = await publicApi.get(`/teachers/${teacherId}/lessons`);
-
-      let teacherQuizzesRows = [];
-      try {
-        const teacherQuizzesRes = await publicApi.get(`/teachers/${teacherId}/quizzes`);
-        const teacherQuizzesPayload = teacherQuizzesRes.data?.quizzes;
-        teacherQuizzesRows = Array.isArray(teacherQuizzesPayload?.data)
-          ? teacherQuizzesPayload.data
-          : (Array.isArray(teacherQuizzesPayload) ? teacherQuizzesPayload : []);
-      } catch {
-        // سيرفر قديم بلا مسار /teachers/{id}/quizzes
-      }
 
       // ✅ Extract lessons with proper fallback chaining
       const teacherLessonsRaw = 
@@ -344,90 +319,8 @@ const SubjectPage = () => {
         return {
           ...teacherLesson,
           _unitTitle: subjectLesson?._unitTitle || teacherLesson.unit_title || teacherLesson.chapter || 'دروس عامة',
-          quiz_id: teacherLesson.quiz_id || subjectLesson?.quiz_id || null,
-          has_quiz: !!(teacherLesson.quiz_id || subjectLesson?.quiz_id),
         };
       });
-
-      // ✅ Build a teacher-scoped quiz map with lesson titles.
-      // If quiz_id is missing on lesson object, fallback to /lessons/:id details.
-      const quizLinkCandidates = [];
-      const lessonsMissingQuizId = [];
-
-      enrichedLessons.forEach((lesson) => {
-        if (lesson.quiz_id) {
-          quizLinkCandidates.push({
-            quizId: lesson.quiz_id,
-            lessonId: lesson.id,
-            lessonTitle: lesson.title ?? lesson.name ?? `درس ${lesson.id}`,
-          });
-        } else {
-          lessonsMissingQuizId.push(lesson);
-        }
-      });
-
-      if (lessonsMissingQuizId.length > 0) {
-        const lessonQuizResponses = await Promise.all(
-          lessonsMissingQuizId.map(async (lesson) => {
-            try {
-              const lessonRes = await publicApi.get(`/lessons/${lesson.id}`);
-              const quizzesRaw =
-                lessonRes.data?.quizzes?.data ||
-                lessonRes.data?.quizzes ||
-                lessonRes.data?.data?.quizzes?.data ||
-                lessonRes.data?.data?.quizzes ||
-                [];
-
-              const quizzesList = Array.isArray(quizzesRaw) ? quizzesRaw : [];
-              const teacherMatched = quizzesList.filter((q) => q?.teacher_id === teacherId);
-              const usableQuizzes = teacherMatched.length > 0
-                ? teacherMatched
-                : quizzesList.filter((q) => !q?.teacher_id);
-
-              return usableQuizzes.map((q) => ({
-                quizId: q?.quiz_id || q?.id,
-                lessonId: lesson.id,
-                lessonTitle: lesson.title ?? lesson.name ?? `درس ${lesson.id}`,
-              }));
-            } catch {
-              return [];
-            }
-          })
-        );
-
-        lessonQuizResponses.flat().forEach((item) => quizLinkCandidates.push(item));
-      }
-
-      // كويزات من الـ API المخصص (تشمل دروساً بدون فيديو للمدرس)
-      teacherQuizzesRows.forEach((row) => {
-        const qid = row.quiz_id ?? row.id;
-        const lid = row.lesson_id;
-        if (!qid || !lid) return;
-        const fromCatalog = allSubjectLessons.find((sl) => Number(sl.id) === Number(lid));
-        const lessonTitle =
-          row.lesson_title ||
-          row.title ||
-          fromCatalog?.title ||
-          fromCatalog?.name ||
-          `درس ${lid}`;
-        quizLinkCandidates.push({
-          quizId: qid,
-          lessonId: lid,
-          lessonTitle,
-        });
-      });
-
-      const uniqueQuizLinks = Array.from(
-        new Map(
-          quizLinkCandidates
-            .filter((item) => item.quizId && item.lessonId)
-            .map((item) => [`${item.quizId}-${item.lessonId}`, item])
-        ).values()
-      );
-
-      setTeacherQuizLinks(uniqueQuizLinks);
-
-      const enrichedLessonIds = new Set(enrichedLessons.map((l) => Number(l.id)));
 
       // Group lessons by unit (chapter)
       const chapterMap = {};
@@ -448,40 +341,6 @@ const SubjectPage = () => {
           chapter: key,
           description: l.description ?? '',
           completed: false,
-          quizId: l.quiz_id || null, // ✅ الآن يحتوي على quiz_id إذا كان موجوداً
-          hasQuiz: l.has_quiz || false,
-        });
-      });
-
-      // دروس تظهر فقط عبر الكويز (لا صف فيديو للمدرس على هذا الدرس)
-      teacherQuizzesRows.forEach((row) => {
-        const lid = row.lesson_id;
-        const qid = row.quiz_id ?? row.id;
-        if (!lid || !qid || enrichedLessonIds.has(Number(lid))) return;
-        const fromCatalog = allSubjectLessons.find((sl) => Number(sl.id) === Number(lid));
-        const key = fromCatalog?._unitTitle || 'دروس واختبارات';
-        if (!chapterMap[key]) {
-          chapterMap[key] = {
-            id: Object.keys(chapterMap).length + 1,
-            title: key,
-            order: Object.keys(chapterMap).length + 1,
-            lessons: [],
-          };
-        }
-        chapterMap[key].lessons.push({
-          id: lid,
-          title:
-            row.lesson_title ||
-            row.title ||
-            fromCatalog?.title ||
-            fromCatalog?.name ||
-            `درس ${lid}`,
-          duration: fromCatalog?.duration ?? '--',
-          chapter: key,
-          description: fromCatalog?.description ?? '',
-          completed: false,
-          quizId: qid,
-          hasQuiz: true,
         });
       });
 
@@ -506,7 +365,6 @@ const SubjectPage = () => {
       setErrorLessons('تعذّر تحميل دروس المدرس.');
     } finally {
       setLoadingLessons(false);
-      setLoadingTeacherQuizzes(false);
     }
   }, [subjectId]);
 
@@ -575,58 +433,6 @@ const SubjectPage = () => {
         teacherId: selectedTeacher?.id  // ✅ Pass teacher ID
       } 
     });
-  };
-
-  const handleQuiz = (lesson, sid) => {
-    if (!isLoggedIn) {
-      openAuthModal('quiz', lesson);
-      sessionStorage.setItem('pendingLesson', JSON.stringify({
-        type: 'quiz',
-        lesson,
-        subjectId: sid,
-        subjectName: subject?.name,
-        teacherId: selectedTeacher?.id,
-      }));
-      return;
-    }
-    
-    // ✅ إذا كان الدرس يحتوي على quiz_id، انتقل مباشرة للكويز
-    if (lesson.quizId && selectedTeacher?.id) {
-      navigate(`/quiz/${lesson.id}/${selectedTeacher.id}/${lesson.quizId}`);
-    } else {
-      // Fallback: الذهاب لواجهة الدرس التي تعرض الفيديوهات والكويزات بشكل منظم
-      navigate('/course-details', { 
-        state: { 
-          lesson, 
-          subjectId: sid, 
-          subjectName: subject?.name, 
-          teacherId: selectedTeacher?.id,  // ✅ Pass teacher ID
-          autoScrollToQuiz: true 
-        } 
-      });
-    }
-  };
-
-  const handleTeacherQuizEntry = (quizItem) => {
-    if (!isLoggedIn) {
-      openAuthModal('quiz', { title: quizItem.lessonTitle });
-      sessionStorage.setItem('pendingLesson', JSON.stringify({
-        type: 'quiz',
-        lesson: {
-          id: quizItem.lessonId,
-          title: quizItem.lessonTitle,
-          quizId: quizItem.quizId,
-        },
-        subjectId,
-        subjectName: subject?.name,
-        teacherId: selectedTeacher?.id,
-      }));
-      return;
-    }
-
-    if (selectedTeacher?.id && quizItem?.quizId && quizItem?.lessonId) {
-      navigate(`/quiz/${quizItem.lessonId}/${selectedTeacher.id}/${quizItem.quizId}`);
-    }
   };
 
   const handleBack = () => {
@@ -832,44 +638,6 @@ const SubjectPage = () => {
             </div>
 
             {/* Lessons */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 mb-4">
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <h4 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-violet-500" />
-                  اختبارات المدرس
-                </h4>
-                {!loadingTeacherQuizzes && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400 font-bold">
-                    {teacherQuizLinks.length} اختبار
-                  </span>
-                )}
-              </div>
-
-              {loadingTeacherQuizzes ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">⏳ جاري تجهيز الاختبارات...</p>
-              ) : teacherQuizLinks.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">لا يوجد اختبار متاح لهذا المدرس حالياً.</p>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {teacherQuizLinks.map((quizItem) => (
-                    <button
-                      key={`${quizItem.quizId}-${quizItem.lessonId}`}
-                      onClick={() => handleTeacherQuizEntry(quizItem)}
-                      className="text-right border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20
-                        hover:bg-violet-100 dark:hover:bg-violet-900/30 rounded-lg p-3 transition"
-                    >
-                      <p className="text-sm font-bold text-violet-800 dark:text-violet-300 truncate">
-                        {quizItem.lessonTitle}
-                      </p>
-                      <p className="text-xs text-violet-600 dark:text-violet-400 mt-1 truncate">
-                        {selectedTeacher.name} — {t('take_quiz') || 'أخذ الاختبار'}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
             <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
               {t('lessons_catalog') || 'كتالوج الدروس'}
@@ -892,7 +660,6 @@ const SubjectPage = () => {
                     unit={unit}
                     subjectId={subjectId}
                     onStartLesson={handleStartLesson}
-                    onQuiz={handleQuiz}
                     isLoggedIn={isLoggedIn}
                   />
                 ))}

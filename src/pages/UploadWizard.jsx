@@ -152,7 +152,9 @@ const QuestionCard = ({ q, qIdx, apiSubtopics, onPatch, onPatchOption, onRemove,
             >
               <option value="">اختر الموضوع الفرعي</option>
               {apiSubtopics.map(st => (
-                <option key={st.id} value={st.id}>{st.title || st.name}</option>
+                <option key={st.id} value={st.id}>
+                  {st.title || st.name || `موضوع ${st.id}`}
+                </option>
               ))}
             </select>
             {showValidation && !q.subtopic && (
@@ -271,12 +273,40 @@ const UploadWizard = () => {
       api.get(`/subjects/${subject}/subtopics`)
     ])
       .then(([resUnits, resSubtopics]) => {
+        console.log('🔍 Raw Subtopics Response:', resSubtopics);
+        console.log('🔍 Subtopics Data:', resSubtopics.data);
+        
         const dUnits = resUnits.data?.data || resUnits.data || [];
-        const dSub = resSubtopics.data?.data || resSubtopics.data || [];
+        
+        // ✅ Bulletproof extraction for subtopics - handles Object/Array/Nested structures
+        let rawSub = resSubtopics.data?.data || resSubtopics.data;
+        let finalSubtopics = [];
+        
+        if (Array.isArray(rawSub)) {
+          // Already an array, use directly
+          finalSubtopics = rawSub;
+        } else if (typeof rawSub === 'object' && rawSub !== null) {
+          // It's an object - check if there's a nested array inside (e.g., { subtopics: [...] })
+          const nestedArray = Object.values(rawSub).find(val => Array.isArray(val));
+          if (nestedArray) {
+            finalSubtopics = nestedArray;
+          } else {
+            // It might be a PHP associative array converted to an Object
+            // Convert the object's values to an array
+            finalSubtopics = Object.values(rawSub);
+          }
+        }
+        
+        console.log('✅ Final Subtopics Array:', finalSubtopics);
+        console.log('✅ Is Array?', Array.isArray(finalSubtopics), 'Length:', finalSubtopics.length);
+        
         setApiUnits(Array.isArray(dUnits) ? dUnits : []);
-        setApiSubtopics(Array.isArray(dSub) ? dSub : []);
+        setApiSubtopics(finalSubtopics);
       })
-      .catch(err => console.error('Failed to fetch units or subtopics', err))
+      .catch(err => {
+        console.error('❌ Failed to fetch units or subtopics', err);
+        console.error('❌ Error details:', err.response?.data);
+      })
       .finally(() => setLoadingOpts(false));
   }, [subject]);
 

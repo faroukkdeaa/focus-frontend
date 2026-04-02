@@ -5,7 +5,7 @@ import { ArrowRight, Play, Pause, Volume2, Settings, ChevronLeft, ChevronRight, 
 import { useLanguage } from '../context/LanguageContext';
 import { MOCK_API, REAL_TO_MOCK_SUBJECT } from '../utils/subjectMapping';
 
-// يحلل رابط الفيديو ويحدد نوعه (youtube / vimeo / direct / null)
+// يحلل رابط الفيديو ويحدد نوعه (youtube / vimeo / direct / generic)
 const parseVideoUrl = (url) => {
   if (!url) return null;
   const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
@@ -13,7 +13,8 @@ const parseVideoUrl = (url) => {
   const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
   if (vimeoMatch) return { type: 'vimeo', embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}` };
   if (/\.(mp4|webm|ogg)(\?|$)/i.test(url)) return { type: 'direct' };
-  return null; // رابط غير معروف
+  // ✅ Fallback: attempt to render any URL as generic iframe
+  return { type: 'generic', embedUrl: url };
 };
 const unwrapList = (res) => {
   const data = res?.data;
@@ -287,7 +288,41 @@ const LessonInterface = () => {
           const videosData = lessonRes.data?.videos?.data || lessonRes.data?.videos || [];
           const videosList = Array.isArray(videosData) ? videosData : [];
           
-          let selectedVideo = videosList.length > 0 ? videosList[0] : null;
+          // ✅ Helper function to ensure absolute URL for local storage videos
+          const ensureAbsoluteUrl = (url) => {
+            if (!url) return null;
+            // Already absolute URL
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+              return url;
+            }
+            // Laravel storage base URL
+            const LARAVEL_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://127.0.0.1:8000';
+            // Handle different relative path formats
+            if (url.startsWith('/storage/')) {
+              return `${LARAVEL_BASE_URL}${url}`;
+            }
+            if (url.startsWith('storage/')) {
+              return `${LARAVEL_BASE_URL}/${url}`;
+            }
+            if (url.startsWith('/')) {
+              return `${LARAVEL_BASE_URL}${url}`;
+            }
+            // Default: prepend storage path
+            return `${LARAVEL_BASE_URL}/storage/${url}`;
+          };
+          
+          let selectedVideo = videosList.length > 0 ? { ...videosList[0] } : null;
+          
+          // ✅ Fix video URL if it's a relative path
+          if (selectedVideo) {
+            if (selectedVideo.url) {
+              selectedVideo.url = ensureAbsoluteUrl(selectedVideo.url);
+            }
+            if (selectedVideo.video_url) {
+              selectedVideo.video_url = ensureAbsoluteUrl(selectedVideo.video_url);
+            }
+          }
+          
           setCurrentVideo(selectedVideo);
           
           // 2. استخراج الكويزات من جوه الفيديو المختار (زي ما شوفنا في بوستمان)
@@ -580,6 +615,17 @@ const LessonInterface = () => {
                     src={currentVideo.url || currentVideo.video_url}
                     className="absolute inset-0 w-full h-full"
                     controls
+                  />
+
+                ) : parsedVideoUrl?.type === 'generic' ? (
+                  /* ─── Generic URL Fallback ─── */
+                  <iframe
+                    key={currentVideo.video_id}
+                    src={parsedVideoUrl.embedUrl}
+                    className="absolute inset-0 w-full h-full border-0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                    allowFullScreen
+                    title={currentVideo.video_title || currentLesson.title}
                   />
 
                 ) : (

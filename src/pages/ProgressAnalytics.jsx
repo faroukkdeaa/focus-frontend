@@ -111,12 +111,122 @@ const ProgressAnalytics = () => {
   const [quizResults, setQuizResults]        = useState([]);
   const [lessonProgress, setLessonProgress]  = useState([]);
   const [remGaps, setRemGaps]                = useState([]);
+  const [subjectStats, setSubjectStats]      = useState([]); // ✅ NEW: For dynamic subject cards
   const [visibleSubjects, setVisibleSubjects] = useState(
     new Set(['Physics', 'Mathematics', 'Chemistry', 'Biology'])
   );
   const [activeTab, setActiveTab] = useState('Physics');
 
-  // ── Fetch per-user data ────────────────────────────────────────────────
+  // ── Fetch real data from Laravel backend ────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchRealData = async () => {
+      setLoading(true);
+      try {
+        // ✅ Fetch subjects and student attempts from real API
+        const [subjectsRes, attemptsRes] = await Promise.all([
+          api.get('/subjects'),
+          api.get('/students/attempts'),
+        ]);
+
+        console.log('📥 Subjects Response:', subjectsRes.data);
+        console.log('📥 Attempts Response:', attemptsRes.data);
+
+        // Extract subjects array
+        const subjectsList = Array.isArray(subjectsRes.data)
+          ? subjectsRes.data
+          : (subjectsRes.data?.data || []);
+
+        // ✅ FIX: Extract attempts from quizzesAttempt key
+        let rawAttempts = attemptsRes.data?.quizzesAttempt?.data || 
+                          attemptsRes.data?.quizzesAttempt || 
+                          attemptsRes.data?.data || 
+                          attemptsRes.data?.attempts || 
+                          attemptsRes.data || 
+                          [];
+        
+        // ✅ Handle if quizzesAttempt is an object instead of array
+        if (typeof rawAttempts === 'object' && !Array.isArray(rawAttempts)) {
+          rawAttempts = Object.values(rawAttempts);
+        }
+        
+        const attemptsList = Array.isArray(rawAttempts) ? rawAttempts : [];
+
+        console.log('✅ Extracted Subjects:', subjectsList);
+        console.log('✅ Extracted Attempts:', attemptsList);
+        console.log('🔍 Sample Attempt Data:', attemptsList[0]); // ← Check exact structure
+
+        // ✅ Process data: Calculate stats for each subject
+        const stats = subjectsList.map((subject) => {
+          // ✅ FIX: Support multiple name field formats
+          const subjName = subject.name || subject.subject_name || subject.title || 'مادة غير معروفة';
+          const subjId = subject.id || subject.subject_id;
+          
+          console.log(`\n🔍 Processing subject: ${subjName} (ID: ${subjId})`);
+          
+          // ✅ Forcefully match IDs using String() to avoid type mismatch
+          const subjectAttempts = attemptsList.filter((attempt) => {
+            const match = String(attempt.subject_id) === String(subjId);
+            if (match) {
+              console.log(`  ✅ Match found: attempt ${attempt.id} for subject ${subjId}`);
+            }
+            return match;
+          });
+
+          const attemptsCount = subjectAttempts.length;
+          console.log(`  📊 Total attempts for ${subjName}: ${attemptsCount}`);
+
+          // Calculate latest score or average score
+          let latestScore = 0;
+          let avgScore = 0;
+          
+          if (attemptsCount > 0) {
+            latestScore = subjectAttempts[subjectAttempts.length - 1]?.score ?? 0;
+            avgScore = Math.round(
+              subjectAttempts.reduce((sum, att) => sum + (att.score || 0), 0) / attemptsCount
+            );
+            console.log(`  💯 Latest: ${latestScore}%, Average: ${avgScore}%`);
+          }
+
+          // Map to format compatible with SUBJECTS_META
+          const meta = SUBJECTS_META.find(
+            (m) => m.name === subjName || m.key === subject.code || String(m.id) === String(subjId)
+          );
+
+          return {
+            id: subjId,
+            key: meta?.key || subject.code || `subject_${subjId}`,
+            name: subjName,  // ✅ Use safely extracted name
+            emoji: meta?.emoji || '📚',
+            color: meta?.color || '#103B66',
+            mastery: avgScore, // Use average score as mastery percentage
+            latestScore,
+            attemptsCount,  // ✅ Add this for JSX
+            quizzesTaken: attemptsCount,  // ✅ Keep this for compatibility
+            quizzes: subjectAttempts
+              .slice(-10) // Last 10 attempts
+              .map((att) => ({
+                date: att.created_at || att.date || new Date().toISOString(),
+                score: att.score || 0,
+              })),
+          };
+        });
+
+        console.log('\n✅ Final Subject Stats:', stats);
+        setSubjectStats(stats);
+      } catch (err) {
+        console.error('❌ Failed to fetch subject stats:', err);
+        console.error('❌ Error details:', err.response?.data);
+        // Fallback to empty stats
+        setSubjectStats([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRealData();
+  }, []);
+
+  // ── OLD: Fetch per-user data (keeping for other sections) ────────────────────────────────────────────────
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
     const userId = String(storedUser.id || '');
@@ -259,18 +369,18 @@ const ProgressAnalytics = () => {
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {subjectsData.map(({ key, mastery, quizzes }) => {
-              const meta  = SUBJECTS_META.find(s => s.key === key);
+            {/* ✅ DYNAMIC: Map over subjectStats from real API */}
+            {subjectStats.map(({ id, key, name, emoji, color, mastery, quizzes, quizzesTaken, attemptsCount }) => {
               const badge = getMasteryBadge(mastery);
               const r = 16, C = 2 * Math.PI * r;
               const arc = (mastery / 100) * C;
               return (
-                <div key={key} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 flex flex-col gap-3 hover:shadow-md transition">
+                <div key={id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 flex flex-col gap-3 hover:shadow-md transition">
                   {/* Top row */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl">{meta?.emoji}</span>
-                      <span className="font-bold text-gray-800 dark:text-white text-sm">{meta?.name}</span>
+                      <span className="text-2xl">{emoji}</span>
+                      <span className="font-bold text-gray-800 dark:text-white text-sm">{name}</span>
                     </div>
                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${badge.bgCls} ${badge.textCls}`}>
                       {badge.dot} {badge.label}
@@ -288,7 +398,7 @@ const ProgressAnalytics = () => {
                         />
                         <circle
                           cx="22" cy="22" r={r} fill="none" strokeWidth="4"
-                          stroke={meta?.color}
+                          stroke={color}
                           strokeDasharray={`${arc.toFixed(2)} ${(C - arc).toFixed(2)}`}
                           strokeDashoffset={(C / 4).toFixed(2)}
                           strokeLinecap="round"
@@ -299,14 +409,14 @@ const ProgressAnalytics = () => {
                           textAnchor="middle"
                           fontSize="9"
                           fontWeight="bold"
-                          fill={meta?.color}
+                          fill={color}
                         >
                           {mastery}%
                         </text>
                       </svg>
                     </div>
                     {/* Sparkline trend */}
-                    <Sparkline quizzes={quizzes} color={meta?.color} />
+                    <Sparkline quizzes={quizzes} color={color} />
                   </div>
 
                   {/* Footer stat */}
@@ -315,7 +425,7 @@ const ProgressAnalytics = () => {
                     <span className="font-bold text-gray-700 dark:text-gray-300">
                       {quizzes.length > 0 ? `${quizzes[quizzes.length - 1]?.score}%` : '—'}
                     </span>
-                    {'  ·  '}{quizzes.length} اختبار
+                    {'  ·  '}{attemptsCount || quizzes.length} اختبار
                   </p>
                 </div>
               );

@@ -96,6 +96,13 @@ const TeacherAnalytics = () => {
   const [content,   setContent]   = useState([]);
   const [kpi,       setKpi]       = useState(null);
   const [viewsData, setViewsData] = useState([]);
+  // ✅ NEW: Separate state for the 4 summary cards
+  const [stats, setStats] = useState({
+    totalVideos: 0,
+    totalAttempts: 0,
+    avgScore: 0,
+    watchHours: 0,
+  });
 
   // ── Per-section loading / error ───────────────────────────────────────────
   const [loadingContent, setLoadingContent] = useState(true);
@@ -126,13 +133,46 @@ const TeacherAnalytics = () => {
     }
   }, []);
 
+  // ✅ UPDATED: Fetch KPI from real Laravel backend
   const fetchKpi = useCallback(async () => {
     setLoadingKpi(true);
     setErrorKpi(null);
     try {
-      const { data } = await api.get(`${API}/teacher_kpi`);
-      setKpi(data);
-    } catch {
+      // Get teacher ID from localStorage
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const teacherId = storedUser.id;
+
+      if (!teacherId) {
+        throw new Error('Teacher ID not found');
+      }
+
+      // ✅ Fetch from real Laravel API
+      const response = await api.get(`/teachers/${teacherId}/stats`);
+      
+      console.log('📥 Teacher Stats Response:', response);
+      console.log('📥 Teacher Stats Data:', response.data);
+
+      // ✅ Extract data with robust fallbacks
+      const rawData = response.data?.data || response.data || {};
+      
+      console.log('✅ Extracted Raw Data:', rawData);
+
+      // ✅ Map to stats state with safe extraction
+      const extractedStats = {
+        totalVideos: rawData.total_videos || rawData.totalVideos || rawData.videos_count || 0,
+        totalAttempts: rawData.total_attempts || rawData.totalAttempts || rawData.attempts_count || rawData.quiz_attempts || 0,
+        avgScore: rawData.avg_score || rawData.avgScore || rawData.average_score || 0,
+        watchHours: rawData.watch_hours || rawData.watchHours || rawData.total_watch_hours || 0,
+      };
+
+      console.log('✅ Final Extracted Stats:', extractedStats);
+
+      setStats(extractedStats);
+      setKpi(extractedStats); // Keep backward compatibility
+
+    } catch (err) {
+      console.error('❌ Failed to fetch teacher stats:', err);
+      console.error('❌ Error details:', err.response?.data);
       setErrorKpi('تعذّر تحميل مؤشرات الأداء.');
     } finally {
       setLoadingKpi(false);
@@ -205,10 +245,10 @@ const TeacherAnalytics = () => {
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { labelKey: 'total_videos',   value: kpi?.totalVideos,   icon: Video,         border: 'border-t-blue-500',   iconBg: 'bg-blue-100 dark:bg-blue-900/40',     iconCls: 'text-blue-600 dark:text-blue-400'     },
-                { labelKey: 'total_attempts', value: kpi?.totalAttempts, icon: ClipboardList, border: 'border-t-violet-500', iconBg: 'bg-violet-100 dark:bg-violet-900/40', iconCls: 'text-violet-600 dark:text-violet-400' },
-                { labelKey: 'avg_score',      value: kpi ? `${kpi.avgScore}%` : null, icon: TrendingUp, border: 'border-t-green-500', iconBg: 'bg-green-100 dark:bg-green-900/40', iconCls: 'text-green-600 dark:text-green-400' },
-                { labelKey: 'watch_hours',    value: kpi?.watchHours,    icon: Clock,         border: 'border-t-amber-500',  iconBg: 'bg-amber-100 dark:bg-amber-900/40',   iconCls: 'text-amber-600 dark:text-amber-400'   },
+                { labelKey: 'total_videos',   value: stats.totalVideos,   icon: Video,         border: 'border-t-blue-500',   iconBg: 'bg-blue-100 dark:bg-blue-900/40',     iconCls: 'text-blue-600 dark:text-blue-400'     },
+                { labelKey: 'total_attempts', value: stats.totalAttempts, icon: ClipboardList, border: 'border-t-violet-500', iconBg: 'bg-violet-100 dark:bg-violet-900/40', iconCls: 'text-violet-600 dark:text-violet-400' },
+                { labelKey: 'avg_score',      value: stats.avgScore ? `${stats.avgScore}%` : '—', icon: TrendingUp, border: 'border-t-green-500', iconBg: 'bg-green-100 dark:bg-green-900/40', iconCls: 'text-green-600 dark:text-green-400' },
+                { labelKey: 'watch_hours',    value: stats.watchHours,    icon: Clock,         border: 'border-t-amber-500',  iconBg: 'bg-amber-100 dark:bg-amber-900/40',   iconCls: 'text-amber-600 dark:text-amber-400'   },
               ].map(({ labelKey, value, icon: Icon, border, iconBg, iconCls }) => (
                 <div key={labelKey} className={`bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border-t-4 ${border}`}>
                   <div className="flex items-center justify-between mb-3">

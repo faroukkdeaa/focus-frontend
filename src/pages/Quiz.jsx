@@ -227,19 +227,28 @@ const Quiz = () => {
 
         const answers = Object.entries(finalAnswers).map(([qIdx, aIdx]) => {
           const q = questions[Number(qIdx)];
-          let ansText;
-          if (q?._realId && q?.optionKeys) {
-            ansText = q.optionKeys[aIdx];
-          } else {
-            ansText = q?.options?.[aIdx] ?? String(aIdx);
-          }
+          // ✅ FIX: Send the actual option TEXT, not the key
+          // Backend compares correct_answer with the text value, not "option_1"
+          const ansText = q?.options?.[aIdx] ?? String(aIdx);
+          
+          console.log('📤 Submitting answer:', {
+            question_id: q?._realId ?? q?.id,
+            selected_index: aIdx,
+            answer_text: ansText,
+            optionKey: q?.optionKeys?.[aIdx], // for debugging only
+          });
+          
           return {
             question_id: q?._realId ?? q?.id,
             answer_text: ansText,
           };
         });
 
+        console.log('📤 Full payload:', { answers });
+        
         const res = await api.post(`/quiz/${quizId}/answer`, { answers });
+        console.log('📥 Server response:', res.data);
+        
         const serverScore = res.data?.score ?? finalScore;
 
         // حفظ إتمام الدرس في localStorage
