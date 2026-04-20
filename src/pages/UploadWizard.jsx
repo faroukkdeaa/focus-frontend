@@ -151,9 +151,9 @@ const QuestionCard = ({ q, qIdx, apiSubtopics, onPatch, onPatchOption, onRemove,
               }`}
             >
               <option value="">اختر الموضوع الفرعي</option>
-              {apiSubtopics.map(st => (
-                <option key={st.id} value={st.id}>
-                  {st.title || st.name || `موضوع ${st.id}`}
+              {apiSubtopics.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
                 </option>
               ))}
             </select>
@@ -260,7 +260,7 @@ const UploadWizard = () => {
       .finally(() => setLoadingOpts(false));
   }, []);
 
-  // Fetch units/subtopics when subject changes
+  // Fetch units when subject changes
   useEffect(() => {
     if (!subject) {
       setApiUnits([]);
@@ -268,47 +268,65 @@ const UploadWizard = () => {
       return;
     }
     setLoadingOpts(true);
-    Promise.all([
-      api.get(`/subjects/${subject}/units`),
-      api.get(`/subjects/${subject}/subtopics`)
-    ])
-      .then(([resUnits, resSubtopics]) => {
-        console.log('🔍 Raw Subtopics Response:', resSubtopics);
-        console.log('🔍 Subtopics Data:', resSubtopics.data);
-        
+    api.get(`/subjects/${subject}/units`)
+      .then((resUnits) => {
         const dUnits = resUnits.data?.data || resUnits.data || [];
-        
-        // ✅ Bulletproof extraction for subtopics - handles Object/Array/Nested structures
-        let rawSub = resSubtopics.data?.data || resSubtopics.data;
-        let finalSubtopics = [];
-        
-        if (Array.isArray(rawSub)) {
-          // Already an array, use directly
-          finalSubtopics = rawSub;
-        } else if (typeof rawSub === 'object' && rawSub !== null) {
-          // It's an object - check if there's a nested array inside (e.g., { subtopics: [...] })
-          const nestedArray = Object.values(rawSub).find(val => Array.isArray(val));
-          if (nestedArray) {
-            finalSubtopics = nestedArray;
-          } else {
-            // It might be a PHP associative array converted to an Object
-            // Convert the object's values to an array
-            finalSubtopics = Object.values(rawSub);
-          }
-        }
-        
-        console.log('✅ Final Subtopics Array:', finalSubtopics);
-        console.log('✅ Is Array?', Array.isArray(finalSubtopics), 'Length:', finalSubtopics.length);
-        
         setApiUnits(Array.isArray(dUnits) ? dUnits : []);
-        setApiSubtopics(finalSubtopics);
       })
       .catch(err => {
-        console.error('❌ Failed to fetch units or subtopics', err);
-        console.error('❌ Error details:', err.response?.data);
+        console.error('❌ Failed to fetch units', err);
       })
       .finally(() => setLoadingOpts(false));
   }, [subject]);
+
+  // Fetch subtopics for quiz metadata based on selected lesson
+  useEffect(() => {
+    if (!lessonId) {
+      console.warn('⚠️ Cannot fetch subtopics: lesson ID is missing.');
+      setApiSubtopics([]);
+      return;
+    }
+
+    api.get(`/lesson/${lessonId}/subtopics`)
+      .then((res) => {
+        console.log('🔥 RAW SUBTOPICS RESPONSE:', res.data);
+
+        const payload = res.data?.data || res.data;
+        let extractedSubtopics = [];
+
+        if (payload && typeof payload === 'object') {
+          // 1. Find the first level array (usually 'units' or 'chapters')
+          const unitsArray = payload.units || payload.chapters || Object.values(payload).find(v => Array.isArray(v)) || [];
+
+          // 2. Iterate through units and extract the nested subtopics/lessons
+          extractedSubtopics = unitsArray.flatMap(unit => {
+            // Look for the nested array inside the unit
+            const nested = unit.subtopics || unit.sub_topics || unit.lessons || unit.topics || unit.children || Object.values(unit).find(v => Array.isArray(v));
+
+            // If we found a nested array, return it. If not, return the unit itself as a fallback.
+            return Array.isArray(nested) && nested.length > 0 ? nested : [unit];
+          });
+
+          // If unitsArray was empty but the payload itself is an array
+          if (unitsArray.length === 0 && Array.isArray(payload)) {
+            extractedSubtopics = payload;
+          }
+        }
+
+        // 3. Normalize for the dropdown
+        const finalSubtopics = extractedSubtopics.map(item => ({
+          id: item.id || item.subtopic_id,
+          name: item.name || item.title || item.subtopic_name || `موضوع ${item.id}`
+        }));
+
+        console.log('✅ FLATTENED SUBTOPICS:', finalSubtopics);
+        setApiSubtopics(finalSubtopics);
+      })
+      .catch((err) => {
+        console.error('❌ Failed to fetch subtopics', err);
+        setApiSubtopics([]);
+      });
+  }, [lessonId]);
 
   // Fetch lessons when unit changes
   useEffect(() => {
@@ -472,7 +490,8 @@ const UploadWizard = () => {
   // ── Derived (Step 4) ──────────────────────────────────────────────────────
 
   const uniqueSubtopics = [...new Set(questions.map(q => q.subtopic).filter(Boolean))].map(subId => {
-    return apiSubtopics.find(st => String(st.id) === String(subId))?.title || subId;
+    const subtopic = apiSubtopics.find(st => String(st.id) === String(subId));
+    return subtopic?.name || subId;
   });
 
   const checklist = [
