@@ -202,7 +202,7 @@ const Quiz = () => {
   };
 
   // إنهاء الامتحان
-    const handleFinishQuiz = async () => {
+  const handleFinishQuiz = async () => {
     if (submitting || showResults) return;                   // ← أضف هذا السطر
 
     let finalAnswers = { ...userAnswers };
@@ -216,6 +216,23 @@ const Quiz = () => {
     }
 
     await finishQuizLogic(finalAnswers, finalScore);
+  };
+
+  const goToWeaknessReport = (finalScore, finalAnswers, correctAnswersFromServer = []) => {
+    navigate('/weakness-report', {
+      state: {
+        score: finalScore,
+        total: questions.length,
+        questions: questions,
+        userAnswers: finalAnswers,
+        correctAnswersFromServer: correctAnswersFromServer,
+        lesson: location.state?.lesson,
+        subjectId: realParams?.subjectId ?? location.state?.subjectId,
+        teacherId: realParams?.teacherId ?? location.state?.teacherId,
+        subjectName: location.state?.subjectName,
+        quizId: realParams?.quizId ?? quizId,
+      },
+    });
   };
 
   const finishQuizLogic = async (finalAnswers, finalScore = score) => {
@@ -264,9 +281,7 @@ const Quiz = () => {
           } catch { /* غير حرج */ }
         }
 
-        // ← عرض النتيجة في نفس الصفحة بدل الانتقال
-        setFinalScoreData({ score: serverScore, total: questions.length });
-        setShowResults(true);
+        goToWeaknessReport(serverScore, finalAnswers, res.data?.correct_answers_quiz || []);
         return;
       } catch (err) {
         console.error('Real API submit error:', err);
@@ -278,9 +293,9 @@ const Quiz = () => {
       }
     }
 
-    // ← Fallback بدون realParams – نفس السلوك
-    setFinalScoreData({ score: finalScore, total: questions.length });
-    setShowResults(true);
+    // ← Fallback بدون realParams
+    setSubmitting(false);
+    goToWeaknessReport(finalScore, finalAnswers, []);
   };
 
   // العودة للدرس الحالي

@@ -61,6 +61,7 @@ const LessonInterface = () => {
   const [lessonQuizzes, setLessonQuizzes] = useState([]); // الكويزات المتاحة للدرس
   const [videoLoading, setVideoLoading]   = useState(false);
   const [lessonsLoading, setLessonsLoading] = useState(false); // حالة تحميل الدروس للمدرس
+  const [subjectLessonIds, setSubjectLessonIds] = useState(new Set());
 
   // ── جلب محاولات الطالب للاختبارات بمجرد فتح واجهة الدورة ──
   useEffect(() => {
@@ -89,30 +90,38 @@ const LessonInterface = () => {
   const preSelectedTeacherId = location.state?.teacherId; // ✅ Get selected teacher ID from navigation
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadInitialData = async () => {
       try {
         setLoading(true);
         setError(null);
+        setSubjectLessonIds(new Set()); // prevent stale cross-subject filtering
 
-        // 1. Get subject-scoped lesson IDs (once)
-        let subjectLessonIds = new Set();
-        try {
-          const unitsRes = await api.get(`/subjects/${subjectId}/units`);
-          const unitsRaw = unitsRes.data?.data || unitsRes.data || [];
-          const unitsList = Array.isArray(unitsRaw) ? unitsRaw : [];
-          const subjectLessonsArr = await Promise.all(
-            unitsList.map(async (unit) => {
-              try {
-                const lRes = await api.get(`/units/${unit.id}/lessons`);
-                const lRaw = lRes.data?.data || lRes.data || [];
-                return Array.isArray(lRaw) ? lRaw.map(l => l.id) : [];
-              } catch { return []; }
-            })
-          );
-          subjectLessonIds = new Set(subjectLessonsArr.flat());
-        } catch { /* continue without scoping */ }
+        // 1. START heavy units/lessons fetch immediately (no await here)
+        const unitsFilterPromise = (async () => {
+          try {
+            const unitsRes = await api.get(`/subjects/${subjectId}/units`);
+            const unitsRaw = unitsRes.data?.data || unitsRes.data || [];
+            const unitsList = Array.isArray(unitsRaw) ? unitsRaw : [];
+            const subjectLessonsArr = await Promise.all(
+              unitsList.map(async (unit) => {
+                try {
+                  const lRes = await api.get(`/units/${unit.id}/lessons`);
+                  const lRaw = lRes.data?.data || lRes.data || [];
+                  return Array.isArray(lRaw) ? lRaw.map(l => l.id) : [];
+                } catch {
+                  return [];
+                }
+              })
+            );
+            return new Set(subjectLessonsArr.flat());
+          } catch {
+            return new Set();
+          }
+        })();
 
-        // 2. Fetch teachers for this subject
+        // 2. START fetching teachers immediately
         let mappedTeachers = [];
         try {
           const teachersResponse = await api.get(`/subjects/${subjectId}/teachers`);
@@ -136,13 +145,16 @@ const LessonInterface = () => {
             .filter(k => completionData[k]?.subjectId === String(subjectId) && completionData[k]?.completed)
             .map(k => Number(k))
         );
-        setCompletedIds(doneSet);
+        if (!cancelled) {
+          setCompletedIds(doneSet);
+        }
 
-        // 4. Set teachers list (don't fetch lessons yet)
-        setTeachers(mappedTeachers);
-        
-        // 5. Set active teacher: prioritize teacher from navigation, fallback to first teacher
-        if (mappedTeachers.length > 0) {
+        // 4. Set teachers + active teacher immediately (no waiting for units filter)
+        if (!cancelled) {
+          setTeachers(mappedTeachers);
+        }
+
+        if (!cancelled && mappedTeachers.length > 0) {
           // ✅ Search for the intended target teacher
           let targetTeacher = preSelectedTeacherId
             ? mappedTeachers.find(t => String(t.id) === String(preSelectedTeacherId))
@@ -163,20 +175,32 @@ const LessonInterface = () => {
           if (!targetTeacher) {
             targetTeacher = mappedTeachers[0];
           }
-            
+
           setTeachers(mappedTeachers); // Re-set in case we appended
           setActiveTeacher(targetTeacher.id);
           setCourse({ subjectName: targetTeacher.subject || stateSubjectName, lessons: [] });
         }
+
+        // 5. Apply lesson filter when ready (background completion)
+        unitsFilterPromise.then((validLessonIds) => {
+          if (!cancelled) {
+            setSubjectLessonIds(validLessonIds);
+          }
+        });
       } catch (err) {
         console.error("LessonInterface init error:", err);
-        setError("تعذر تحميل بيانات المادة.");
+        if (!cancelled) {
+          setError("تعذر تحميل بيانات المادة.");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
     loadInitialData();
+    return () => { cancelled = true; };
   }, [subjectId, stateSubjectName, preSelectedTeacherId]); // ✅ Re-run if pre-selected teacher changes
 
   // ✅ OPTIMIZED: Fetch lessons ONLY for the active teacher (runs once per teacher change)
@@ -191,24 +215,6 @@ const LessonInterface = () => {
       try {
         console.log(`🔄 Fetching lessons for teacher ${activeTeacher}...`);
         
-        // Get subject-scoped lesson IDs
-        let subjectLessonIds = new Set();
-        try {
-          const unitsRes = await api.get(`/subjects/${subjectId}/units`);
-          const unitsRaw = unitsRes.data?.data || unitsRes.data || [];
-          const unitsList = Array.isArray(unitsRaw) ? unitsRaw : [];
-          const subjectLessonsArr = await Promise.all(
-            unitsList.map(async (unit) => {
-              try {
-                const lRes = await api.get(`/units/${unit.id}/lessons`);
-                const lRaw = lRes.data?.data || lRes.data || [];
-                return Array.isArray(lRaw) ? lRaw.map(l => l.id) : [];
-              } catch { return []; }
-            })
-          );
-          subjectLessonIds = new Set(subjectLessonsArr.flat());
-        } catch { /* continue without scoping */ }
-
         // Fetch lessons for ONLY this teacher (single request)
         const res = await api.get(`/teachers/${activeTeacher}/lessons`);
         
@@ -260,7 +266,7 @@ const LessonInterface = () => {
     
     // Cleanup function to prevent state updates on unmounted component
     return () => { cancelled = true; };
-  }, [activeTeacher, subjectId, lessonId, completedIds]); // ✅ Only runs when active teacher changes
+  }, [activeTeacher, subjectId, lessonId, completedIds, subjectLessonIds]); // ✅ Only runs when active teacher changes
 
   // ✅ تغيير المدرس (simplified - fetching handled by useEffect)
   const handleTeacherChange = (teacherId) => {

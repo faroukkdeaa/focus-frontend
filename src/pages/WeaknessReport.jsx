@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import api from '../api/api';
 import {
   ArrowRight, AlertTriangle, CheckCircle2, XCircle,
   Brain, BookOpen, RefreshCcw, TrendingUp, Zap, Home, Target,
@@ -44,40 +45,52 @@ const WeaknessReport = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, lang } = useLanguage();
+  const [subtopicsMap, setSubtopicsMap] = useState({});
 
+  // Safely extract data passed from the Quiz page
   const {
-    score,
-    total,
-    questions,
-    userAnswers,
+    questions = [],
+    userAnswers = {},
+    score = 0,
+    total = 0,
+    correctAnswersFromServer = [],
     lesson,
     subjectId,
     teacherId,
-    subjectName,
+    subjectName: stateSubjectName,
+    reportData = {},
+    subtopics: stateSubtopics = [],
   } = location.state || {};
 
-  // Guard: no data → redirect
-  if (!location.state) {
-    return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center bg-gray-50 font-['Cairo']"
-        dir={lang === 'ar' ? 'rtl' : 'ltr'}
-      >
-        <div className="bg-yellow-50 p-8 rounded-2xl text-center border border-yellow-200 max-w-md">
-          <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-          <p className="text-yellow-700 mb-4">
-            {t('no_quiz_data')}
-          </p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-[#103B66] hover:underline font-bold"
-          >
-            {t('back_to_home')}
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const subjectName = reportData.subjectName || stateSubjectName || '';
+
+  useEffect(() => {
+    const fetchSubtopicsMap = async () => {
+      try {
+        // Attempt to fetch subtopics to create an ID-to-Name dictionary
+        const { data } = await api.get('/subtopics');
+        const items = data?.data || data || [];
+        const map = {};
+        if (Array.isArray(items)) {
+          items.forEach(item => {
+            map[item.id] = item.name || item.title || item.subtopic_name;
+          });
+        }
+        setSubtopicsMap(map);
+      } catch (err) {
+        console.warn('No subtopics endpoint available for mapping. Falling back to ID display.');
+      }
+    };
+    fetchSubtopicsMap();
+  }, []);
+
+  // Safe fallback calculations to prevent NaN
+  const maxScore = Number(reportData.total ?? total ?? 5) || 5;
+  const correctAnswers = Number(reportData.score ?? score ?? 0) || 0;
+  const wrongAnswers = Math.max(0, maxScore - correctAnswers);
+  const percentage = Number(
+    reportData.percentage ?? (maxScore > 0 ? Math.round((correctAnswers / maxScore) * 100) : 0)
+  ) || 0;
 
   // ── Compute subtopics ────────────────────────────────────────────────────
   // Priority 1 → explicit `subtopics` array passed in state (pre-computed / from backend)
@@ -86,8 +99,8 @@ const WeaknessReport = () => {
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const subtopics = useMemo(() => {
     // 1. Explicit array from navigation state
-    if (location.state?.subtopics?.length > 0) {
-      return location.state.subtopics.map((s) => ({
+    if (stateSubtopics.length > 0) {
+      return stateSubtopics.map((s) => ({
         name: s.name,
         skill: s.skill || 'فهم',
         correct: s.correct,
@@ -116,15 +129,90 @@ const WeaknessReport = () => {
     }
 
     return null; // no subtopic data
-  }, [location.state, questions, userAnswers]);
+  }, [stateSubtopics, questions, userAnswers]);
 
-  const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
   const passed = percentage >= 50;
 
   const weakSubtopics =
     subtopics?.filter(
       (s) => s.total > 0 && Math.round((s.correct / s.total) * 100) < 60
     ) || [];
+
+  const getDetailedErrors = () => {
+    console.log("🔥 THE RAW QUESTION TRUTH:", questions[0]);
+    const qs = questions || [];
+    const ans = userAnswers || {};
+    if (qs.length === 0) return [];
+
+    const errors = [];
+    let actualErrors = 0;
+
+    qs.forEach((q, index) => {
+      // 1. Deep unnesting of the question object
+      const actualQ = (q.question && typeof q.question === 'object') ? q.question : q;
+
+      const userAnswer = ans[index] ?? ans[q.id] ?? ans[actualQ.id] ?? ans[actualQ.question_id];
+      let isCorrect = false;
+
+      // 2. Find REAL correct answer
+      let realCorrectAnswer = actualQ.correct_answer || actualQ.correct_answer_index || q.correct_answer;
+      if (correctAnswersFromServer && correctAnswersFromServer.length > 0) {
+        const srvAns = correctAnswersFromServer[index] || correctAnswersFromServer.find(c => c?.question_id === actualQ.id || c?.id === actualQ.id);
+        if (srvAns) {
+          realCorrectAnswer = typeof srvAns === 'object' ? (srvAns.correct_answer || srvAns.answer || srvAns.correct || srvAns.correct_option) : srvAns;
+        }
+      }
+
+      // 3. Evaluation
+      if (userAnswer !== undefined && userAnswer !== null) {
+        const standardKeys = ['option_1', 'option_2', 'option_3', 'option_4'];
+        const selectedKey = actualQ.optionKeys ? actualQ.optionKeys[userAnswer] : standardKeys[userAnswer];
+        const selectedText = actualQ.options ? actualQ.options[userAnswer] : null;
+
+        if (String(userAnswer) === String(realCorrectAnswer)) isCorrect = true;
+        if (realCorrectAnswer && selectedKey && String(realCorrectAnswer).toLowerCase() === String(selectedKey).toLowerCase()) isCorrect = true;
+        if (realCorrectAnswer && selectedText && String(realCorrectAnswer).trim() === String(selectedText).trim()) isCorrect = true;
+      }
+
+      // 4. Log errors with bulletproof text extraction
+      if (!isCorrect) {
+        actualErrors++;
+
+        // Ultra-robust Question Text Extraction
+        let qText = actualQ.question_text || actualQ.question || actualQ.title || actualQ.text || q.question_text || q.question || `السؤال رقم ${index + 1}`;
+        if (typeof qText === 'object') qText = qText.text || qText.title || `السؤال رقم ${index + 1}`;
+
+        // --- FRONTEND-ONLY Subtopic Extraction ---
+        let subtopicName = 'مفاهيم الدرس الأساسية';
+
+        // 1. Check if we have a direct string
+        const directStrings = [actualQ.subtopic_name, actualQ.lesson_name, q.subtopic_name, q.lesson_name];
+        for (const str of directStrings) {
+          if (str && typeof str === 'string') { subtopicName = str; break; }
+        }
+
+        // 2. If we only have the ID (which is the case here)
+        if (subtopicName === 'مفاهيم الدرس الأساسية') {
+          const subId = actualQ.subtopic_id || q.subtopic_id || actualQ.lesson_id || q.lesson_id;
+          if (subId) {
+            // Try to translate ID to Name using our dictionary, otherwise show the ID
+            subtopicName = subtopicsMap[subId] || `الموضوع الفرعي (كود: ${subId})`;
+          }
+        }
+        // -----------------------------------------
+
+        errors.push({
+          question: String(qText),
+          subtopic: String(subtopicName)
+        });
+      }
+    });
+
+    if (score === total || actualErrors === 0) return [];
+    return errors;
+  };
+
+  const detailedErrors = getDetailedErrors();
 
   // ── Circular SVG params ──────────────────────────────────────────────────
   const radius = 60;
@@ -271,20 +359,20 @@ const WeaknessReport = () => {
 
           <p className="text-gray-700 dark:text-gray-200 text-base">
             {t('correct_of_prefix')}{' '}
-            <span className="font-extrabold text-[#103B66] text-lg">{score}</span>
+            <span className="font-extrabold text-[#103B66] text-lg">{correctAnswers}</span>
             {' '}{t('correct_of_middle')}{' '}
-            <span className="font-extrabold text-[#103B66] text-lg">{total}</span>
+            <span className="font-extrabold text-[#103B66] text-lg">{maxScore}</span>
             {' '}{t('correct_of_suffix')}
           </p>
 
           {/* Stats strip */}
           <div className="mt-5 grid grid-cols-3 divide-x divide-x-reverse divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
             <div className="py-3 px-4 text-center">
-              <p className="text-2xl font-bold text-green-600">{score}</p>
+              <p className="text-2xl font-bold text-green-600">{correctAnswers}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('correct_label')}</p>
             </div>
             <div className="py-3 px-4 text-center">
-              <p className="text-2xl font-bold text-red-500">{total - score}</p>
+              <p className="text-2xl font-bold text-red-500">{wrongAnswers}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('wrong_label')}</p>
             </div>
             <div className="py-3 px-4 text-center">
@@ -376,9 +464,26 @@ const WeaknessReport = () => {
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
             <Target className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-            <p className="text-sm text-gray-400">
-              {t('no_subtopic_data')}
-            </p>
+            <div className="space-y-4 w-full">
+              {detailedErrors.length > 0 ? (
+                detailedErrors.map((err, idx) => (
+                  <div key={idx} className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl p-5 text-right shadow-sm">
+                    <p className="text-gray-800 dark:text-gray-200 font-semibold mb-4 leading-relaxed">
+                      <span className="text-red-500 font-bold ml-1">أخطأت في:</span>
+                      {err.question}
+                    </p>
+                    <div className="inline-flex items-center gap-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-4 py-2 rounded-lg">
+                      <span className="font-bold text-sm">💡 تحتاج لمراجعة:</span>
+                      <span className="font-bold">{err.subtopic}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-green-600 dark:text-green-400 font-bold py-6">
+                  🎉 ممتاز! لا توجد نقاط ضعف واضحة.
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -455,6 +560,8 @@ const WeaknessReport = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-8">
           <button
             onClick={handleTryAgain}
+            disabled
+            style={{ opacity: 0.5, cursor: 'not-allowed' }}
             className="bg-[#103B66] text-white py-4 rounded-xl font-bold hover:bg-[#0c2d4d] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10"
           >
             <RefreshCcw className="w-5 h-5" />

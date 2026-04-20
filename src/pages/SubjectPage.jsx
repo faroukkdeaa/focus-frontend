@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { publicApi } from '../api/api';
 import {
-  ArrowRight, BookOpen, PlayCircle, Loader2, CheckCircle2,
+  ArrowRight, BookOpen, PlayCircle, Loader2,
   ChevronDown, ChevronUp, Clock, AlertTriangle, RefreshCcw,
   Home, LogIn, User, GraduationCap, ChevronLeft, Users,
 } from 'lucide-react';
@@ -77,43 +77,22 @@ const TeacherCard = ({ teacher, isSelected, onSelect }) => {
 
 const UnitCard = ({ unit, subjectId, onStartLesson, isLoggedIn }) => {
   const [expanded, setExpanded] = useState(false);
-
-  const completedCount = unit.lessons.filter(l => l.completed).length;
-  const totalCount     = unit.lessons.length;
-  const unitProgress   = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
-  const isAllDone      = totalCount > 0 && completedCount === totalCount;
+  const totalCount = unit.lessons.length;
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border transition-all
-      ${isAllDone ? 'border-green-200 dark:border-green-800' : 'border-gray-100 dark:border-gray-700'}`}
-    >
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700 transition-all">
       {/* ── Unit header ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}
         className="w-full flex items-center gap-4 p-4 text-right hover:bg-gray-50 dark:hover:bg-gray-700/40 transition"
       >
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black shrink-0
-          ${isAllDone
-            ? 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400'
-            : 'bg-blue-100 dark:bg-blue-900/40 text-[#103B66] dark:text-blue-400'}`}
-        >
-          {isAllDone ? <CheckCircle2 className="w-4 h-4" /> : unit.order}
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black shrink-0 bg-blue-100 dark:bg-blue-900/40 text-[#103B66] dark:text-blue-400">
+          {unit.order}
         </div>
 
         <div className="flex-1 min-w-0">
           <p className="font-bold text-gray-800 dark:text-white text-sm leading-snug">{unit.title}</p>
-          <div className="flex items-center gap-3 mt-1.5">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {completedCount}/{totalCount} درس
-            </span>
-            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden max-w-[100px]">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${isAllDone ? 'bg-green-500' : 'bg-[#103B66]'}`}
-                style={{ width: `${unitProgress}%` }}
-              />
-            </div>
-            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{unitProgress}%</span>
-          </div>
+          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 block">{totalCount} درس</span>
         </div>
 
         {expanded
@@ -130,25 +109,9 @@ const UnitCard = ({ unit, subjectId, onStartLesson, isLoggedIn }) => {
               key={lesson.id ?? idx}
               className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-700/20 transition"
             >
-              {/* Status icon */}
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0
-                ${lesson.completed
-                  ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                  : 'bg-blue-50 dark:bg-blue-900/20 text-[#103B66] dark:text-blue-400'}`}
-              >
-                {lesson.completed
-                  ? <CheckCircle2 className="w-3.5 h-3.5" />
-                  : <PlayCircle className="w-3.5 h-3.5" />
-                }
-              </div>
-
               {/* Title + duration */}
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-bold truncate
-                  ${lesson.completed ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-white'}`}
-                >
-                  {lesson.title}
-                </p>
+                <p className="text-sm font-bold truncate text-gray-800 dark:text-white">{lesson.title}</p>
                 {lesson.duration && (
                   <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                     <Clock className="w-3 h-3" /> {lesson.duration}
@@ -160,13 +123,10 @@ const UnitCard = ({ unit, subjectId, onStartLesson, isLoggedIn }) => {
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={() => onStartLesson(lesson, subjectId)}
-                  className={`text-xs px-3 py-1 rounded-lg font-bold transition flex items-center gap-1
-                    ${lesson.completed
-                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      : 'bg-[#103B66] text-white hover:bg-[#0c2d4d]'}`}
+                  className="text-xs px-3 py-1 rounded-lg font-bold transition flex items-center gap-1 bg-[#103B66] text-white hover:bg-[#0c2d4d]"
                 >
                   {!isLoggedIn && <LogIn className="w-3 h-3" />}
-                  {lesson.completed ? 'إعادة' : (isLoggedIn ? 'ابدأ' : 'سجّل للبدء')}
+                  {isLoggedIn ? 'ابدأ' : 'سجّل للبدء'}
                 </button>
               </div>
             </div>
@@ -340,27 +300,9 @@ const SubjectPage = () => {
           duration: l.duration ?? '--',
           chapter: key,
           description: l.description ?? '',
-          completed: false,
         });
       });
-
-      // Merge with localStorage completion data
-      const completionData = JSON.parse(localStorage.getItem('lessonCompletions') || '{}');
-      const completedSet = new Set(
-        Object.keys(completionData)
-          .filter(k => completionData[k]?.subjectId === String(subjectId) && completionData[k]?.completed)
-          .map(k => Number(k))
-      );
-      
-      const unitsData = Object.values(chapterMap).map(unit => ({
-        ...unit,
-        lessons: unit.lessons.map(lesson => ({
-          ...lesson,
-          completed: completedSet.has(lesson.id),
-        })),
-      }));
-      
-      setUnits(unitsData);
+      setUnits(Object.values(chapterMap));
     } catch {
       setErrorLessons('تعذّر تحميل دروس المدرس.');
     } finally {
@@ -392,9 +334,7 @@ const SubjectPage = () => {
   };
 
   // ── Derived stats ──
-  const totalLessons     = units.reduce((s, u) => s + u.lessons.length, 0);
-  const completedLessons = units.reduce((s, u) => s + u.lessons.filter(l => l.completed).length, 0);
-  const overallProgress  = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  const totalLessons = units.reduce((s, u) => s + u.lessons.length, 0);
 
   // ── Auth Modal helpers ──
   const openAuthModal = (type, lesson) => {
@@ -537,22 +477,11 @@ const SubjectPage = () => {
               {selectedTeacher && totalLessons > 0 && (
                 <div className="flex items-center gap-4 text-sm">
                   <span className="text-gray-500 dark:text-gray-400">
-                    {completedLessons}/{totalLessons} {t('lessons_tab') || 'درس'}
+                    {totalLessons} {t('lessons_tab') || 'درس'}
                   </span>
-                  <span className="font-bold text-[#103B66] dark:text-blue-400">{overallProgress}%</span>
                 </div>
               )}
             </div>
-            {selectedTeacher && totalLessons > 0 && (
-              <div className="mt-4">
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="h-full bg-[#103B66] rounded-full transition-all duration-500"
-                    style={{ width: `${overallProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
           </div>
         ) : null}
 
