@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/api';
 import { ArrowRight, Play, Pause, Volume2, Settings, ChevronLeft, ChevronRight, CheckCircle2, User, Loader2, Zap } from "lucide-react";
 import { useLanguage } from '../context/LanguageContext';
-import { MOCK_API, REAL_TO_MOCK_SUBJECT } from '../utils/subjectMapping';
 
 // يحلل رابط الفيديو ويحدد نوعه (youtube / vimeo / direct / generic)
 const parseVideoUrl = (url) => {
@@ -15,18 +14,6 @@ const parseVideoUrl = (url) => {
   if (/\.(mp4|webm|ogg)(\?|$)/i.test(url)) return { type: 'direct' };
   // ✅ Fallback: attempt to render any URL as generic iframe
   return { type: 'generic', embedUrl: url };
-};
-const unwrapList = (res) => {
-  const data = res?.data;
-  return Array.isArray(data?.data) ? data.data
-    : Array.isArray(data?.attempts) ? data.attempts
-    : Array.isArray(data) ? data
-    : [];
-};
-
-const unwrapItem = (res) => {
-  const data = res?.data;
-  return data?.data ?? data?.attempt ?? data?.quiz ?? data ?? null;
 };
 
 const LessonInterface = () => {
@@ -50,33 +37,14 @@ const LessonInterface = () => {
   const [completingLesson, setCompletingLesson] = useState(false);
   const [lessonCompleteToast, setLessonCompleteToast] = useState(false);
 
-  // بيانات من الـ API
+  // بيانات من الـ API (single source: /teachers/{teacher}/lessons/{lesson}/content)
   const [teachers, setTeachers] = useState([]);
   const [course, setCourse] = useState(null);
   const [currentLesson, setCurrentLesson] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [completedIds, setCompletedIds] = useState(new Set()); // per-user
-  const [studentAttempts, setStudentAttempts] = useState([]); // سجل الكويزات اللي الطالب ممتحنها
-  const [currentVideo, setCurrentVideo]   = useState(null);     // فيديو الدرس الحالي من real API
-  const [lessonQuizzes, setLessonQuizzes] = useState([]); // الكويزات المتاحة للدرس
-  const [videoLoading, setVideoLoading]   = useState(false);
-  const [lessonsLoading, setLessonsLoading] = useState(false); // حالة تحميل الدروس للمدرس
-  const [subjectLessonIds, setSubjectLessonIds] = useState(new Set());
-
-  // ── جلب محاولات الطالب للاختبارات بمجرد فتح واجهة الدورة ──
-  useEffect(() => {
-    const fetchAttempts = async () => {
-      if (!isLoggedIn) return;
-      try {
-        const res = await api.get('/students/attempts');
-        const attemptsList = res.data?.data || res.data || [];
-        setStudentAttempts(attemptsList);
-      } catch (err) {
-        console.warn('Could not fetch student attempts in LessonInterface:', err);
-      }
-    };
-    fetchAttempts();
-  }, [isLoggedIn]);
+  const [currentVideo, setCurrentVideo] = useState(null);
+  const [lessonQuizzes, setLessonQuizzes] = useState([]);
 
   // جلب lessonId و subjectId و subjectName و teacherId من location.state
   // ✅ Clean lesson ID - remove any ":1" suffix from hasManyThrough
@@ -86,339 +54,151 @@ const LessonInterface = () => {
     : parseInt(rawLessonId, 10);
   const subjectId        = location.state?.subjectId   || 1;
   const stateSubjectName = location.state?.subjectName ?? ''; // للـ mock fallback
+  const stateTeacherName = location.state?.teacherName ?? '';
   const autoScrollToQuiz = location.state?.autoScrollToQuiz ?? false;
-  const preSelectedTeacherId = location.state?.teacherId; // ✅ Get selected teacher ID from navigation
+  const preSelectedTeacherId = location.state?.teacherId;
+  const stateLesson = location.state?.lesson || null;
+  const rawTeacherId =
+    preSelectedTeacherId ??
+    stateLesson?.teacher_id ??
+    location.state?.teacher?.id ??
+    null;
+  const teacherIdForRequest =
+    rawTeacherId != null && rawTeacherId !== ''
+      ? parseInt(String(rawTeacherId).split(':')[0], 10)
+      : null;
 
+  const ensureAbsoluteUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+
+    const laravelBaseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://127.0.0.1:8000';
+    if (url.startsWith('/storage/')) return `${laravelBaseUrl}${url}`;
+    if (url.startsWith('storage/')) return `${laravelBaseUrl}/${url}`;
+    if (url.startsWith('/')) return `${laravelBaseUrl}${url}`;
+    return `${laravelBaseUrl}/storage/${url}`;
+  };
+
+  // ✅ Single source of truth fetch
   useEffect(() => {
     let cancelled = false;
 
-    const loadInitialData = async () => {
+    const loadLessonContent = async () => {
+      if (!lessonId || !teacherIdForRequest) {
+        setError('تعذر تحديد الدرس أو المدرس.');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
-        setSubjectLessonIds(new Set()); // prevent stale cross-subject filtering
+        setCurrentVideo(null);
+        setLessonQuizzes([]);
 
-        // 1. START heavy units/lessons fetch immediately (no await here)
-        const unitsFilterPromise = (async () => {
-          try {
-            const unitsRes = await api.get(`/subjects/${subjectId}/units`);
-            const unitsRaw = unitsRes.data?.data || unitsRes.data || [];
-            const unitsList = Array.isArray(unitsRaw) ? unitsRaw : [];
-            const subjectLessonsArr = await Promise.all(
-              unitsList.map(async (unit) => {
-                try {
-                  const lRes = await api.get(`/units/${unit.id}/lessons`);
-                  const lRaw = lRes.data?.data || lRes.data || [];
-                  return Array.isArray(lRaw) ? lRaw.map(l => l.id) : [];
-                } catch {
-                  return [];
-                }
-              })
-            );
-            return new Set(subjectLessonsArr.flat());
-          } catch {
-            return new Set();
-          }
-        })();
-
-        // 2. START fetching teachers immediately
-        let mappedTeachers = [];
-        try {
-          const teachersResponse = await api.get(`/subjects/${subjectId}/teachers`);
-          const rawTeachersData = teachersResponse.data?.teachers?.data || teachersResponse.data?.teachers || teachersResponse.data?.data || teachersResponse.data || [];
-          const rawTeachers = Array.isArray(rawTeachersData) ? rawTeachersData : [];
-          mappedTeachers = rawTeachers.map(t => ({
-            id: t.teacher_id || t.id,
-            name: t.teacher_name || t.name || t.user?.name || `مدرس ${t.teacher_id || t.id}`,
-            rating: t.rating ?? null,
-            url: t.url ?? null,
-            subject: t.subject_name ?? ''
-          }));
-        } catch (err) {
-          console.error('Failed to fetch teachers:', err.message);
-        }
-
-        // 3. Load user progress
+        // Keep local completion progress (local only, no API calls)
         const completionData = JSON.parse(localStorage.getItem('lessonCompletions') || '{}');
         const doneSet = new Set(
           Object.keys(completionData)
-            .filter(k => completionData[k]?.subjectId === String(subjectId) && completionData[k]?.completed)
-            .map(k => Number(k))
+            .filter((k) => completionData[k]?.subjectId === String(subjectId) && completionData[k]?.completed)
+            .map((k) => Number(k))
         );
-        if (!cancelled) {
-          setCompletedIds(doneSet);
-        }
+        if (!cancelled) setCompletedIds(doneSet);
 
-        // 4. Set teachers + active teacher immediately (no waiting for units filter)
-        if (!cancelled) {
-          setTeachers(mappedTeachers);
-        }
+        const res = await api.get(`/teachers/${teacherIdForRequest}/lessons/${lessonId}/content`);
+        const payload = res.data?.data ?? res.data ?? {};
+        const teacherPayload = payload?.teacher ?? {};
+        const videosData = payload?.videos?.data ?? payload?.videos ?? [];
+        const videosList = Array.isArray(videosData) ? videosData : [];
 
-        if (!cancelled && mappedTeachers.length > 0) {
-          // ✅ Search for the intended target teacher
-          let targetTeacher = preSelectedTeacherId
-            ? mappedTeachers.find(t => String(t.id) === String(preSelectedTeacherId))
-            : null;
+        const firstVideoRaw = videosList?.[0] ? { ...videosList[0] } : null;
+        if (firstVideoRaw?.url) firstVideoRaw.url = ensureAbsoluteUrl(firstVideoRaw.url);
+        if (firstVideoRaw?.video_url) firstVideoRaw.video_url = ensureAbsoluteUrl(firstVideoRaw.video_url);
 
-          // If they came from page 2+ on SubjectPage, they won't be in mapping (which only fetches page 1)
-          // Ensure we append them to the sidebar list so we can show their lessons
-          if (!targetTeacher && preSelectedTeacherId) {
-            targetTeacher = {
-              id: preSelectedTeacherId,
-              name: location.state?.teacherName || `مدرس ${preSelectedTeacherId}`,
-              subject: stateSubjectName || '',
-            };
-            mappedTeachers.push(targetTeacher);
-          }
-
-          // Fallback to first loaded teacher if all else fails
-          if (!targetTeacher) {
-            targetTeacher = mappedTeachers[0];
-          }
-
-          setTeachers(mappedTeachers); // Re-set in case we appended
-          setActiveTeacher(targetTeacher.id);
-          setCourse({ subjectName: targetTeacher.subject || stateSubjectName, lessons: [] });
-        }
-
-        // 5. Apply lesson filter when ready (background completion)
-        unitsFilterPromise.then((validLessonIds) => {
-          if (!cancelled) {
-            setSubjectLessonIds(validLessonIds);
-          }
-        });
-      } catch (err) {
-        console.error("LessonInterface init error:", err);
-        if (!cancelled) {
-          setError("تعذر تحميل بيانات المادة.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadInitialData();
-    return () => { cancelled = true; };
-  }, [subjectId, stateSubjectName, preSelectedTeacherId]); // ✅ Re-run if pre-selected teacher changes
-
-  // ✅ OPTIMIZED: Fetch lessons ONLY for the active teacher (runs once per teacher change)
-  useEffect(() => {
-    // Guard: Don't fetch if no active teacher selected
-    if (!activeTeacher || !subjectId) return;
-    
-    let cancelled = false;
-    
-    const fetchTeacherLessons = async () => {
-      setLessonsLoading(true);
-      try {
-        console.log(`🔄 Fetching lessons for teacher ${activeTeacher}...`);
-        
-        // Fetch lessons for ONLY this teacher (single request)
-        const res = await api.get(`/teachers/${activeTeacher}/lessons`);
-        
-        if (cancelled) return; // Prevent state updates if unmounted
-        
-        console.log(`✅ Teacher ${activeTeacher} lessons response:`, res.data);
-        
-        const rawLessonsData = res.data?.lessons?.data || res.data?.lessons || res.data?.data || res.data || [];
-        let rawLessons = Array.isArray(rawLessonsData) ? rawLessonsData : [];
-        
-        console.log(`📊 Extracted ${rawLessons.length} lessons for teacher ${activeTeacher}`);
-        
-        // Filter by subject lessons if available
-        if (subjectLessonIds.size > 0) {
-          const beforeFilter = rawLessons.length;
-          rawLessons = rawLessons.filter(l => subjectLessonIds.has(l.id));
-          console.log(`🔍 Filtered: ${beforeFilter} → ${rawLessons.length} lessons`);
-        }
-        
-        // Map lessons to display format
-        const mappedLessons = rawLessons.map(l => ({
-          id:          l.id,
-          title:       l.title ?? l.name ?? `Lesson ${l.id}`,
-          duration:    l.duration ?? '--',
-          chapter:     l.chapter ?? '',
-          description: l.description ?? '',
-          completed:   completedIds.has(l.id),
-        }));
-        
-        setLessons(mappedLessons);
-        setCourse(prev => ({ ...prev, lessons: mappedLessons }));
-        
-        // Set current lesson (first one or matching lessonId)
-        const target = mappedLessons.find(l => l.id === parseInt(lessonId)) || mappedLessons[0] || null;
-        setCurrentLesson(target);
-        
-        console.log(`✅ Set ${mappedLessons.length} lessons for teacher ${activeTeacher}`);
-      } catch (err) {
-        if (!cancelled) {
-          console.error(`❌ Failed to fetch lessons for teacher ${activeTeacher}:`, err);
-          setLessons([]);
-        }
-      } finally {
-        if (!cancelled) setLessonsLoading(false);
-      }
-    };
-    
-    fetchTeacherLessons();
-    
-    // Cleanup function to prevent state updates on unmounted component
-    return () => { cancelled = true; };
-  }, [activeTeacher, subjectId, lessonId, completedIds, subjectLessonIds]); // ✅ Only runs when active teacher changes
-
-  // ✅ تغيير المدرس (simplified - fetching handled by useEffect)
-  const handleTeacherChange = (teacherId) => {
-    if (teacherId === activeTeacher) return;
-    console.log(`🔄 Switching to teacher ${teacherId}`);
-    setActiveTeacher(teacherId); // ✅ useEffect will automatically fetch lessons
-  };
-
-  // جلب فيديو والكويزات الخاصة بالدرس الحالي من real API
-  useEffect(() => {
-    if (!currentLesson?.id) return;
-    let cancelled = false;
-    
-    const fetchLessonData = async () => {
-      setVideoLoading(true);
-      setCurrentVideo(null);
-      setLessonQuizzes([]);
-      
-      try {
-        const safeId = parseInt(String(currentLesson?.id).split(':')[0], 10);
-        const lessonRes = await api.get(`/teachers/${activeTeacher}/lessons/${safeId}/content`);
-        
-        if (!cancelled) {
-          // 1. استخراج الفيديوهات
-          const videosData = lessonRes.data?.videos?.data || lessonRes.data?.videos || [];
-          const videosList = Array.isArray(videosData) ? videosData : [];
-          
-          // ✅ Helper function to ensure absolute URL for local storage videos
-          const ensureAbsoluteUrl = (url) => {
-            if (!url) return null;
-            // Already absolute URL
-            if (url.startsWith('http://') || url.startsWith('https://')) {
-              return url;
-            }
-            // Laravel storage base URL
-            const LARAVEL_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://127.0.0.1:8000';
-            // Handle different relative path formats
-            if (url.startsWith('/storage/')) {
-              return `${LARAVEL_BASE_URL}${url}`;
-            }
-            if (url.startsWith('storage/')) {
-              return `${LARAVEL_BASE_URL}/${url}`;
-            }
-            if (url.startsWith('/')) {
-              return `${LARAVEL_BASE_URL}${url}`;
-            }
-            // Default: prepend storage path
-            return `${LARAVEL_BASE_URL}/storage/${url}`;
+        const rawQuizzes = Array.isArray(firstVideoRaw?.quizzes) ? firstVideoRaw.quizzes : [];
+        const mappedQuizzes = rawQuizzes.map((quiz, idx) => {
+          const q = typeof quiz === 'object' ? quiz : { quiz_id: quiz };
+          const qId = q?.quiz_id ?? q?.id ?? idx + 1;
+          return {
+            id: qId,
+            quiz_id: qId,
+            teacher_id: teacherPayload?.teacher_id ?? teacherIdForRequest,
+            has_attempted: Boolean(q?.attempted ?? q?.has_attempted ?? q?.quiz_attempt),
+            score: q?.score ?? null,
           };
-          
-          let selectedVideo = videosList.length > 0 ? { ...videosList[0] } : null;
-          
-          // ✅ Fix video URL if it's a relative path
-          if (selectedVideo) {
-            if (selectedVideo.url) {
-              selectedVideo.url = ensureAbsoluteUrl(selectedVideo.url);
-            }
-            if (selectedVideo.video_url) {
-              selectedVideo.video_url = ensureAbsoluteUrl(selectedVideo.video_url);
-            }
-          }
-          
-          setCurrentVideo(selectedVideo);
-          
-          // 2. استخراج الكويزات من جوه الفيديو المختار (زي ما شوفنا في بوستمان)
-          let finalQuizzes = [];
-          
-          if (selectedVideo && Array.isArray(selectedVideo.quizzes)) {
-            // الباك إند بيرجع أرقام (مثال: [1])، هنحولها لـ Objects عشان الزراير تشتغل
-            const quizPromises = selectedVideo.quizzes.map(async q => {
-              const actualId = typeof q === 'object' ? (q.quiz_id || q.id) : q;
-              const quizObj = {
-                id: actualId,
-                quiz_id: actualId,
-                teacher_id: activeTeacher,
-                has_attempted: false,
-                score: 0
-              };
-              
-              // ✅ Fetch attempt data for this quiz if user is logged in
-              if (isLoggedIn) {
-                try {
-                  const attemptRes = await api.get(`/students/attempts`, {
-                    params: { quiz_id: actualId }
-                  });
-                  const attempts = attemptRes.data?.data || attemptRes.data || [];
-                  if (attempts.length > 0) {
-                    const latestAttempt = attempts[0];
-                    quizObj.has_attempted = true;
-                    quizObj.score = latestAttempt.score || 0;
-                  }
-                } catch (err) {
-                  console.warn(`Failed to fetch attempts for quiz ${actualId}:`, err);
-                }
-              }
-              
-              return quizObj;
-            });
-            
-            finalQuizzes = await Promise.all(quizPromises);
-          }
-          
-          setLessonQuizzes(finalQuizzes);
-          
-          console.log(`[LessonInterface] Loaded content for lesson ${currentLesson.id}:`, {
-            lessonId: safeId,
-            videoFound: !!selectedVideo,
-            quizzesFound: finalQuizzes.length,
-            extractedQuizzes: finalQuizzes
-          });
-        }
+        });
+
+        const mappedTeacher = {
+          id: teacherPayload?.teacher_id ?? teacherIdForRequest,
+          name: teacherPayload?.teacher_name || stateTeacherName || `مدرس ${teacherIdForRequest}`,
+          rating: teacherPayload?.rating ?? null,
+          subject: teacherPayload?.subject_name || stateSubjectName || '',
+        };
+
+        const mappedLesson = {
+          id: lessonId,
+          title: firstVideoRaw?.lesson_title || stateLesson?.title || `الدرس ${lessonId}`,
+          duration: stateLesson?.duration ?? '--',
+          chapter: stateLesson?.chapter ?? '',
+          description: stateLesson?.description ?? '',
+          completed: doneSet.has(lessonId),
+        };
+
+        if (cancelled) return;
+
+        setTeachers([mappedTeacher]);
+        setActiveTeacher(mappedTeacher.id);
+        setCourse({
+          subjectName: mappedTeacher.subject || stateSubjectName || 'غير محدد',
+          lessons: [mappedLesson],
+        });
+        setLessons([mappedLesson]);
+        setCurrentLesson(mappedLesson);
+        setCurrentVideo(firstVideoRaw);
+        setLessonQuizzes(mappedQuizzes);
       } catch (err) {
-        console.error('[LessonInterface] Failed to fetch lesson data:', err);
+        console.error('[LessonInterface] Failed to load consolidated content:', err);
         if (!cancelled) {
+          setError('تعذر تحميل بيانات الدرس.');
+          setTeachers([]);
+          setLessons([]);
+          setCurrentLesson(null);
+          setCourse(null);
           setCurrentVideo(null);
           setLessonQuizzes([]);
         }
       } finally {
-        if (!cancelled) setVideoLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
-    
-    fetchLessonData();
+
+    loadLessonContent();
     return () => { cancelled = true; };
-  }, [currentLesson?.id, activeTeacher]);
+  }, [lessonId, teacherIdForRequest, subjectId, stateSubjectName, stateTeacherName, stateLesson?.title, stateLesson?.duration, stateLesson?.chapter, stateLesson?.description]);
 
   // تأثير التمرير التلقائي لقسم الاختبارات
   useEffect(() => {
-    if (autoScrollToQuiz && !videoLoading && lessonQuizzes.length > 0) {
+    if (autoScrollToQuiz && !loading && lessonQuizzes.length > 0) {
       setTimeout(() => {
         const el = document.getElementById('quizzes-section');
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 500);
     }
-  }, [autoScrollToQuiz, videoLoading, lessonQuizzes.length]);
+  }, [autoScrollToQuiz, loading, lessonQuizzes.length]);
 
   const completedCount = completedIds.size;
   const totalCount = lessons.length;
   const progressPercent = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  const mainQuiz = lessonQuizzes.length > 0 ? lessonQuizzes[0] : null;
-  const matchingAttempt = mainQuiz && Array.isArray(studentAttempts)
-    ? studentAttempts.find(a => String(a.quiz_id) === String(mainQuiz.id) || String(a.id) === String(mainQuiz.id))
-    : null;
-
+  const mainQuiz = lessonQuizzes?.[0] ?? null;
   const quizData = mainQuiz ? {
     ...mainQuiz,
-    has_attempted: !!matchingAttempt,
-    score: matchingAttempt?.score ?? null
+    has_attempted: Boolean(mainQuiz?.has_attempted),
+    score: mainQuiz?.score ?? null
   } : null;
 
   const routeLessonId = currentLesson?.id ?? lessonId;
+  const activeTeacherInfo = teachers.find((t) => String(t.id) === String(activeTeacher));
 
   // التنقل بين الدروس
   const currentIndex    = lessons.findIndex(l => l.id === currentLesson?.id);
@@ -463,7 +243,7 @@ const LessonInterface = () => {
     }
   };
 
-  if (loading || lessonsLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-[#103B66] font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         <Loader2 className="w-12 h-12 animate-spin mb-4" />
@@ -553,7 +333,7 @@ const LessonInterface = () => {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               {/* شريط معلومات المدرس */}
               <div className="bg-gradient-to-r from-[#103B66] to-[#1a5a99] dark:from-gray-700 dark:to-gray-600 p-4">
-                {teachers.find(t => t.id === activeTeacher) ? (
+                {activeTeacherInfo ? (
                   <div className="flex items-center gap-4">
                     {/* أيقونة المدرس */}
                     <div className="p-3 rounded-full bg-white/20 backdrop-blur-sm shrink-0">
@@ -562,17 +342,17 @@ const LessonInterface = () => {
                     
                     {/* بيانات المدرس */}
                     <div className="flex-1 text-right">
-                      <p className="text-xs text-white/80 mb-1">المدرس</p>
-                      <h3 className="font-bold text-xl text-white mb-1">
-                        {teachers.find(t => t.id === activeTeacher)?.name}
-                      </h3>
-                      {teachers.find(t => t.id === activeTeacher)?.rating != null && (
-                        <div className="flex items-center gap-2 justify-end">
-                          <span className="text-sm text-white/90">
-                            ⭐ {teachers.find(t => t.id === activeTeacher)?.rating}
-                          </span>
-                        </div>
-                      )}
+                       <p className="text-xs text-white/80 mb-1">المدرس</p>
+                       <h3 className="font-bold text-xl text-white mb-1">
+                         {activeTeacherInfo?.name}
+                       </h3>
+                       {activeTeacherInfo?.rating != null && (
+                         <div className="flex items-center gap-2 justify-end">
+                           <span className="text-sm text-white/90">
+                             ⭐ {activeTeacherInfo?.rating}
+                           </span>
+                         </div>
+                       )}
                     </div>
                   </div>
                 ) : (
@@ -587,7 +367,7 @@ const LessonInterface = () => {
               <div className="relative bg-black aspect-video group overflow-hidden">
 
                 {/* جاري تحميل بيانات الفيديو */}
-                {videoLoading ? (
+                {loading ? (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <Loader2 className="w-10 h-10 text-white animate-spin" />
                   </div>
@@ -648,7 +428,7 @@ const LessonInterface = () => {
                         {currentVideo?.video_title || currentLesson.title}
                       </p>
                       <p className="text-white/60 text-sm">
-                        {teachers.find(t => t.id === activeTeacher)?.name || 'غير محدد'}
+                        {activeTeacherInfo?.name || 'غير محدد'}
                       </p>
                       {(currentVideo?.url || currentVideo?.video_url) && (
                         <a

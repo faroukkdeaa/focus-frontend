@@ -21,6 +21,7 @@ import ProgressAnalytics from './pages/ProgressAnalytics';
 import TeacherAnalytics from './pages/TeacherAnalytics';
 import QuizDetails from './pages/QuizDetails';
 import EditQuiz from './pages/EditQuiz';
+import VideoDetails from './pages/VideoDetails';
 import AdminDashboard from './pages/AdminDashboard';
 import Notifications from './pages/Notifications';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -53,6 +54,7 @@ function App() {
           <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
           <Route path="/progress"          element={<ProgressAnalytics />} />
           <Route path="/teacher-analytics" element={<TeacherAnalytics />} />
+          <Route path="/video-details/:id" element={<VideoDetails />} />
           <Route path="/quizzes-details/:id" element={<QuizDetails />} />
           <Route path="/edit-quiz/:id" element={<EditQuiz />} />
           <Route path="/admin-dashboard"   element={<AdminDashboard />} />

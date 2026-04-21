@@ -86,9 +86,8 @@ const TeacherAnalytics = () => {
   // ── Data state ────────────────────────────────────────────────────────────
   const [videos, setVideos] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
-  const [content,   setContent]   = useState([]);
-  const [viewsData, setViewsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [stats, setStats] = useState({
     videos: 0,
     attempts: 0,
@@ -96,212 +95,163 @@ const TeacherAnalytics = () => {
     watchHours: 0,
   });
 
-  // ── Per-section loading / error ───────────────────────────────────────────
-  const [loadingContent, setLoadingContent] = useState(true);
-  const [loadingViews,   setLoadingViews]   = useState(true);
-
-  const [errorContent, setErrorContent] = useState(null);
-  const [errorViews,   setErrorViews]   = useState(null);
-
   // ── Selected lesson (for drill-down charts) ───────────────────────────────
   const [selectedId, setSelectedId] = useState(null);
 
-  // ── Fetch helpers ─────────────────────────────────────────────────────────
-
-  const extractDataList = (resData) => {
-    if (!resData) return [];
-    if (resData.data && resData.data.data && Array.isArray(resData.data.data)) return resData.data.data;
-    if (resData.data && Array.isArray(resData.data)) return resData.data;
-    if (Array.isArray(resData)) return resData;
-    if (typeof resData === 'object' && resData !== null) return Object.values(resData);
-    return [];
-  };
-
-  const fetchContent = useCallback(async () => {
-    setLoadingContent(true);
-    setErrorContent(null);
+  const fetchAnalytics = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      // 1. Get Teacher ID safely
-      const meRes = await api.get('/me').catch(() => ({ data: {} }));
-      const user = meRes.data?.data || meRes.data || {};
-      const teacherId = user.teacher_id || user.teacher?.id || 21;
-
-      // 2. Fetch data
-      const [lessonsRes, quizzesRes] = await Promise.allSettled([
-        api.get(`/teachers/${teacherId}/lessons`),
-        api.get('/quizzes')
+      const [videosRes, quizzesRes] = await Promise.all([
+        api.get('/videos'),
+        api.get('/quizzes'),
       ]);
 
-      // 3. Ultimate Extractor (Handles Arrays, Laravel Paginators, and Indexed Objects)
-      const extract = (res) => {
-        if (!res || res.status !== 'fulfilled' || !res.value) return [];
-        const d = res.value.data;
-        if (!d) return [];
+      const videosPayload = videosRes.data?.videos ?? {};
+      const quizzesPayload = quizzesRes.data?.quizzes ?? {};
 
-        // Find the core payload
-        let target = d.data || d.lessons || d.quizzes || d;
-        if (target && target.data) target = target.data; // deep pagination
+      const rawVideosData = videosPayload?.data ?? videosRes.data?.data ?? videosPayload ?? [];
+      const rawQuizzesData = quizzesPayload?.data ?? quizzesRes.data?.data ?? quizzesPayload ?? [];
 
-        if (Array.isArray(target)) return target;
-        // Convert indexed objects {"0": {...}} to arrays safely
-        if (typeof target === 'object' && target !== null) {
-          return Object.values(target).filter(item => typeof item === 'object');
+      const videosList = Array.isArray(rawVideosData)
+        ? rawVideosData
+        : (rawVideosData && typeof rawVideosData === 'object' ? Object.values(rawVideosData) : []);
+      const quizzesList = Array.isArray(rawQuizzesData)
+        ? rawQuizzesData
+        : (rawQuizzesData && typeof rawQuizzesData === 'object' ? Object.values(rawQuizzesData) : []);
+
+      const formattedVideos = videosList.map((video, idx) => {
+        const videoId = video.video_id ?? video.id ?? `vid-${idx + 1}`;
+        const lessonId = video.lesson_id ?? video.lessonId ?? video.lesson?.id ?? null;
+        const lessonTitle = video.lesson_title || '';
+        const videoTitle = video.video_title || '';
+        const resolvedVideoTitle = lessonTitle || videoTitle || video.title || 'درس بدون عنوان';
+
+        return {
+          id: videoId,
+          selectionKey: `video:${videoId}`,
+          contentType: 'video',
+          lessonId,
+          lessonTitle: lessonTitle || resolvedVideoTitle,
+          videoTitle: videoTitle || resolvedVideoTitle,
+          lesson: resolvedVideoTitle,
+          subject: video.subject_name || video.subject || 'Physics',
+          views: Number(video.views_count ?? video.views ?? 0) || 0,
+          quizAttempts: null,
+          avgScore: null,
+          topWeakSubtopic: null,
+          scoreDistribution: [],
+          missedQuestions: [],
+        };
+      });
+
+      const videosByLessonId = formattedVideos.reduce((acc, video) => {
+        if (video.lessonId == null) return acc;
+        const key = String(video.lessonId);
+        if (!acc.has(key)) {
+          acc.set(key, video.lessonTitle || video.videoTitle || video.lesson || null);
         }
-        return [];
-      };
+        return acc;
+      }, new Map());
 
-      const rawLessons = extract(lessonsRes);
-      const rawQuizzes = extract(quizzesRes);
-
-      // 4. Map Videos safely
-      const formattedVideos = rawLessons.map((v, idx) => ({
-        id: v.id || `vid-${idx}`,
-        lesson: v.title || v.name || v.lesson_name || 'درس بدون عنوان',
-        subject: v.subject_name || v.subject || 'Physics',
-        views: v.views_count || v.views || 0,
-        quizAttempts: null, avgScore: null, topWeakSubtopic: null, scoreDistribution: [], missedQuestions: []
-      }));
-
-      setVideos(formattedVideos);
-      setSelectedId(prev => prev ?? formattedVideos[0]?.id);
-
-      // 5. Map Quizzes and fetch attempt counts dynamically (Frontend workaround)
-      const formattedQuizzes = await Promise.all(rawQuizzes.map(async (q, idx) => {
-        const innerQ = q.quiz || q;
-        const quizId = innerQ.id || innerQ.quiz_id || q.id || `quiz-${idx}`;
-
-        let actualAttempts = q.attempts_count || innerQ.attempts_count || 0;
-
-        // If the API didn't provide the count, fetch it from the details endpoint
-        if (!actualAttempts && quizId && typeof quizId === 'number') {
-          try {
-            const detailRes = await api.get(`/quizzes-details/${quizId}`);
-            const details = detailRes.data?.data || detailRes.data || {};
-            const attemptsList = details.attempts || details.students || [];
-            actualAttempts = attemptsList.length;
-          } catch (err) {
-            // Silently ignore if details fail to load for a specific quiz
-          }
-        }
+      const formattedQuizzes = quizzesList.map((quiz, idx) => {
+        const quizId = quiz.id ?? quiz.quiz_id ?? `quiz-${idx + 1}`;
+        const lessonId = quiz.lesson_id ?? quiz.lessonId ?? quiz.lesson?.id ?? null;
+        const rawTitle = typeof quiz.title === 'string' ? quiz.title.trim() : '';
+        const linkedVideoTitle = lessonId != null ? videosByLessonId.get(String(lessonId)) : null;
+        const resolvedQuizTitle =
+          rawTitle && rawTitle !== 'Untitled Quiz'
+            ? rawTitle
+            : linkedVideoTitle
+              ? `اختبار: ${linkedVideoTitle}`
+              : 'اختبار الدرس';
 
         return {
           id: quizId,
-          lesson: innerQ.lesson_name || q.lesson_name || innerQ.title || q.title || 'اختبار بدون عنوان',
-          subject: innerQ.subject_name || q.subject_name || 'Physics',
+          selectionKey: `quiz:${quizId}`,
+          contentType: 'quiz',
+          title: rawTitle || 'Untitled Quiz',
+          lessonId,
+          lesson: resolvedQuizTitle,
+          subject: quiz.subject_name || quiz.subject || 'Physics',
           views: null,
-          quizAttempts: actualAttempts,
-          avgScore: null, topWeakSubtopic: null, scoreDistribution: [], missedQuestions: []
+          quizAttempts: Number(quiz.attempts_count ?? quiz.attempts ?? 0) || 0,
+          avgScore: null,
+          topWeakSubtopic: null,
+          scoreDistribution: [],
+          missedQuestions: [],
         };
-      }));
+      });
 
-      setQuizzes(formattedQuizzes);
+      const uniqueById = (items) => {
+        const seen = new Map();
+        items.forEach((item) => {
+          const key = String(item.id);
+          if (!seen.has(key)) seen.set(key, item);
+        });
+        return Array.from(seen.values());
+      };
+
+      const uniqueVideos = uniqueById(formattedVideos);
+      const uniqueQuizzes = uniqueById(formattedQuizzes);
+
+      setVideos(uniqueVideos);
+      setQuizzes(uniqueQuizzes);
+
+      const mergedContent = [...uniqueVideos, ...uniqueQuizzes];
+      setSelectedId((prev) => {
+        if (prev != null && mergedContent.some((item) => String(item.selectionKey) === String(prev))) {
+          return prev;
+        }
+        return mergedContent[0]?.selectionKey ?? null;
+      });
+
+      setStats({
+        videos: Number(videosPayload?.total ?? uniqueVideos.length) || 0,
+        attempts: Number(quizzesPayload?.total ?? uniqueQuizzes.length) || 0,
+        avgScore: 0,
+        watchHours: 0,
+      });
     } catch (err) {
-      console.error(err);
-      setErrorContent('تعذّر تحميل البيانات.');
+      console.error('Failed to fetch teacher analytics', err);
+      setError('تعذّر تحميل البيانات.');
       setVideos([]);
       setQuizzes([]);
+      setSelectedId(null);
+      setStats({
+        videos: 0,
+        attempts: 0,
+        avgScore: 0,
+        watchHours: 0,
+      });
     } finally {
-      setLoadingContent(false);
-    }
-  }, []);
-
-  const fetchViews = useCallback(async () => {
-    setLoadingViews(true);
-    setErrorViews(null);
-    try {
-      const { data } = await api.get('/teacher_views_over_time');
-      const viewsList = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
-      setViewsData(viewsList);
-    } catch (error) {
-      if (error?.response?.status === 404) {
-        setViewsData([]);
-        setErrorViews(null);
-      } else {
-        setErrorViews('تعذّر تحميل بيانات المشاهدات.');
-      }
-    } finally {
-      setLoadingViews(false);
+      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const fetchAnalytics = async () => {
-      setIsLoading(true);
-      try {
-        // Fetch videos and attempts concurrently safely
-        const [videosRes, attemptsRes] = await Promise.allSettled([
-          api.get('/videos'),
-          api.get('/students/attempts'),
-        ]);
-
-        let videosCount = 0;
-        if (videosRes.status === 'fulfilled') {
-          const vData = videosRes.value.data?.data || videosRes.value.data || [];
-          const videosList = Array.isArray(vData)
-            ? vData
-            : (typeof vData === 'object' && vData ? Object.values(vData) : []);
-          videosCount = videosList.length;
-        }
-
-        let attemptsCount = 0;
-        let avgScore = 0;
-        if (attemptsRes.status === 'fulfilled') {
-          const aData =
-            attemptsRes.value.data?.quizzesAttempt?.data ||
-            attemptsRes.value.data?.quizzesAttempt ||
-            attemptsRes.value.data?.data ||
-            attemptsRes.value.data?.attempts ||
-            attemptsRes.value.data ||
-            [];
-
-          const attemptsList = Array.isArray(aData)
-            ? aData
-            : (typeof aData === 'object' && aData ? Object.values(aData) : []);
-
-          attemptsCount = attemptsList.length;
-
-          if (attemptsCount > 0) {
-            const totalScore = attemptsList.reduce((acc, curr) => acc + Number(curr.score || 0), 0);
-            // Assuming max score per quiz is 5 for percentage calc, adjust if needed
-            avgScore = Math.round((totalScore / (attemptsCount * 5)) * 100);
-          }
-        }
-
-        setStats({
-          videos: videosCount,
-          attempts: attemptsCount,
-          avgScore,
-          watchHours: 0, // Placeholder until backend tracks video watch time
-        });
-      } catch (error) {
-        console.error('Failed to fetch teacher analytics', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchAnalytics();
-  }, []);
-
-  // ── Initial parallel fetch ────────────────────────────────────────────────
-  useEffect(() => {
-    fetchContent();
-    fetchViews();
-  }, [fetchContent, fetchViews]);
+  }, [fetchAnalytics]);
 
   // ── Derived values ────────────────────────────────────────────────────────
-  const selected = content.find(c => c.id === selectedId) ?? content[0] ?? null;
+  const content = [...videos, ...quizzes];
+  const selected = content.find(c => String(c.selectionKey) === String(selectedId)) ?? content[0] ?? null;
   const distData = Array.isArray(selected?.scoreDistribution)
     ? selected.scoreDistribution.map((count, i) => ({ bucket: SCORE_BUCKETS[i], طلاب: count }))
     : [];
-  const safeViewsData = Array.isArray(viewsData) ? viewsData : [];
+  const safeViewsData = videos
+    .filter((video) => Number(video.views) > 0)
+    .map((video, idx) => ({
+      day: video.lesson || `#${idx + 1}`,
+      'مشاهدات': Number(video.views) || 0,
+    }));
 
   const totalViews   = safeViewsData.reduce((s, d) => s + d['مشاهدات'], 0);
   const peakViews    = safeViewsData.length ? Math.max(...safeViewsData.map(d => d['مشاهدات'])) : 0;
   const avgDailyView = safeViewsData.length ? Math.round(totalViews / safeViewsData.length) : 0;
 
-  const totalQuizzesCount = quizzes.length;
-  const totalVideosCount = videos.length;
+  const totalQuizzesCount = stats.attempts;
+  const totalVideosCount = stats.videos;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
@@ -368,10 +318,10 @@ const TeacherAnalytics = () => {
           </h2>
 
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-            {loadingContent ? (
+            {isLoading ? (
               <div className="p-6"><SectionLoader rows={5} /></div>
-            ) : errorContent ? (
-              <div className="p-6"><SectionError message={errorContent} onRetry={fetchContent} /></div>
+            ) : error ? (
+              <div className="p-6"><SectionError message={error} onRetry={fetchAnalytics} /></div>
             ) : (
               <div className="p-4 space-y-7">
                 <div>
@@ -380,7 +330,7 @@ const TeacherAnalytics = () => {
                     <div className="space-y-4">
                       {videos.map(v => {
                         const subj = SUBJECT_COLORS[v.subject] ?? { bg: 'bg-gray-100', text: 'text-gray-700' };
-                        const isSelected = selectedId === v.id;
+                        const isSelected = String(selectedId) === String(v.selectionKey);
                         let barColor = 'bg-gray-300 dark:bg-gray-600';
                         if (v.avgScore !== null) {
                           if (v.avgScore < 50) barColor = 'bg-red-500';
@@ -447,7 +397,7 @@ const TeacherAnalytics = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setSelectedId(v.id);
+                                  setSelectedId(v.selectionKey);
                                 }}
                                 className={`shrink-0 flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition ${
                                   isSelected
@@ -474,7 +424,21 @@ const TeacherAnalytics = () => {
                     <div className="space-y-4">
                       {quizzes.map(q => {
                         const subj = SUBJECT_COLORS[q.subject] ?? { bg: 'bg-gray-100', text: 'text-gray-700' };
-                        const isSelected = selectedId === q.id;
+                        const isSelected = String(selectedId) === String(q.selectionKey);
+                        const rawQuizTitle = typeof q.title === 'string' ? q.title.trim() : '';
+                        const linkedVideo = videos.find(
+                          (video) =>
+                            video.lessonId != null &&
+                            q.lessonId != null &&
+                            String(video.lessonId) === String(q.lessonId)
+                        );
+                        const linkedVideoTitle = linkedVideo?.lessonTitle || linkedVideo?.videoTitle || linkedVideo?.lesson || '';
+                        const resolvedQuizTitle =
+                          rawQuizTitle && rawQuizTitle !== 'Untitled Quiz'
+                            ? rawQuizTitle
+                            : linkedVideoTitle
+                              ? `اختبار: ${linkedVideoTitle}`
+                              : 'اختبار الدرس';
                         let barColor = 'bg-gray-300 dark:bg-gray-600';
                         if (q.avgScore !== null) {
                           if (q.avgScore < 50) barColor = 'bg-red-500';
@@ -510,7 +474,7 @@ const TeacherAnalytics = () => {
                                 <FileText className="w-6 h-6" />
                               </div>
                               <div>
-                                <h4 className="font-bold text-gray-800 dark:text-white text-base line-clamp-1">{q.lesson}</h4>
+                                <h4 className="font-bold text-gray-800 dark:text-white text-base line-clamp-1">{resolvedQuizTitle}</h4>
                                 <div className="flex items-center gap-3 mt-1 text-xs">
                                   <span className={`font-bold px-2 py-0.5 rounded-full ${subj.bg} ${subj.text}`}>
                                     {SUBJECT_NAMES[q.subject] || q.subject || '—'}
@@ -553,7 +517,7 @@ const TeacherAnalytics = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedId(q.id);
+                                    setSelectedId(q.selectionKey);
                                   }}
                                   className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition ${
                                     isSelected
@@ -587,7 +551,7 @@ const TeacherAnalytics = () => {
               <BarChart2 className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
               {t('selected_lesson_analysis')}
             </h2>
-            {!loadingContent && content.length > 0 && (
+            {!isLoading && content.length > 0 && (
               <div className="relative">
                 <select
                   value={selectedId ?? ''}
@@ -595,7 +559,7 @@ const TeacherAnalytics = () => {
                   className="appearance-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl pl-8 pr-4 py-2 text-sm font-bold text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-[#103B66] dark:focus:ring-blue-500 cursor-pointer"
                 >
                   {content.map(c => (
-                    <option key={c.id} value={c.id}>{c.lesson}</option>
+                    <option key={c.selectionKey} value={c.selectionKey}>{c.lesson}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -603,7 +567,7 @@ const TeacherAnalytics = () => {
             )}
           </div>
 
-          {loadingContent ? (
+          {isLoading ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {[0, 1].map(i => (
                 <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
@@ -612,8 +576,8 @@ const TeacherAnalytics = () => {
                 </div>
               ))}
             </div>
-          ) : errorContent ? (
-            <SectionError message={errorContent} onRetry={fetchContent} />
+          ) : error ? (
+            <SectionError message={error} onRetry={fetchAnalytics} />
           ) : selected ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -713,13 +677,13 @@ const TeacherAnalytics = () => {
           </h2>
 
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-            {loadingViews ? (
+            {isLoading ? (
               <div className="flex flex-col items-center gap-3 py-10">
                 <Loader2 className="w-7 h-7 text-[#103B66] dark:text-blue-400 animate-spin" />
                 <p className="text-sm text-gray-400">جارٍ تحميل بيانات المشاهدات…</p>
               </div>
-            ) : errorViews ? (
-              <SectionError message={errorViews} onRetry={fetchViews} />
+            ) : error ? (
+              <SectionError message={error} onRetry={fetchAnalytics} />
             ) : (
               safeViewsData.length > 0 ? (
                 <>

@@ -219,20 +219,50 @@ const Quiz = () => {
   };
 
   const goToWeaknessReport = (finalScore, finalAnswers, correctAnswersFromServer = []) => {
-    navigate('/weakness-report', {
-      state: {
-        score: finalScore,
-        total: questions.length,
-        questions: questions,
-        userAnswers: finalAnswers,
-        correctAnswersFromServer: correctAnswersFromServer,
-        lesson: location.state?.lesson,
-        subjectId: realParams?.subjectId ?? location.state?.subjectId,
-        teacherId: realParams?.teacherId ?? location.state?.teacherId,
-        subjectName: location.state?.subjectName,
-        quizId: realParams?.quizId ?? quizId,
-      },
+    const safeQuestions = Array.isArray(questions) ? questions : [];
+    const safeUserAnswers =
+      finalAnswers && typeof finalAnswers === 'object' ? finalAnswers : {};
+
+    const resolvedLessonId =
+      realParams?.lessonId ??
+      location.state?.lesson_id ??
+      location.state?.lessonId ??
+      location.state?.lesson?.id ??
+      (safeQuestions.length > 0
+        ? (safeQuestions[0]?.lesson_id ?? safeQuestions[0]?.question?.lesson_id)
+        : null) ??
+      lessonId ??
+      null;
+
+    if (!safeQuestions.length) {
+      console.warn('⚠️ Weakness report payload has no questions at navigation time.');
+    }
+    if (!resolvedLessonId) {
+      console.warn('⚠️ Weakness report payload is missing lesson_id at navigation time.');
+    }
+
+    const reportState = {
+      score: finalScore,
+      total: safeQuestions.length,
+      questions: safeQuestions,
+      userAnswers: safeUserAnswers,
+      correctAnswersFromServer: correctAnswersFromServer,
+      lesson_id: resolvedLessonId,
+      lessonId: resolvedLessonId,
+      lesson: location.state?.lesson ?? (resolvedLessonId ? { id: resolvedLessonId } : undefined),
+      subjectId: realParams?.subjectId ?? location.state?.subjectId,
+      teacherId: realParams?.teacherId ?? location.state?.teacherId ?? teacherId,
+      subjectName: location.state?.subjectName,
+      quizId: realParams?.quizId ?? quizId,
+    };
+
+    console.log('📦 Weakness report payload summary:', {
+      questionsCount: reportState.questions.length,
+      answersCount: Object.keys(reportState.userAnswers || {}).length,
+      lesson_id: reportState.lesson_id,
     });
+
+    navigate('/weakness-report', { state: reportState });
   };
 
   const finishQuizLogic = async (finalAnswers, finalScore = score) => {

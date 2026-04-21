@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, Save, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Save, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
 import api from '../api/api';
 
 const OPTION_KEYS_NUMERIC = ['option_1', 'option_2', 'option_3', 'option_4'];
@@ -106,6 +106,7 @@ const EditQuiz = () => {
   const [questions, setQuestions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -263,6 +264,28 @@ const EditQuiz = () => {
     }
   };
 
+  const handleDelete = async () => {
+    if (!id) {
+      alert('معرّف الاختبار غير متوفر.');
+      return;
+    }
+
+    const confirmed = window.confirm('هل أنت متأكد من حذف هذا العنصر نهائياً؟');
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      await api.delete(`/quizzes/${id}`);
+      alert('تم حذف الاختبار بنجاح.');
+      navigate('/teacher-analytics', { replace: true });
+    } catch (err) {
+      console.error('Delete quiz error:', err);
+      alert('تعذّر حذف الاختبار. حاول مرة أخرى.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir="rtl">
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-20">
@@ -283,11 +306,19 @@ const EditQuiz = () => {
             </button>
             <button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || isDeleting}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-[#103B66] dark:bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
               {isSaving ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting || isSaving}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="w-4 h-4" />
+              {isDeleting ? 'جاري الحذف...' : 'حذف الاختبار'}
             </button>
           </div>
         </div>

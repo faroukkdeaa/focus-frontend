@@ -101,7 +101,7 @@ const ProgressAnalytics = () => {
 
   const [loading, setLoading]               = useState(true);
   const [quizResults, setQuizResults]        = useState([]);
-  const [extractedAttempts, setExtractedAttempts] = useState([]);
+  const [attempts, setAttempts] = useState([]);
   const [remGaps, setRemGaps]                = useState([]);
   const [subjectStats, setSubjectStats]      = useState([]);
   const [selectedChartSubject, setSelectedChartSubject] = useState(null);
@@ -109,20 +109,12 @@ const ProgressAnalytics = () => {
   // Activity colors: 0 (empty), 1, 2, 3, 4+ (highest)
   const activityColors = ['#2d333b', '#0e4429', '#006d32', '#26a641', '#39d353'];
 
-  // ── Fetch subjects + attempts (real backend) ────────────────────────────────────────────────
+  // ── Fetch attempts only (single backend source) ───────────────────────────
   useEffect(() => {
     const fetchRealData = async () => {
       setLoading(true);
       try {
-        const [subjectsRes, attemptsRes] = await Promise.all([
-          api.get('/subjects'),
-          api.get('/students/attempts'),
-        ]);
-
-        const extractedSubjects = Array.isArray(subjectsRes.data)
-          ? subjectsRes.data
-          : (subjectsRes.data?.data || []);
-
+        const attemptsRes = await api.get('/students/attempts');
         let rawAttempts =
           attemptsRes.data?.quizzesAttempt?.data ||
           attemptsRes.data?.quizzesAttempt ||
@@ -131,182 +123,119 @@ const ProgressAnalytics = () => {
           attemptsRes.data ||
           [];
 
-        if (typeof rawAttempts === 'object' && !Array.isArray(rawAttempts)) {
+        if (!Array.isArray(rawAttempts) && rawAttempts && typeof rawAttempts === 'object') {
           rawAttempts = Object.values(rawAttempts);
         }
 
-        const extractedAttempts = Array.isArray(rawAttempts) ? rawAttempts : [];
-        setExtractedAttempts(extractedAttempts);
-        console.log('🕷️ [CRAWL] Starting lesson_title -> subject_id mapping...');
-        console.log(`🕷️ [CRAWL] Subjects count: ${extractedSubjects.length}`);
-        console.log(`🕷️ [CRAWL] Attempts count: ${extractedAttempts.length}`);
-
-        const normalizeTitle = (value) => String(value || '').trim().toLowerCase();
-        const lessonToSubjectMap = {};
-
-        // Big Crawl: subjects -> units -> lessons
-        for (const subject of extractedSubjects) {
-          const subjectId = subject.id ?? subject.subject_id;
-          const subjectName = subject.name || subject.subject_name || subject.title || `Subject ${subjectId}`;
-          console.log(`🕷️ [CRAWL] Subject ${subjectId} (${subjectName})`);
-
-          if (!subjectId) {
-            console.warn('⚠️ [CRAWL] Skipping subject with missing id:', subject);
-            continue;
-          }
-
-          try {
-            const unitsRes = await api.get(`/subjects/${subjectId}/units`);
-            const unitsRaw = unitsRes.data?.data || unitsRes.data || [];
-            const unitsList = Array.isArray(unitsRaw) ? unitsRaw : [];
-            console.log(`🕷️ [CRAWL]  ↳ Units fetched: ${unitsList.length}`);
-
-            for (const unit of unitsList) {
-              const unitId = unit.id ?? unit.unit_id;
-              if (!unitId) continue;
-
-              console.log(`🕷️ [CRAWL]    ↳ Unit ${unitId}: fetching lessons...`);
-              try {
-                const lessonsRes = await api.get(`/units/${unitId}/lessons`);
-                const lessonsRaw = lessonsRes.data?.data || lessonsRes.data || [];
-                const lessonsList = Array.isArray(lessonsRaw) ? lessonsRaw : [];
-                console.log(`🕷️ [CRAWL]    ↳ Unit ${unitId}: lessons fetched = ${lessonsList.length}`);
-
-                for (const lesson of lessonsList) {
-                  const lessonTitle = lesson.title || lesson.name || '';
-                  const mapKey = normalizeTitle(lessonTitle);
-                  if (!mapKey) continue;
-                  lessonToSubjectMap[mapKey] = subjectId;
-                }
-              } catch (err) {
-                console.warn(`⚠️ [CRAWL]    ↳ Failed lessons fetch for unit ${unitId}`, err?.response?.status || err?.message);
-              }
-            }
-          } catch (err) {
-            console.warn(`⚠️ [CRAWL]  ↳ Failed units fetch for subject ${subjectId}`, err?.response?.status || err?.message);
-          }
-        }
-
-        console.log(`🕷️ [CRAWL] Mapping complete. lessonToSubjectMap keys: ${Object.keys(lessonToSubjectMap).length}`);
-
-        // Attach subject_id to attempts using lesson_title lookup
-        const mappedAttempts = extractedAttempts.map((attempt) => {
-          const attemptLessonTitle = attempt.lesson_title || attempt.lessonTitle || '';
-          const lookupKey = normalizeTitle(attemptLessonTitle);
-          const mappedSubjectId =
-            lessonToSubjectMap[lookupKey] ??
-            attempt.subject_id ??
-            attempt.subjectId ??
+        const normalizeAttempt = (att, index) => {
+          const attemptId = att?.id ?? att?.attempt_id ?? att?.result_id ?? index + 1;
+          const createdAt = String(att?.created_at || att?.date || '');
+          const parsedDate = new Date(createdAt);
+          const createdMs = Number.isNaN(parsedDate.getTime()) ? 0 : parsedDate.getTime();
+          const rawScore = Number(att?.score ?? 0) || 0;
+          const maxScore = Number(att?.total_questions ?? att?.max_score ?? attemptsRes.data?.quizzesAttempt?.meta?.total_questions ?? 5) || 5;
+          const percentage = Math.round((rawScore / maxScore) * 100);
+          const lessonTitle = att?.lesson_title || att?.lessonTitle || 'درس بدون عنوان';
+          const subjectName =
+            att?.subject_name ||
+            att?.subjectName ||
+            att?.subject?.name ||
+            att?.subject?.title ||
             null;
+          const subjectId = att?.subject_id ?? att?.subjectId ?? att?.subject?.id ?? null;
 
           return {
-            ...attempt,
-            subject_id: mappedSubjectId,
+            ...att,
+            attemptId,
+            createdAt,
+            createdMs,
+            rawScore,
+            maxScore,
+            percentage,
+            lessonTitle,
+            subjectName,
+            subjectId,
           };
-        });
+        };
 
-        console.log('🕷️ [CRAWL] Sample mapped attempts:', mappedAttempts.slice(0, 5));
+        const normalizedAttempts = (Array.isArray(rawAttempts) ? rawAttempts : [])
+          .filter((att) => att && typeof att === 'object')
+          .map(normalizeAttempt)
+          .sort((a, b) => a.createdMs - b.createdMs);
 
-        const stats = extractedSubjects.map(subject => {
-          const subjectId = subject.id ?? subject.subject_id;
-          const subjName = subject.name || subject.subject_name || subject.title || 'مادة غير معروفة';
-          const subjectAttempts = mappedAttempts.filter(a => String(a.subject_id) === String(subjectId));
-          const attemptsCount = subjectAttempts.length;
+        setAttempts(normalizedAttempts);
 
-          let lastRawScore = 0;
-          let lastPercentage = 0;
-          if (attemptsCount > 0) {
-            const lastAttempt = subjectAttempts[attemptsCount - 1];
-            lastRawScore = Number(lastAttempt.score || 0);
-            const maxScore = Number(lastAttempt.max_score || 5) || 5;
-            lastPercentage = Math.round((lastRawScore / maxScore) * 100);
-          }
-
-          const meta = SUBJECTS_META.find(
-            m => m.name === subjName || m.key === subject.code || String(m.id) === String(subjectId)
-          );
-
-          return {
-            ...subject,
-            id: subjectId,
-            key: meta?.key || subject.code || `subject_${subjectId}`,
-            name: subjName,
-            emoji: meta?.emoji || '📚',
-            color: meta?.color || '#103B66',
-            attemptsCount,
-            lastRawScore,
-            lastPercentage,
-            quizzes: subjectAttempts
-              .slice(-10)
-              .map(att => {
-                // Calculate percentage: (score / max_score) * 100
-                // TODO: Replace '5' with actual 'max_score' from backend when available
-                const maxScore = Number(att.max_score || 5) || 5;
-                const calculatedPercentage = att.score !== undefined
-                  ? Math.round((Number(att.score) / maxScore) * 100)
-                  : Number(att.percentage || 0);
-
-                return {
-                  date: att.created_at || att.date || '',
-                  score: Number(calculatedPercentage) || 0,
-                };
-              }),
-          };
-        });
-
-        setSubjectStats(stats);
-        const subjectNameById = new Map(stats.map((s) => [String(s.id), s.name]));
-
-        setSelectedChartSubject((prev) => {
-          const firstId = stats[0]?.id ?? null;
-          if (!firstId) return null;
-          const exists = stats.some((s) => String(s.id) === String(prev));
-          return exists ? prev : firstId;
-        });
-
-        setActiveTab((prev) => {
-          const firstId = stats[0]?.id ?? null;
-          if (!firstId) return null;
-          const exists = stats.some((s) => String(s.id) === String(prev));
-          return exists ? prev : firstId;
-        });
-
-        const normalizedQuizResults = mappedAttempts
+        const latestAttempt = normalizedAttempts[normalizedAttempts.length - 1];
+        const latestSubjectMeta = [...normalizedAttempts]
+          .reverse()
           .map((att) => {
-            // Calculate percentage: (score / max_score) * 100
-            // TODO: Replace '5' with actual 'max_score' from backend when available
-            const maxScore = Number(att.max_score || 5) || 5;
-            const calculatedPercentage = att.score !== undefined
-              ? Math.round((Number(att.score) / maxScore) * 100)
-              : Number(att.percentage || 0);
-            const rawScore = Number(att.score ?? 0) || 0;
-            const displayDate = String(att.created_at || att.date || '');
-            const dateObj = new Date(att.created_at || att.date || Date.now());
-            const uniqueDate = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
-
+            const meta = SUBJECTS_META.find((s) => String(s.id) === String(att.subjectId));
             return {
-              subjectId: String(att.subject_id ?? att.subjectId ?? ''),
-              subjectName: subjectNameById.get(String(att.subject_id ?? att.subjectId ?? '')) || '',
-              rawScore,
-              maxScore,
-              percentage: Number(calculatedPercentage) || 0,
-              displayDate,
-              date: uniqueDate,
-              lessonTitle: att.lesson_title || att.lessonTitle || '',
+              name: att.subjectName || meta?.name || null,
+              emoji: meta?.emoji || '📘',
+              color: meta?.color || '#103B66',
             };
           })
-          .filter((row) => row.subjectId && row.date)
-          .sort((a, b) => new Date(b.date) - new Date(a.date));
+          .find((subject) => subject.name);
+
+        setSubjectStats([{
+          id: 'all',
+          key: 'all-attempts',
+          name: latestSubjectMeta?.name || 'المادة الحالية',
+          emoji: latestSubjectMeta?.emoji || '📘',
+          color: latestSubjectMeta?.color || '#103B66',
+          attemptsCount: normalizedAttempts.length,
+          lastRawScore: latestAttempt?.rawScore || 0,
+          lastPercentage: latestAttempt?.percentage || 0,
+          quizzes: normalizedAttempts.slice(-10).map((att) => ({
+            date: att.createdAt,
+            score: att.percentage,
+          })),
+        }]);
+        setSelectedChartSubject('all');
+        setActiveTab('all');
+
+        const normalizedQuizResults = [...normalizedAttempts]
+          .sort((a, b) => b.createdMs - a.createdMs)
+          .map((att) => {
+            const dateObj = new Date(att.createdAt || Date.now());
+            const formattedDate = Number.isNaN(dateObj.getTime())
+              ? '—'
+              : dateObj.toLocaleString('ar-EG', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              });
+
+            return {
+              subjectId: att.subjectId ? String(att.subjectId) : '',
+              subjectName: att.subjectName || 'غير محدد',
+              attemptId: att.attemptId,
+              quizId: att.quiz_id ?? att.quizId ?? null,
+              lessonId: att.lesson_id ?? att.lessonId ?? null,
+              teacherId: att.teacher_id ?? att.teacherId ?? null,
+              rawScore: att.rawScore,
+              maxScore: att.maxScore,
+              percentage: att.percentage,
+              displayDate: att.createdAt,
+              date: formattedDate,
+              lessonTitle: att.lessonTitle,
+              createdMs: att.createdMs,
+            };
+          });
 
         setQuizResults(normalizedQuizResults);
         setRemGaps([]);
       } catch (err) {
-        console.error('❌ Failed to fetch subject stats:', err);
+        console.error('❌ Failed to fetch attempts analytics:', err);
         console.error('❌ Error details:', err.response?.data);
+        setAttempts([]);
         setSubjectStats([]);
         setQuizResults([]);
         setRemGaps([]);
-        setExtractedAttempts([]);
         setSelectedChartSubject(null);
         setActiveTab(null);
       } finally {
@@ -317,23 +246,29 @@ const ProgressAnalytics = () => {
     fetchRealData();
   }, []);
 
-  // ── Derived: line chart data ───────────────────────────────────────────
+  // ── Derived: line chart data (created_at vs score) ───────────────────────
   const lineData = useMemo(() => {
-    if (!selectedChartSubject) return [];
+    if (!attempts.length) return [];
 
-    return [...quizResults]
-      .filter((q) => String(q.subjectId) === String(selectedChartSubject))
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
-      .map((q) => ({
-        date: (q.date || '').slice(5).replace('-', '/'),
-        score: q.percentage,
-        percentage: q.percentage,
-        rawScore: q.rawScore,
-        maxScore: q.maxScore,
-        displayDate: q.displayDate || q.date,
-        subjectName: q.subjectName,
-      }));
-  }, [quizResults, selectedChartSubject]);
+    return [...attempts]
+      .sort((a, b) => a.createdMs - b.createdMs)
+      .map((att) => {
+        const d = new Date(att.createdAt);
+        const dateLabel = Number.isNaN(d.getTime())
+          ? '—'
+          : `${d.toLocaleDateString('ar-EG', { day: '2-digit', month: '2-digit' })} ${d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+
+        return {
+          date: dateLabel,
+          score: att.percentage,
+          percentage: att.percentage,
+          rawScore: att.rawScore,
+          maxScore: att.maxScore,
+          displayDate: att.createdAt,
+          subjectName: att.subjectName || 'المادة الحالية',
+        };
+      });
+  }, [attempts]);
 
   // ── Derived: subtopic bar data from remediation gaps ──────────────────
   const subtopicData = useMemo(() => {
@@ -347,12 +282,12 @@ const ProgressAnalytics = () => {
   }, [remGaps, activeTab]);
 
   const activityDays = useMemo(() => {
-    if (!extractedAttempts) return [];
+    if (!attempts.length) return [];
     // Map attempts by date string (YYYY-MM-DD)
     const activityMap = {};
-    extractedAttempts.forEach(att => {
+    attempts.forEach(att => {
       try {
-        const d = new Date(att.created_at || att.date || Date.now());
+        const d = new Date(att.createdAt || Date.now());
         const dateStr = d.toISOString().split('T')[0];
         activityMap[dateStr] = (activityMap[dateStr] || 0) + 1;
       } catch (e) {}
@@ -373,7 +308,7 @@ const ProgressAnalytics = () => {
       });
     }
     return days;
-  }, [extractedAttempts]);
+  }, [attempts]);
 
   const barData       = subtopicData;
   const activeTabMeta = subjectStats.find(s => String(s.id) === String(activeTab));
@@ -714,7 +649,7 @@ const ProgressAnalytics = () => {
                       </td>
                     </tr>
                   ) : quizResults.map((att, i) => {
-                    const maxScore = 5; // Hardcoded fallback
+                    const maxScore = Number(att.maxScore ?? 5) || 5;
                     const rawScore = Number(att.rawScore || att.score || 0);
                     const percentage = att.percentage || Math.round((rawScore / maxScore) * 100);
                     const badge = getMasteryBadge(percentage);
@@ -748,27 +683,34 @@ const ProgressAnalytics = () => {
                           </div>
                         </td>
                         <td className="px-5 py-3.5">
-                          {percentage < 50 && (
-                            <button
-                              onClick={() =>
-                                navigate('/weakness-report', {
-                                  state: {
-                                    reportData: {
-                                      subjectName: att.subjectName || 'الفيزياء',
-                                      date: att.displayDate || att.date,
-                                      score: rawScore,
-                                      total: maxScore,
-                                      percentage: percentage,
-                                    }
-                                  },
-                                })
-                              }
-                              className="flex items-center gap-1.5 text-xs font-bold text-[#103B66] dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              {t('view_report')}
-                            </button>
-                          )}
+                          <button
+                            onClick={() => {
+                              const attemptId = att.attemptId ?? att.id;
+                              if (!attemptId) return;
+                              const targetPath = `/weakness-report?attempt_id=${encodeURIComponent(String(attemptId))}`;
+
+                              navigate(targetPath, {
+                                state: {
+                                  attempt_id: attemptId,
+                                  attemptId: attemptId,
+                                  lesson_id: att.lessonId,
+                                  lessonId: att.lessonId,
+                                  teacherId: att.teacherId,
+                                  reportData: {
+                                    subjectName: att.subjectName || 'غير محدد',
+                                    date: att.displayDate || att.date,
+                                    score: rawScore,
+                                    total: maxScore,
+                                    percentage: percentage,
+                                  }
+                                },
+                              });
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-bold text-[#103B66] dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            {t('view_report')}
+                          </button>
                         </td>
                       </tr>
                     );

@@ -46,50 +46,714 @@ const WeaknessReport = () => {
   const location = useLocation();
   const { t, lang } = useLanguage();
   const [subtopicsMap, setSubtopicsMap] = useState({});
+  const routerState = location.state || {};
+  const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
-  // Safely extract data passed from the Quiz page
+  // Router payload (direct navigation from Quiz)
+  const routerQuestions = Array.isArray(routerState.questions) ? routerState.questions : [];
+  const routerUserAnswers = routerState.userAnswers && typeof routerState.userAnswers === 'object'
+    ? routerState.userAnswers
+    : {};
+
+  // Other router metadata
   const {
-    questions = [],
-    userAnswers = {},
-    score = 0,
-    total = 0,
-    correctAnswersFromServer = [],
-    lesson,
-    subjectId,
-    teacherId,
+    score: stateScore = 0,
+    total: stateTotal = 0,
+    correctAnswersFromServer: stateCorrectAnswersFromServer = [],
+    lesson: stateLesson,
+    lesson_id: stateLessonId,
+    lessonId: stateLessonIdAlt,
+    subjectId: stateSubjectId,
+    teacherId: stateTeacherId,
     subjectName: stateSubjectName,
     reportData = {},
     subtopics: stateSubtopics = [],
-  } = location.state || {};
+    attempt_id: stateAttemptId,
+    attemptId: stateAttemptIdAlt,
+    result_id: stateResultId,
+    resultId: stateResultIdAlt,
+    quiz_attempt_id: stateQuizAttemptId,
+    quizAttemptId: stateQuizAttemptIdAlt,
+    quiz_id: stateQuizId,
+    quizId: stateQuizIdAlt,
+  } = routerState;
 
-  const subjectName = reportData.subjectName || stateSubjectName || '';
+  const [fallbackPayload, setFallbackPayload] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  const attemptIdentifier =
+    stateAttemptId ??
+    stateAttemptIdAlt ??
+    stateResultId ??
+    stateResultIdAlt ??
+    stateQuizAttemptId ??
+    stateQuizAttemptIdAlt ??
+    queryParams.get('attempt_id') ??
+    queryParams.get('result_id') ??
+    null;
+
+  const quizIdentifier =
+    stateQuizId ??
+    stateQuizIdAlt ??
+    reportData?.quiz_id ??
+    queryParams.get('quiz_id') ??
+    null;
+
+  const hasDirectPayload =
+    routerQuestions.length > 0 &&
+    Object.keys(routerUserAnswers).length > 0;
+
+  // Runtime payload: direct router state first, then fallback API payload
+  const questions = fallbackPayload?.questions ?? routerQuestions;
+  const userAnswers = fallbackPayload?.userAnswers ?? routerUserAnswers;
+  const score = fallbackPayload?.score ?? stateScore;
+  const total = fallbackPayload?.total ?? stateTotal;
+  const correctAnswersFromServer = fallbackPayload?.correctAnswersFromServer ?? stateCorrectAnswersFromServer;
+  const lesson = fallbackPayload?.lesson ?? stateLesson;
+  const subjectId = fallbackPayload?.subjectId ?? stateSubjectId;
+  const teacherId = fallbackPayload?.teacherId ?? stateTeacherId;
+  const runtimeSubtopics = fallbackPayload?.subtopics ?? stateSubtopics;
+  const hasAnswerData =
+    fallbackPayload?.hasAnswerData ??
+    (Object.keys(routerUserAnswers).length > 0);
+  const subjectName =
+    fallbackPayload?.subjectName ||
+    reportData.subjectName ||
+    stateSubjectName ||
+    '';
 
   useEffect(() => {
-    const fetchSubtopicsMap = async () => {
-      try {
-        // Attempt to fetch subtopics to create an ID-to-Name dictionary
-        const { data } = await api.get('/subtopics');
-        const items = data?.data || data || [];
-        const map = {};
-        if (Array.isArray(items)) {
-          items.forEach(item => {
-            map[item.id] = item.name || item.title || item.subtopic_name;
+    if (hasDirectPayload || fallbackPayload) return;
+
+    if (!attemptIdentifier && !quizIdentifier) {
+      setLoadError('تعذّر تحميل بيانات التقرير: لا يوجد معرف للمحاولة.');
+      return;
+    }
+
+    let cancelled = false;
+
+    const toArray = (payload) => {
+      const candidate =
+        payload?.data?.data ??
+        payload?.data ??
+        payload?.attempts?.data ??
+        payload?.attempt?.data ??
+        payload?.attempt ??
+        payload?.quizAttempt ??
+        payload?.quiz_attempt ??
+        payload?.quizzesAttempt?.data ??
+        payload?.quizzesAttempt ??
+        payload?.attempts ??
+        payload;
+
+      if (Array.isArray(candidate)) return candidate;
+      if (candidate && typeof candidate === 'object') {
+        return Object.values(candidate).filter((item) => item && typeof item === 'object');
+      }
+      return [];
+    };
+
+    const firstArrayInObject = (obj) => {
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+      const nestedArray = Object.values(obj).find((value) => Array.isArray(value));
+      return Array.isArray(nestedArray) ? nestedArray : null;
+    };
+
+    const unwrapCollectionCandidate = (candidate) => {
+      if (candidate === null || candidate === undefined) return [];
+      if (Array.isArray(candidate)) return candidate;
+
+      if (typeof candidate === 'object') {
+        const unwrapped =
+          candidate?.data?.data ??
+          candidate?.data?.items ??
+          candidate?.data ??
+          candidate?.items ??
+          candidate?.results ??
+          candidate?.records ??
+          candidate?.attempts ??
+          candidate?.questions ??
+          candidate?.answers ??
+          candidate;
+
+        if (Array.isArray(unwrapped)) return unwrapped;
+        if (unwrapped && typeof unwrapped === 'object') {
+          const nestedArray = firstArrayInObject(unwrapped);
+          if (nestedArray) return nestedArray;
+          const values = Object.values(unwrapped).filter((item) => item && typeof item === 'object');
+          return values.length > 0 ? values : [];
+        }
+      }
+      return [];
+    };
+
+    const pickFirstCollection = (...candidates) => {
+      for (const candidate of candidates) {
+        const extracted = unwrapCollectionCandidate(candidate);
+        if (Array.isArray(extracted) && extracted.length > 0) {
+          return extracted;
+        }
+      }
+      for (const candidate of candidates) {
+        const extracted = unwrapCollectionCandidate(candidate);
+        if (Array.isArray(extracted)) {
+          return extracted;
+        }
+      }
+      return [];
+    };
+
+    const normalizeQuestionsForReport = (rawQuestions) => {
+      const list = pickFirstCollection(
+        rawQuestions,
+        rawQuestions?.questions,
+        rawQuestions?.quiz_questions,
+        rawQuestions?.attempt?.questions,
+        rawQuestions?.attempt?.quiz_questions,
+        rawQuestions?.quiz?.questions,
+        rawQuestions?.quizAttempt?.questions,
+        rawQuestions?.quiz_attempt?.questions,
+      );
+      if (!Array.isArray(list) || list.length === 0) return [];
+
+      return list.map((q, idx) => {
+        const base = (q?.question && typeof q.question === 'object') ? q.question : q;
+        let options = [];
+        let optionKeys = [];
+
+        if (Array.isArray(base?.options)) {
+          options = base.options.map((opt) => {
+            if (opt && typeof opt === 'object') {
+              return opt.text ?? opt.answer_text ?? opt.value ?? '';
+            }
+            return opt;
+          }).filter((opt) => opt !== null && opt !== undefined && String(opt).trim() !== '').map(String);
+        }
+
+        if (options.length === 0 && Array.isArray(base?.choices)) {
+          options = base.choices.map((choice) => choice?.text ?? choice?.answer_text ?? '').filter(Boolean);
+        }
+
+        if (options.length === 0) {
+          const rawOptionKeys = ['option_1', 'option_2', 'option_3', 'option_4', 'option_a', 'option_b', 'option_c', 'option_d'];
+          rawOptionKeys.forEach((key) => {
+            const value = base?.[key] ?? q?.[key];
+            if (value !== null && value !== undefined && String(value).trim() !== '') {
+              optionKeys.push(key);
+              options.push(String(value));
+            }
           });
         }
-        setSubtopicsMap(map);
+
+        if (optionKeys.length === 0 && options.length > 0) {
+          optionKeys = options.map((_, index) => `option_${index + 1}`);
+        }
+
+        return {
+          ...q,
+          ...base,
+          id: base?.id ?? base?.question_id ?? q?.id ?? q?.question_id ?? idx,
+          question_id: base?.question_id ?? base?.id ?? q?.question_id ?? q?.id ?? idx,
+          question: base?.question ?? base?.question_text ?? q?.question ?? q?.question_text ?? base?.title ?? `Q${idx + 1}`,
+          question_text: base?.question_text ?? base?.question ?? q?.question_text ?? q?.question ?? base?.title ?? `Q${idx + 1}`,
+          options,
+          optionKeys,
+          correct_answer: base?.correct_answer ?? q?.correct_answer,
+          correct_answer_index: base?.correct_answer_index ?? q?.correct_answer_index,
+          subtopic_id: base?.subtopic_id ?? q?.subtopic_id ?? base?.subtopic?.id ?? q?.subtopic?.id ?? null,
+          lesson_id: base?.lesson_id ?? q?.lesson_id ?? null,
+        };
+      });
+    };
+
+    const resolveAnswerValue = (rawValue, question) => {
+      if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+      if (typeof rawValue === 'number' && Number.isFinite(rawValue)) return rawValue;
+
+      const normalized = String(rawValue).trim();
+      if (normalized === '') return null;
+
+      if (/^-?\d+$/.test(normalized)) {
+        return Number(normalized);
+      }
+
+      if (/^option_[1-4]$/i.test(normalized)) {
+        return Number(normalized.split('_')[1]) - 1;
+      }
+
+      const keyIndex = Array.isArray(question?.optionKeys)
+        ? question.optionKeys.findIndex((key) => String(key).toLowerCase() === normalized.toLowerCase())
+        : -1;
+      if (keyIndex >= 0) return keyIndex;
+
+      const textIndex = Array.isArray(question?.options)
+        ? question.options.findIndex((opt) => String(opt).trim() === normalized)
+        : -1;
+      if (textIndex >= 0) return textIndex;
+
+      return normalized;
+    };
+
+    const normalizeAnswersForReport = (rawAnswers, normalizedQuestions) => {
+      const mapped = {};
+      if (!rawAnswers) return mapped;
+
+      const safeSet = (key, value) => {
+        if (key === null || key === undefined || String(key).trim() === '') return;
+        if (value === undefined || value === null || Number.isNaN(value)) return;
+        mapped[key] = value;
+      };
+
+      const processAnswerEntries = (entries) => {
+        if (!Array.isArray(entries)) return;
+        entries.forEach((entry, index) => {
+          const question = normalizedQuestions[index];
+          const valueSource =
+            (entry && typeof entry === 'object')
+              ? (
+                entry.selected_index ??
+                entry.answer_index ??
+                entry.user_answer_index ??
+                entry.selected_option ??
+                entry.selected_answer ??
+                entry.option ??
+                entry.option_key ??
+                entry.answer_key ??
+                entry.choice ??
+                entry.answer ??
+                entry.answer_text ??
+                entry.user_answer ??
+                entry.student_answer ??
+                entry.value ??
+                entry?.answer?.selected_index ??
+                entry?.answer?.answer_index ??
+                entry?.answer?.option ??
+                entry?.answer?.answer_text ??
+                entry?.answer?.value
+              )
+              : entry;
+          const resolvedValue = resolveAnswerValue(valueSource, question);
+          const questionId =
+            (entry && typeof entry === 'object')
+              ? (
+                entry.question_id ??
+                entry.questionId ??
+                entry.question?.id ??
+                entry?.question?.question_id ??
+                entry.id ??
+                question?.id ??
+                question?.question_id
+              )
+              : (question?.id ?? question?.question_id);
+
+          safeSet(index, resolvedValue);
+          safeSet(questionId, resolvedValue);
+          if (question?.id !== undefined) safeSet(question.id, resolvedValue);
+          if (question?.question_id !== undefined) safeSet(question.question_id, resolvedValue);
+        });
+      };
+
+      const arrayLikeAnswers = pickFirstCollection(
+        rawAnswers,
+        rawAnswers?.answers,
+        rawAnswers?.user_answers,
+        rawAnswers?.submitted_answers,
+        rawAnswers?.student_answers,
+        rawAnswers?.answer_details,
+        rawAnswers?.attempt?.answers,
+        rawAnswers?.attempt?.user_answers,
+        rawAnswers?.attempt?.submitted_answers,
+      );
+      if (arrayLikeAnswers.length > 0) {
+        processAnswerEntries(arrayLikeAnswers);
+        return mapped;
+      }
+
+      if (Array.isArray(rawAnswers)) {
+        processAnswerEntries(rawAnswers);
+        return mapped;
+      }
+
+      if (rawAnswers && typeof rawAnswers === 'object') {
+        const nestedArray = firstArrayInObject(rawAnswers);
+        if (Array.isArray(nestedArray) && nestedArray.length > 0) {
+          processAnswerEntries(nestedArray);
+          return mapped;
+        }
+
+        Object.entries(rawAnswers).forEach(([key, value]) => {
+          const keyAsIndex = Number(key);
+          const question = Number.isNaN(keyAsIndex)
+            ? normalizedQuestions.find((q) => String(q?.id) === String(key) || String(q?.question_id) === String(key))
+            : normalizedQuestions[keyAsIndex];
+          const valueSource =
+            (value && typeof value === 'object')
+              ? (value.selected_index ?? value.answer_index ?? value.user_answer_index ?? value.answer ?? value.answer_text ?? value.user_answer)
+              : value;
+          const resolvedValue = resolveAnswerValue(valueSource, question);
+
+          safeSet(key, resolvedValue);
+          if (!Number.isNaN(keyAsIndex)) {
+            safeSet(keyAsIndex, resolvedValue);
+          }
+        });
+      }
+
+      return mapped;
+    };
+
+    const pickAttemptRecord = (items) => {
+      if (!Array.isArray(items) || items.length === 0) return null;
+
+      if (attemptIdentifier) {
+        const matchByAttempt = items.find((item) => {
+          const candidateId = item?.attempt_id ?? item?.result_id ?? item?.id;
+          return candidateId !== null && candidateId !== undefined && String(candidateId) === String(attemptIdentifier);
+        });
+        if (matchByAttempt) return matchByAttempt;
+      }
+
+      if (quizIdentifier) {
+        const matchByQuiz = items.find((item) => {
+          const candidateQuizId = item?.quiz_id ?? item?.quizId ?? item?.quiz?.id;
+          return candidateQuizId !== null && candidateQuizId !== undefined && String(candidateQuizId) === String(quizIdentifier);
+        });
+        if (matchByQuiz) return matchByQuiz;
+      }
+
+      return items[0];
+    };
+
+    const fetchFallbackReport = async () => {
+      setIsLoading(true);
+      setLoadError('');
+
+      try {
+        let attemptRecord = null;
+        let quizPayload = null;
+        let attemptAnswerPayload = null;
+
+        const tryAttemptsRequest = async (params) => {
+          try {
+            const response = await api.get('/students/attempts', { params });
+            console.log("FETCHED RAW DATA:", response.data);
+            const attempts = toArray(response.data);
+            const picked = pickAttemptRecord(attempts);
+            if (picked) attemptRecord = picked;
+          } catch (err) {
+            console.warn('⚠️ Failed to fetch attempts with params:', params, err);
+          }
+        };
+
+        if (attemptIdentifier && !attemptRecord) {
+          await tryAttemptsRequest({ attempt_id: attemptIdentifier });
+        }
+        if (attemptIdentifier && !attemptRecord) {
+          await tryAttemptsRequest({ id: attemptIdentifier });
+        }
+        if (quizIdentifier && !attemptRecord) {
+          await tryAttemptsRequest({ quiz_id: quizIdentifier });
+        }
+
+        if (!attemptRecord && attemptIdentifier) {
+          try {
+            const response = await api.get(`/students/attempts/${attemptIdentifier}`);
+            console.log("FETCHED RAW DATA:", response.data);
+            const attempts = toArray(response.data);
+            attemptRecord = pickAttemptRecord(attempts) || (response.data?.data || response.data);
+          } catch (err) {
+            console.warn('⚠️ Failed to fetch attempt by ID route:', err);
+          }
+        }
+
+        if (attemptIdentifier) {
+          try {
+            const response = await api.get(`/attempts/${attemptIdentifier}/answer`);
+            console.log("FETCHED RAW DATA:", response.data);
+            attemptAnswerPayload = response.data?.data ?? response.data;
+
+            if (attemptAnswerPayload?.attempt && typeof attemptAnswerPayload.attempt === 'object') {
+              attemptRecord = attemptRecord
+                ? { ...attemptRecord, ...attemptAnswerPayload.attempt }
+                : attemptAnswerPayload.attempt;
+            }
+          } catch (err) {
+            console.warn('⚠️ Failed to fetch attempt answer details:', err);
+          }
+        }
+
+        if (quizIdentifier) {
+          try {
+            const response = await api.get(`/quizzes-details/${quizIdentifier}`);
+            console.log("FETCHED RAW DATA:", response.data);
+            const payload = response.data?.data || response.data || {};
+            quizPayload = payload?.quiz || payload;
+            if (!attemptRecord) {
+              const attempts = toArray(payload?.attempts || payload?.students || quizPayload?.attempts || quizPayload?.quiz_attempts || []);
+              attemptRecord = pickAttemptRecord(attempts);
+            }
+          } catch (err) {
+            console.warn('⚠️ Failed to fetch quiz details fallback:', err);
+          }
+        }
+
+        if (!attemptRecord && !quizPayload && !attemptAnswerPayload) {
+          throw new Error('No attempt payload found.');
+        }
+
+        const rawQuestions =
+          attemptRecord?.questions ??
+          attemptRecord?.attempt?.questions ??
+          attemptRecord?.data?.questions ??
+          attemptRecord?.quiz?.questions ??
+          attemptRecord?.quiz_questions ??
+          attemptAnswerPayload?.questions ??
+          attemptAnswerPayload?.attempt?.questions ??
+          attemptAnswerPayload?.data?.questions ??
+          attemptAnswerPayload?.quiz?.questions ??
+          attemptAnswerPayload?.quiz_questions ??
+          quizPayload?.questions ??
+          quizPayload?.data?.questions ??
+          quizPayload?.attempt?.questions ??
+          quizPayload?.quiz_questions ??
+          [];
+        const normalizedQuestions = normalizeQuestionsForReport(rawQuestions);
+
+        const rawAnswers =
+          attemptRecord?.user_answers ??
+          attemptRecord?.answers ??
+          attemptRecord?.student_answers ??
+          attemptRecord?.answer_details ??
+          attemptRecord?.submitted_answers ??
+          attemptRecord?.attempt?.answers ??
+          attemptRecord?.attempt?.user_answers ??
+          attemptRecord?.attempt?.submitted_answers ??
+          attemptAnswerPayload?.answers ??
+          attemptAnswerPayload?.user_answers ??
+          attemptAnswerPayload?.submitted_answers ??
+          attemptAnswerPayload?.answer_details ??
+          attemptAnswerPayload?.attempt?.answers ??
+          attemptAnswerPayload?.attempt?.user_answers ??
+          attemptAnswerPayload?.attempt?.submitted_answers ??
+          quizPayload?.user_answers ??
+          quizPayload?.answers ??
+          quizPayload?.attempt?.answers ??
+          null;
+        const normalizedAnswers = normalizeAnswersForReport(rawAnswers, normalizedQuestions);
+        const hasFetchedAnswers = Object.keys(normalizedAnswers).length > 0;
+
+        console.log('[WeaknessReport] normalized fallback payload:', {
+          questionsCount: normalizedQuestions.length,
+          answerKeysCount: Object.keys(normalizedAnswers).length,
+          hasAttemptRecord: !!attemptRecord,
+          hasAttemptAnswerPayload: !!attemptAnswerPayload,
+          hasQuizPayload: !!quizPayload,
+        });
+
+        const rawCorrectAnswers =
+          attemptRecord?.correct_answers_quiz ??
+          attemptRecord?.correct_answers ??
+          attemptAnswerPayload?.correct_answers_quiz ??
+          attemptAnswerPayload?.correct_answers ??
+          attemptAnswerPayload?.attempt?.correct_answers_quiz ??
+          quizPayload?.correct_answers_quiz ??
+          quizPayload?.correct_answers ??
+          [];
+
+        const derivedLessonId =
+          attemptRecord?.lesson_id ??
+          attemptRecord?.lesson?.id ??
+          attemptAnswerPayload?.lesson_id ??
+          attemptAnswerPayload?.lesson?.id ??
+          quizPayload?.lesson_id ??
+          stateLessonId ??
+          stateLessonIdAlt ??
+          (normalizedQuestions[0]?.lesson_id ?? normalizedQuestions[0]?.question?.lesson_id ?? null);
+
+        const derivedLesson =
+          stateLesson ||
+          attemptRecord?.lesson ||
+          attemptAnswerPayload?.lesson ||
+          quizPayload?.lesson ||
+          (derivedLessonId
+            ? {
+              id: derivedLessonId,
+              title:
+                attemptRecord?.lesson_title ||
+                attemptAnswerPayload?.lesson_title ||
+                quizPayload?.lesson_name ||
+                quizPayload?.title
+            }
+            : undefined);
+
+        const derivedScore = Number(
+          attemptRecord?.score ??
+          attemptAnswerPayload?.score ??
+          reportData?.score ??
+          stateScore ??
+          0
+        ) || 0;
+        const derivedTotal = Number(
+          attemptRecord?.max_score ??
+          attemptRecord?.total ??
+          attemptRecord?.total_questions ??
+          attemptAnswerPayload?.max_score ??
+          attemptAnswerPayload?.total ??
+          attemptAnswerPayload?.total_questions ??
+          quizPayload?.max_score ??
+          reportData?.total ??
+          stateTotal ??
+          normalizedQuestions.length
+        ) || normalizedQuestions.length || 0;
+
+        if (!cancelled) {
+          setFallbackPayload({
+            questions: normalizedQuestions,
+            userAnswers: normalizedAnswers,
+            hasAnswerData: hasFetchedAnswers,
+            score: derivedScore,
+            total: derivedTotal,
+            percentage: derivedTotal > 0 ? Math.round((derivedScore / derivedTotal) * 100) : 0,
+            correctAnswersFromServer: Array.isArray(rawCorrectAnswers) ? rawCorrectAnswers : [],
+            lesson: derivedLesson,
+            lesson_id: derivedLessonId,
+            subjectId: attemptRecord?.subject_id ?? attemptRecord?.subjectId ?? stateSubjectId,
+            teacherId: attemptRecord?.teacher_id ?? attemptRecord?.teacherId ?? stateTeacherId,
+            subjectName:
+              attemptRecord?.subject_name ||
+              attemptAnswerPayload?.subject_name ||
+              quizPayload?.subject_name ||
+              reportData.subjectName ||
+              stateSubjectName ||
+              '',
+            subtopics: Array.isArray(attemptRecord?.subtopics)
+              ? attemptRecord.subtopics
+              : (
+                Array.isArray(attemptAnswerPayload?.subtopics)
+                  ? attemptAnswerPayload.subtopics
+                  : (Array.isArray(quizPayload?.subtopics) ? quizPayload.subtopics : [])
+              ),
+          });
+
+          if (normalizedQuestions.length === 0) {
+            setLoadError('تعذّر تحميل أسئلة المحاولة من السجل.');
+          } else if (!hasFetchedAnswers) {
+            setLoadError('تعذّر تحميل إجابات المحاولة من السجل.');
+          }
+        }
       } catch (err) {
-        console.warn('No subtopics endpoint available for mapping. Falling back to ID display.');
+        console.error('❌ Failed to initialize weakness report fallback:', err);
+        if (!cancelled) {
+          setLoadError('تعذّر تحميل بيانات التقرير من السجل. حاول مرة أخرى من صفحة النتائج.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
+
+    fetchFallbackReport();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    attemptIdentifier,
+    fallbackPayload,
+    hasDirectPayload,
+    quizIdentifier,
+    reportData?.score,
+    reportData?.subjectName,
+    reportData?.total,
+    stateLesson,
+    stateLessonId,
+    stateLessonIdAlt,
+    stateScore,
+    stateSubjectId,
+    stateSubjectName,
+    stateTeacherId,
+    stateTotal,
+  ]);
+
+  // Safe lesson ID extraction flow: explicit state first, then questions payload
+  const explicitLessonId =
+    fallbackPayload?.lesson_id ??
+    stateLessonId ??
+    stateLessonIdAlt ??
+    lesson?.id ??
+    reportData?.lesson_id ??
+    null;
+  const lessonId =
+    explicitLessonId ??
+    (questions.length > 0
+      ? (questions[0]?.lesson_id ?? questions[0]?.question?.lesson_id ?? null)
+      : null);
+
+  useEffect(() => {
+    if (!lessonId) {
+      console.warn('⚠️ Cannot fetch subtopics: lesson ID is missing.');
+      return;
+    }
+
+    const fetchSubtopicsMap = async () => {
+      try {
+        // Fetch subtopics specific to this lesson
+        console.log(`🔥 Fetching subtopics for lesson ID: ${lessonId}`);
+        const { data } = await api.get(`/lesson/${lessonId}/subtopics`);
+
+        // Handle various response structures
+        let rawData = [];
+        const payload = data?.data || data;
+
+        if (Array.isArray(payload)) {
+          rawData = payload;
+        } else if (payload && typeof payload === 'object') {
+          // Look for common nested array keys
+          rawData = payload.subtopics || payload.sub_topics || payload.topics || payload.children || payload.lessons || [];
+
+          // Fallback: auto-detect ANY array inside the object
+          if (rawData.length === 0) {
+            const arrayKeys = Object.keys(payload).filter(k => Array.isArray(payload[k]));
+            if (arrayKeys.length > 0) {
+              console.warn(`⚠️ Auto-detected array using key: ${arrayKeys[0]}`);
+              rawData = payload[arrayKeys[0]];
+            }
+          }
+        }
+
+        // Build the map
+        const map = {};
+        if (Array.isArray(rawData)) {
+          rawData.forEach(item => {
+            const itemId = item?.id ?? item?.subtopic_id ?? item?.sub_topic_id;
+            const itemName = item?.name || item?.title || item?.subtopic_name || item?.lesson_name;
+            if (itemId !== null && itemId !== undefined && itemId !== '' && itemName) {
+              map[String(itemId)] = itemName;
+            }
+          });
+        }
+
+        console.log('✅ SUBTOPICS MAP:', map);
+        setSubtopicsMap(map);
+      } catch (err) {
+        console.warn(`⚠️ Failed to fetch subtopics for lesson ${lessonId}:`, err);
+        setSubtopicsMap({});
+      }
+    };
+
     fetchSubtopicsMap();
-  }, []);
+  }, [lessonId]);
 
   // Safe fallback calculations to prevent NaN
-  const maxScore = Number(reportData.total ?? total ?? 5) || 5;
-  const correctAnswers = Number(reportData.score ?? score ?? 0) || 0;
+  const maxScore = Number(total ?? reportData.total ?? 5) || 5;
+  const correctAnswers = Number(score ?? reportData.score ?? 0) || 0;
   const wrongAnswers = Math.max(0, maxScore - correctAnswers);
   const percentage = Number(
-    reportData.percentage ?? (maxScore > 0 ? Math.round((correctAnswers / maxScore) * 100) : 0)
+    fallbackPayload?.percentage ??
+    reportData.percentage ??
+    (maxScore > 0 ? Math.round((correctAnswers / maxScore) * 100) : 0)
   ) || 0;
 
   // ── Compute subtopics ────────────────────────────────────────────────────
@@ -99,8 +763,8 @@ const WeaknessReport = () => {
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const subtopics = useMemo(() => {
     // 1. Explicit array from navigation state
-    if (stateSubtopics.length > 0) {
-      return stateSubtopics.map((s) => ({
+    if (runtimeSubtopics.length > 0) {
+      return runtimeSubtopics.map((s) => ({
         name: s.name,
         skill: s.skill || 'فهم',
         correct: s.correct,
@@ -129,7 +793,7 @@ const WeaknessReport = () => {
     }
 
     return null; // no subtopic data
-  }, [stateSubtopics, questions, userAnswers]);
+  }, [runtimeSubtopics, questions, userAnswers]);
 
   const passed = percentage >= 50;
 
@@ -138,11 +802,11 @@ const WeaknessReport = () => {
       (s) => s.total > 0 && Math.round((s.correct / s.total) * 100) < 60
     ) || [];
 
-  const getDetailedErrors = () => {
+  const detailedErrors = useMemo(() => {
     console.log("🔥 THE RAW QUESTION TRUTH:", questions[0]);
     const qs = questions || [];
     const ans = userAnswers || {};
-    if (qs.length === 0) return [];
+    if (qs.length === 0 || !hasAnswerData) return [];
 
     const errors = [];
     let actualErrors = 0;
@@ -182,24 +846,39 @@ const WeaknessReport = () => {
         let qText = actualQ.question_text || actualQ.question || actualQ.title || actualQ.text || q.question_text || q.question || `السؤال رقم ${index + 1}`;
         if (typeof qText === 'object') qText = qText.text || qText.title || `السؤال رقم ${index + 1}`;
 
-        // --- FRONTEND-ONLY Subtopic Extraction ---
-        let subtopicName = 'مفاهيم الدرس الأساسية';
-
-        // 1. Check if we have a direct string
-        const directStrings = [actualQ.subtopic_name, actualQ.lesson_name, q.subtopic_name, q.lesson_name];
-        for (const str of directStrings) {
-          if (str && typeof str === 'string') { subtopicName = str; break; }
-        }
-
-        // 2. If we only have the ID (which is the case here)
-        if (subtopicName === 'مفاهيم الدرس الأساسية') {
-          const subId = actualQ.subtopic_id || q.subtopic_id || actualQ.lesson_id || q.lesson_id;
-          if (subId) {
-            // Try to translate ID to Name using our dictionary, otherwise show the ID
-            subtopicName = subtopicsMap[subId] || `الموضوع الفرعي (كود: ${subId})`;
-          }
-        }
-        // -----------------------------------------
+        const subtopicIdCandidates = [
+          actualQ?.subtopic_id,
+          actualQ?.sub_topic_id,
+          actualQ?.question?.subtopic_id,
+          actualQ?.question?.sub_topic_id,
+          actualQ?.subtopic?.id,
+          actualQ?.sub_topic?.id,
+          q?.subtopic_id,
+          q?.sub_topic_id,
+          q?.question?.subtopic_id,
+          q?.question?.sub_topic_id,
+          q?.subtopic?.id,
+          q?.sub_topic?.id,
+          actualQ?.lesson_id,
+          q?.lesson_id,
+        ];
+        const extractedSubtopicId = subtopicIdCandidates.find(
+          (value) => value !== null && value !== undefined && String(value).trim() !== ''
+        );
+        const normalizedSubtopicId =
+          extractedSubtopicId !== null && extractedSubtopicId !== undefined && String(extractedSubtopicId).trim() !== ''
+            ? String(extractedSubtopicId).trim()
+            : null;
+        const numericSubtopicId = Number(normalizedSubtopicId);
+        const mappedSubtopicName = normalizedSubtopicId
+          ? (
+            subtopicsMap[normalizedSubtopicId] ??
+            (Number.isNaN(numericSubtopicId) ? undefined : subtopicsMap[String(numericSubtopicId)])
+          )
+          : null;
+        const subtopicName = normalizedSubtopicId
+          ? (mappedSubtopicName || `موضوع فرعي (كود: ${normalizedSubtopicId})`)
+          : 'غير مربوط بموضوع فرعي';
 
         errors.push({
           question: String(qText),
@@ -210,9 +889,14 @@ const WeaknessReport = () => {
 
     if (score === total || actualErrors === 0) return [];
     return errors;
-  };
+  }, [questions, userAnswers, hasAnswerData, correctAnswersFromServer, score, total, subtopicsMap]);
 
-  const detailedErrors = getDetailedErrors();
+  const hasValidQuestions = Array.isArray(questions) && questions.length > 0;
+  const showNoWeaknessMessage =
+    !isLoading &&
+    hasValidQuestions &&
+    hasAnswerData &&
+    detailedErrors.length === 0;
 
   // ── Circular SVG params ──────────────────────────────────────────────────
   const radius = 60;
@@ -478,9 +1162,17 @@ const WeaknessReport = () => {
                     </div>
                   </div>
                 ))
-              ) : (
+              ) : isLoading ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 font-semibold py-6">
+                  جارٍ تحميل بيانات المحاولة...
+                </div>
+              ) : showNoWeaknessMessage ? (
                 <div className="text-center text-green-600 dark:text-green-400 font-bold py-6">
                   🎉 ممتاز! لا توجد نقاط ضعف واضحة.
+                </div>
+              ) : (
+                <div className="text-center text-amber-600 dark:text-amber-400 font-bold py-6">
+                  {loadError || 'لا تتوفر بيانات كافية لعرض تقرير نقاط الضعف.'}
                 </div>
               )}
             </div>
@@ -544,7 +1236,7 @@ const WeaknessReport = () => {
         )}
 
         {/* ── No Weaknesses — success banner ──────────────────────────────── */}
-        {subtopics && weakSubtopics.length === 0 && (
+        {!isLoading && hasValidQuestions && hasAnswerData && subtopics && weakSubtopics.length === 0 && (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-6 text-center">
             <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
             <p className="font-bold text-green-700 dark:text-green-400 text-base">
