@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -88,12 +88,9 @@ const TeacherAnalytics = () => {
   const [quizzes, setQuizzes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [stats, setStats] = useState({
-    videos: 0,
-    attempts: 0,
-    avgScore: 0,
-    watchHours: 0,
-  });
+  // Live KPI stats from /api/teachers/dashboard (replaces stale localStorage reads)
+  const [dashboardStats, setDashboardStats] = useState(null);
+
 
   // ── Selected lesson (for drill-down charts) ───────────────────────────────
   const [selectedId, setSelectedId] = useState(null);
@@ -205,25 +202,11 @@ const TeacherAnalytics = () => {
         }
         return mergedContent[0]?.selectionKey ?? null;
       });
-
-      setStats({
-        videos: Number(videosPayload?.total ?? uniqueVideos.length) || 0,
-        attempts: Number(quizzesPayload?.total ?? uniqueQuizzes.length) || 0,
-        avgScore: 0,
-        watchHours: 0,
-      });
     } catch (err) {
       console.error('Failed to fetch teacher analytics', err);
       setError('تعذّر تحميل البيانات.');
       setVideos([]);
       setQuizzes([]);
-      setSelectedId(null);
-      setStats({
-        videos: 0,
-        attempts: 0,
-        avgScore: 0,
-        watchHours: 0,
-      });
     } finally {
       setIsLoading(false);
     }
@@ -232,6 +215,20 @@ const TeacherAnalytics = () => {
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
+
+  // Fetch live KPI stats from the teacher dashboard endpoint
+  useEffect(() => {
+    api.get('/teachers/dashboard')
+      .then((res) => {
+        const payload = res.data ?? {};
+        setDashboardStats({
+          videos_count: Number(payload.videos_count ?? 0),
+          quizzes_count: Number(payload.quizzes_count ?? 0),
+          average_score: payload.average_score ?? null,
+        });
+      })
+      .catch((err) => console.error('Failed to fetch teacher dashboard KPIs', err));
+  }, []);
 
   // ── Derived values ────────────────────────────────────────────────────────
   const content = [...videos, ...quizzes];
@@ -250,8 +247,22 @@ const TeacherAnalytics = () => {
   const peakViews    = safeViewsData.length ? Math.max(...safeViewsData.map(d => d['مشاهدات'])) : 0;
   const avgDailyView = safeViewsData.length ? Math.round(totalViews / safeViewsData.length) : 0;
 
-  const totalQuizzesCount = stats.attempts;
-  const totalVideosCount = stats.videos;
+  // KPI values — bound to live /api/teachers/dashboard response
+  const totalVideosCount   = dashboardStats?.videos_count ?? 0;
+  const totalQuizzesCount  = dashboardStats?.quizzes_count ?? 0;
+  const averageScoreDisplay =
+    dashboardStats?.average_score != null && Number.isFinite(Number(dashboardStats.average_score))
+      ? `${Math.round(Number(dashboardStats.average_score) * 100)}%`
+      : '0%';
+
+  if (!dashboardStats) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-[#103B66] dark:text-blue-400 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+        <Loader2 className="w-12 h-12 animate-spin mb-4" />
+        <p className="text-lg font-bold">{t('loading') || 'جاري التحميل...'}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
@@ -288,8 +299,8 @@ const TeacherAnalytics = () => {
             {[
               { labelKey: 'total_videos', value: totalVideosCount, icon: Video, border: 'border-t-blue-500', iconBg: 'bg-blue-100 dark:bg-blue-900/40', iconCls: 'text-blue-600 dark:text-blue-400' },
               { labelKey: 'total_quizzes', label: 'إجمالي الاختبارات', value: totalQuizzesCount, icon: ClipboardList, border: 'border-t-violet-500', iconBg: 'bg-violet-100 dark:bg-violet-900/40', iconCls: 'text-violet-600 dark:text-violet-400' },
-              { labelKey: 'avg_score', value: `${stats.avgScore}%`, icon: TrendingUp, border: 'border-t-green-500', iconBg: 'bg-green-100 dark:bg-green-900/40', iconCls: 'text-green-600 dark:text-green-400' },
-              { labelKey: 'watch_hours', value: stats.watchHours, icon: Clock, border: 'border-t-amber-500', iconBg: 'bg-amber-100 dark:bg-amber-900/40', iconCls: 'text-amber-600 dark:text-amber-400' },
+              { labelKey: 'avg_score', value: averageScoreDisplay, icon: TrendingUp, border: 'border-t-green-500', iconBg: 'bg-green-100 dark:bg-green-900/40', iconCls: 'text-green-600 dark:text-green-400' },
+              { labelKey: 'watch_hours', value: dashboardStats?.watch_hours || 0, icon: Clock, border: 'border-t-amber-500', iconBg: 'bg-amber-100 dark:bg-amber-900/40', iconCls: 'text-amber-600 dark:text-amber-400' },
             ].map(({ labelKey, label, value, icon: Icon, border, iconBg, iconCls }) => (
               <div key={labelKey} className={`bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border-t-4 ${border}`}>
                 <div className="flex items-center justify-between mb-3">

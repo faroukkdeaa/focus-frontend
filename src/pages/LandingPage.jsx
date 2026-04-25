@@ -26,7 +26,7 @@ const LandingPage = () => {
   const navigate = useNavigate();
   const { t, lang } = useLanguage();
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('token'));
-  const [subjects, setSubjects] = useState([]);
+  const [landingData, setLandingData] = useState(null);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
 
   useEffect(() => {
@@ -35,22 +35,21 @@ const LandingPage = () => {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  // Fetch subjects from API
+  // Fetch landing data from API
   useEffect(() => {
-    const fetchSubjects = async () => {
+    const fetchLandingData = async () => {
       try {
-        const { data } = await publicApi.get('/subjects');
-        // API response is paginated: { data: [...], current_page, total }
-        const list = Array.isArray(data) ? data : (data.data || []);
-        setSubjects(list);
+        const { data } = await publicApi.get('/landing_page');
+        const payload = data?.data ?? data ?? {};
+        setLandingData(payload);
       } catch (err) {
-        console.warn('Failed to fetch subjects:', err.message);
-        setSubjects([]);
+        console.warn('Failed to fetch landing page data:', err.message);
+        setLandingData(null);
       } finally {
         setLoadingSubjects(false);
       }
     };
-    fetchSubjects();
+    fetchLandingData();
   }, []);
 
   const goToAuthOrDashboard = () => {
@@ -186,9 +185,9 @@ const LandingPage = () => {
       <section className="bg-[#0F4C81] dark:bg-[#0a3057] py-12">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
-            { value: t('stat_students'),  label: t('stat_students_label'),  icon: <Users     className="w-7 h-7" /> },
-            { value: t('stat_subjects'),  label: t('stat_subjects_label'),  icon: <BookOpen  className="w-7 h-7" /> },
-            { value: t('stat_teachers'),  label: t('stat_teachers_label'),  icon: <GraduationCap className="w-7 h-7" /> },
+            { value: `+${landingData?.all_students_count ?? 0}`,  label: t('stat_students_label'),  icon: <Users     className="w-7 h-7" /> },
+            { value: landingData?.subjects_count ?? 0,             label: t('stat_subjects_label'),  icon: <BookOpen  className="w-7 h-7" /> },
+            { value: `+${landingData?.all_teachers_count ?? 0}`,   label: t('stat_teachers_label'),  icon: <GraduationCap className="w-7 h-7" /> },
             { value: t('stat_accuracy'),  label: t('stat_accuracy_label'), icon: <Brain     className="w-7 h-7" /> },
           ].map((s, i) => (
             <div key={i} className="flex flex-col items-center text-center gap-2">
@@ -398,9 +397,9 @@ const LandingPage = () => {
             <div className="flex justify-center items-center py-12">
               <Loader2 className="w-10 h-10 animate-spin text-[#0F4C81]" />
             </div>
-          ) : subjects.length > 0 ? (
+          ) : (landingData?.subjects?.length ?? 0) > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {subjects.map((subject) => {
+              {landingData.subjects.map((subject) => {
                 const style = SUBJECT_STYLES[subject.code] || SUBJECT_STYLES.DEFAULT;
                 return (
                   <button 
@@ -413,7 +412,7 @@ const LandingPage = () => {
                       {style.icon}
                     </div>
                     <h3 className="text-xl font-bold text-gray-800 dark:text-white group-hover:text-[#0F4C81] transition">
-                      {subject.name || subject.title}
+                      {subject.title}
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                       {t('browse_subject') || 'تصفح المادة'}

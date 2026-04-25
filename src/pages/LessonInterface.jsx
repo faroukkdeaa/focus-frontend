@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/api';
 import { ArrowRight, Play, Pause, Volume2, Settings, ChevronLeft, ChevronRight, CheckCircle2, User, Loader2, Zap } from "lucide-react";
@@ -47,20 +47,29 @@ const LessonInterface = () => {
   const [lessonQuizzes, setLessonQuizzes] = useState([]);
 
   // جلب lessonId و subjectId و subjectName و teacherId من location.state
+  // مع fallback من query params لضمان الاستمرارية بعد refresh
+  const queryParams = new URLSearchParams(location.search);
+  const queryLessonId = queryParams.get('lessonId');
+  const queryTeacherId = queryParams.get('teacherId');
+  const querySubjectId = queryParams.get('subjectId');
+
   // ✅ Clean lesson ID - remove any ":1" suffix from hasManyThrough
-  const rawLessonId = location.state?.lesson?.id || 1;
-  const lessonId = typeof rawLessonId === 'string' && rawLessonId.includes(':') 
-    ? parseInt(rawLessonId.split(':')[0], 10) 
-    : parseInt(rawLessonId, 10);
-  const subjectId        = location.state?.subjectId   || 1;
+  const rawLessonId = location.state?.lesson?.id ?? location.state?.lessonId ?? queryLessonId ?? null;
+  const lessonId = rawLessonId != null
+    ? (typeof rawLessonId === 'string' && rawLessonId.includes(':')
+        ? parseInt(rawLessonId.split(':')[0], 10)
+        : parseInt(rawLessonId, 10))
+    : null;
+  const subjectId        = location.state?.subjectId   ?? querySubjectId ?? 1;
   const stateSubjectName = location.state?.subjectName ?? ''; // للـ mock fallback
   const stateTeacherName = location.state?.teacherName ?? '';
   const autoScrollToQuiz = location.state?.autoScrollToQuiz ?? false;
-  const preSelectedTeacherId = location.state?.teacherId;
+  const preSelectedTeacherId = location.state?.teacherId ?? queryTeacherId;
   const stateLesson = location.state?.lesson || null;
   const rawTeacherId =
     preSelectedTeacherId ??
     stateLesson?.teacher_id ??
+    stateLesson?.teacherId ??
     location.state?.teacher?.id ??
     null;
   const teacherIdForRequest =
@@ -80,15 +89,30 @@ const LessonInterface = () => {
   };
 
   // ✅ Single source of truth fetch
+  // Guard: prevents the view-increment side-effect on the backend from firing
+  // twice under React 18 StrictMode double-mount or rapid re-renders.
+  const hasTrackedView = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
 
     const loadLessonContent = async () => {
       if (!lessonId || !teacherIdForRequest) {
+        console.error('[LessonInterface] Missing lesson/teacher IDs for course-details route.', {
+          lessonId,
+          teacherIdForRequest,
+        });
         setError('تعذر تحديد الدرس أو المدرس.');
         setLoading(false);
         return;
       }
+
+      // ── Deduplication guard ──────────────────────────────────────────
+      // Set the flag BEFORE the await so a concurrent second call (StrictMode
+      // unmount/remount) hits `true` and returns without firing the request again.
+      if (hasTrackedView.current) return;
+      hasTrackedView.current = true;
+      // ────────────────────────────────────────────────────────────────────
 
       try {
         setLoading(true);
@@ -106,27 +130,32 @@ const LessonInterface = () => {
         if (!cancelled) setCompletedIds(doneSet);
 
         const res = await api.get(`/teachers/${teacherIdForRequest}/lessons/${lessonId}/content`);
-        const payload = res.data?.data ?? res.data ?? {};
-        const teacherPayload = payload?.teacher ?? {};
-        const videosData = payload?.videos?.data ?? payload?.videos ?? [];
-        const videosList = Array.isArray(videosData) ? videosData : [];
+        // Bind directly to the documented payload shape: { teacher, videos: { lesson_title, video_url, quizzes_count, quizzes: [] } }
+        const payload = res.data ?? {};
+        const teacherPayload = payload.teacher ?? {};
+        // videos is a direct object — NOT an array or paginated response (.data sub-key no longer exists)
+        const videosObj = payload.videos ?? {};
+        const videoRaw = Object.keys(videosObj).length > 0 ? { ...videosObj } : null;
+        if (videoRaw?.video_url) videoRaw.video_url = ensureAbsoluteUrl(videoRaw.video_url);
 
-        const firstVideoRaw = videosList?.[0] ? { ...videosList[0] } : null;
-        if (firstVideoRaw?.url) firstVideoRaw.url = ensureAbsoluteUrl(firstVideoRaw.url);
-        if (firstVideoRaw?.video_url) firstVideoRaw.video_url = ensureAbsoluteUrl(firstVideoRaw.video_url);
-
-        const rawQuizzes = Array.isArray(firstVideoRaw?.quizzes) ? firstVideoRaw.quizzes : [];
-        const mappedQuizzes = rawQuizzes.map((quiz, idx) => {
-          const q = typeof quiz === 'object' ? quiz : { quiz_id: quiz };
-          const qId = q?.quiz_id ?? q?.id ?? idx + 1;
-          return {
-            id: qId,
-            quiz_id: qId,
-            teacher_id: teacherPayload?.teacher_id ?? teacherIdForRequest,
-            has_attempted: Boolean(q?.attempted ?? q?.has_attempted ?? q?.quiz_attempt),
-            score: q?.score ?? null,
-          };
-        });
+        // hasQuiz is driven by quizzes_count from the payload
+        const hasQuiz = (videosObj.quizzes_count ?? 0) > 0;
+        // quizData is the first element of the quizzes array on the videos object
+        const rawQuizzes = Array.isArray(videosObj.quizzes) ? videosObj.quizzes : [];
+        const mappedQuizzes = hasQuiz
+          ? rawQuizzes.map((quiz, idx) => {
+              const q = typeof quiz === 'object' ? quiz : { quiz_id: quiz };
+              const qId = q?.quiz_id ?? q?.id ?? idx + 1;
+              return {
+                id: qId,
+                quiz_id: qId,
+                teacher_id: teacherPayload?.teacher_id ?? teacherIdForRequest,
+                // attempted flag comes from the quizzes array item per the new payload spec
+                has_attempted: Boolean(q?.attempted ?? q?.has_attempted),
+                score: q?.score ?? null,
+              };
+            })
+          : [];
 
         const mappedTeacher = {
           id: teacherPayload?.teacher_id ?? teacherIdForRequest,
@@ -137,7 +166,8 @@ const LessonInterface = () => {
 
         const mappedLesson = {
           id: lessonId,
-          title: firstVideoRaw?.lesson_title || stateLesson?.title || `الدرس ${lessonId}`,
+          // lesson_title lives on the videos object in the new payload
+          title: videoRaw?.lesson_title || stateLesson?.title || `الدرس ${lessonId}`,
           duration: stateLesson?.duration ?? '--',
           chapter: stateLesson?.chapter ?? '',
           description: stateLesson?.description ?? '',
@@ -154,7 +184,7 @@ const LessonInterface = () => {
         });
         setLessons([mappedLesson]);
         setCurrentLesson(mappedLesson);
-        setCurrentVideo(firstVideoRaw);
+        setCurrentVideo(videoRaw);
         setLessonQuizzes(mappedQuizzes);
       } catch (err) {
         console.error('[LessonInterface] Failed to load consolidated content:', err);

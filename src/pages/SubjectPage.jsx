@@ -365,7 +365,8 @@ const SubjectPage = () => {
       }));
       return;
     }
-    navigate('/course-details', { 
+    const courseDetailsPath = `/course-details?lessonId=${encodeURIComponent(String(lesson?.id ?? ''))}&teacherId=${encodeURIComponent(String(selectedTeacher?.id ?? ''))}&subjectId=${encodeURIComponent(String(sid))}`;
+    navigate(courseDetailsPath, {
       state: { 
         lesson, 
         subjectId: sid, 

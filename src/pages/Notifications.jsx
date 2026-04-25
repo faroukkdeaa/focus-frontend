@@ -42,6 +42,27 @@ const NotifRow = ({ notif, onRead }) => {
 
   const handleClick = () => {
     onRead(notif.id);
+
+    if (notif.link === '/course-details') {
+      const lessonId = notif.lesson?.id ?? notif.lessonId ?? null;
+      const teacherId = notif.teacherId ?? notif.lesson?.teacher_id ?? notif.lesson?.teacherId ?? null;
+
+      if (lessonId != null && teacherId != null) {
+        const courseDetailsPath = `/course-details?lessonId=${encodeURIComponent(String(lessonId))}&teacherId=${encodeURIComponent(String(teacherId))}&subjectId=${encodeURIComponent(String(notif.subjectId ?? ''))}`;
+        navigate(courseDetailsPath, {
+          state: {
+            lesson: notif.lesson ?? null,
+            subjectId: notif.subjectId ?? null,
+            subjectName: notif.subjectName ?? '',
+            teacherId,
+          },
+        });
+      } else {
+        navigate('/dashboard');
+      }
+      return;
+    }
+
     navigate(notif.link);
   };
 

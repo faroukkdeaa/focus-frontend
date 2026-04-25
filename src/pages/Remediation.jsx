@@ -304,17 +304,32 @@ const Remediation = () => {
         const lesson = course.lessons?.find(l => l.id === topic.lessonId) || course.lessons?.[0];
         
         if (lesson) {
+          const resolvedTeacherId =
+            topic.teacherId ??
+            topic.teacher_id ??
+            lesson.teacher_id ??
+            lesson.teacherId ??
+            null;
+
+          if (resolvedTeacherId == null) {
+            setError('تعذر تحديد الدرس أو المدرس.');
+            return;
+          }
+
           // تحديث حالة الموضوع كمكتمل
           setTopics((prev) =>
             prev.map((t) => (t.id === topic.id ? { ...t, completed: true } : t))
           );
 
           // الانتقال لصفحة الدرس مع البيانات
-          navigate('/course-details', {
+          const courseDetailsPath = `/course-details?lessonId=${encodeURIComponent(String(lesson.id ?? topic.lessonId ?? ''))}&teacherId=${encodeURIComponent(String(resolvedTeacherId))}&subjectId=${encodeURIComponent(String(topic.subjectId))}`;
+          navigate(courseDetailsPath, {
             state: {
               lesson: lesson,
-              subjectId: topic.subjectId
-            }
+              subjectId: topic.subjectId,
+              subjectName: topic.subject,
+              teacherId: resolvedTeacherId,
+            },
           });
         } else {
           setError('الدرس غير متوفر.');

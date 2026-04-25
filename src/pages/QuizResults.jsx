@@ -17,6 +17,7 @@ const QuizResults = () => {
   })();
 
   const { score, total, questions, userAnswers, lesson, subjectId, teacherId, lessonId, subjectName, quizId } = stateData || {};
+  const resolvedLessonTeacherId = teacherId ?? lesson?.teacher_id ?? lesson?.teacherId ?? null;
 
 
   const percentage = stateData ? Math.round((score / total) * 100) : 0;
@@ -144,8 +145,11 @@ const QuizResults = () => {
             </button>
             <button 
                 onClick={() => {
-                    if (lesson && subjectId) {
-                        navigate('/course-details', { state: { lesson, subjectId } });
+                    if (lesson && subjectId && resolvedLessonTeacherId != null) {
+                        const courseDetailsPath = `/course-details?lessonId=${encodeURIComponent(String(lesson.id ?? lessonId ?? ''))}&teacherId=${encodeURIComponent(String(resolvedLessonTeacherId))}&subjectId=${encodeURIComponent(String(subjectId))}`;
+                        navigate(courseDetailsPath, {
+                            state: { lesson, subjectId, subjectName, teacherId: resolvedLessonTeacherId },
+                        });
                     } else {
                         navigate('/dashboard');
                     }

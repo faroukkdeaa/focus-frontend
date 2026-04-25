@@ -33,55 +33,51 @@ const Dashboard = () => {
       setLoading(true);
       setError(null);
 
-      // قراءة المستخدم الحالي من localStorage
-      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = String(storedUser.id || '');
-
-      if (!userId) {
-        setError('لم يتم العثور على بيانات المستخدم. الرجاء تسجيل الدخول مجدداً.');
-        return;
-      }
-
-      // جلب المواد + تاريخ محاولات الكويز من الـ real API
-      const [subjectsRes, attemptsRes] = await Promise.all([
-        api.get('/subjects'),
-        api.get('/students/attempts')
-          .catch(() => ({ data: { quizzesAttempt: { data: [] } } })),
+      const [dashboardRes, subjectsRes] = await Promise.all([
+        api.get('/student/dashboard'),
+        api.get('/subjects')
       ]);
+      const payload = dashboardRes.data?.data ?? dashboardRes.data ?? {};
+      const student = payload.student ?? {};
+      // lesson_attempts is a plain array per the new endpoint contract (no Laravel pagination wrapper)
+      const lessonAttempts = Array.isArray(payload.lesson_attempts) ? payload.lesson_attempts : [];
 
-      const attempts = attemptsRes.data?.quizzesAttempt?.data
-                    || attemptsRes.data?.quizzesAttempt
-                    || [];
-
-      // حساب الإحصائيات من تاريخ المحاولات
-      const uniqueLessons = new Set(attempts.map(a => a.lesson_title)).size;
-      const avgScore = attempts.length
-        ? Math.round(attempts.reduce((s, a) => s + (a.score || 0), 0) / attempts.length)
+      // Calculate average score from attempts with non-null scores
+      const completedQuizzes = lessonAttempts.filter(a => a.score !== null && a.score !== undefined);
+      const avgScore = completedQuizzes.length > 0
+        ? completedQuizzes.reduce((sum, a) => sum + Number(a.score), 0) / completedQuizzes.length
         : 0;
+      
+      const rawSubjects = subjectsRes.data?.subjects ?? subjectsRes.data?.data ?? subjectsRes.data ?? [];
+      const fetchedSubjects = Array.isArray(rawSubjects) ? rawSubjects : Object.values(rawSubjects);
+
+      const mappedSubjects = fetchedSubjects.map((subj) => {
+        const subjectCode = subj.code ?? subj.subject_code ?? '';
+        return {
+          id: subj.id ?? Math.random(),
+          name: subj.name ?? subj.title ?? subj.subject_name ?? 'مادة',
+          code: subjectCode,
+          icon: SUBJECT_ICONS[subjectCode] ?? '📚',
+          progress: subj.progress ?? 0,
+          completed: subj.completed ?? 0,
+          lessons: subj.lessons ?? 0,
+        };
+      });
 
       const dashboardData = {
-        studentName:   storedUser.name || storedUser.student_name || 'طالب',
+        studentName: student.student_name || 'طالب',
         upcomingExams: 0,
-        weaknesses:    [],
-        stats: { completedLessons: uniqueLessons, improvementRate: avgScore, studyHours: 0 },
+        weaknesses: [],
+        stats: {
+          completedLessons: Number(payload.lesson_attempts_completed_count ?? 0) || 0,
+          improvementRate: `${Math.round(avgScore * 100)}%`,
+          // TODO: wait for backend
+          studyHours: 0,
+        },
+        subjects: mappedSubjects,
       };
 
-      // الـ real API بيرجع { id, title, code } — نحوّل لـ { id, name, icon }
-      const subjectsData = Array.isArray(subjectsRes.data)
-        ? subjectsRes.data
-        : (subjectsRes.data?.data || []);
-
-      const subjects = subjectsData.map(s => ({
-        id:        s.id,
-        name:      s.title,
-        code:      s.code,
-        icon:      SUBJECT_ICONS[s.code] ?? '📚',
-        progress:  0,
-        completed: 0,
-        lessons:   0,
-      }));
-
-      setData({ ...dashboardData, subjects });
+      setData(dashboardData);
 
     } catch (err) {
       console.error("Error:", err);
@@ -169,11 +165,13 @@ const Dashboard = () => {
                 </p>
 
                 <div className="flex flex-wrap gap-2 mb-4">
-                  {data.weaknesses.map((weakness, index) => (
-                    <span key={index} className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 px-3 py-1 rounded-full text-sm font-medium shadow-sm transition-colors">
-                      {weakness}
-                    </span>
-                  ))}
+                  {data.weaknesses
+                    .filter((weakness) => weakness?.id != null)
+                    .map((weakness) => (
+                      <span key={weakness.id} className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 px-3 py-1 rounded-full text-sm font-medium shadow-sm transition-colors">
+                        {weakness.label || weakness.name}
+                      </span>
+                    ))}
                 </div>
 
                 <button
@@ -253,11 +251,11 @@ const Dashboard = () => {
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
-          {data.subjects.map((subject, idx) => (
+          {data.subjects.map((subject) => (
             <div
-              key={idx}
+              key={subject.id}
               className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all cursor-pointer group"
-              onClick={() => navigate(`/subject/${subject.id ?? (subject.name ? encodeURIComponent(subject.name) : String(idx))}`)}
+              onClick={() => navigate(`/subject/${subject.id}`)}
             >
               <div className="flex items-start gap-4">
                 {/* هنا ممكن نستخدم دالة لتعيين الأيقونة واللون بناء على اسم المادة */}

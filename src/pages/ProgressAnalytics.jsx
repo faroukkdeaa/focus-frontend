@@ -100,6 +100,7 @@ const ProgressAnalytics = () => {
   const { t, lang } = useLanguage();
 
   const [loading, setLoading]               = useState(true);
+  const [overallProgress, setOverallProgress] = useState(null); // from overall_progress field
   const [quizResults, setQuizResults]        = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [remGaps, setRemGaps]                = useState([]);
@@ -109,129 +110,95 @@ const ProgressAnalytics = () => {
   // Activity colors: 0 (empty), 1, 2, 3, 4+ (highest)
   const activityColors = ['#2d333b', '#0e4429', '#006d32', '#26a641', '#39d353'];
 
-  // ── Fetch attempts only (single backend source) ───────────────────────────
+  // ── Fetch from /student/dashboard → lesson_attempts ────────────────────────
   useEffect(() => {
     const fetchRealData = async () => {
       setLoading(true);
       try {
-        const attemptsRes = await api.get('/students/attempts');
-        let rawAttempts =
-          attemptsRes.data?.quizzesAttempt?.data ||
-          attemptsRes.data?.quizzesAttempt ||
-          attemptsRes.data?.data ||
-          attemptsRes.data?.attempts ||
-          attemptsRes.data ||
-          [];
+        const attemptsRes = await api.get('/student/dashboard');
 
-        if (!Array.isArray(rawAttempts) && rawAttempts && typeof rawAttempts === 'object') {
-          rawAttempts = Object.values(rawAttempts);
-        }
+        // ── overall_progress: bind directly, do NOT recalculate from attempts ──
+        // Use optional chaining: field may not exist until backend deploys it.
+        const rawOverall = attemptsRes.data?.overall_progress;
+        setOverallProgress(rawOverall != null ? Number(rawOverall) : null);
+        const rawAttempts = Array.isArray(attemptsRes.data?.lesson_attempts)
+          ? attemptsRes.data.lesson_attempts
+          : [];
 
-        const normalizeAttempt = (att, index) => {
-          const attemptId = att?.id ?? att?.attempt_id ?? att?.result_id ?? index + 1;
-          const createdAt = String(att?.created_at || att?.date || '');
-          const parsedDate = new Date(createdAt);
+        // Normalize ALL entries (null-score ones still count as heatmap activity)
+        const allAttempts = rawAttempts.map((att, idx) => {
+          const parsedDate = new Date(att.attempted_at ?? '');
           const createdMs = Number.isNaN(parsedDate.getTime()) ? 0 : parsedDate.getTime();
-          const rawScore = Number(att?.score ?? 0) || 0;
-          const maxScore = Number(att?.total_questions ?? att?.max_score ?? attemptsRes.data?.quizzesAttempt?.meta?.total_questions ?? 5) || 5;
-          const percentage = Math.round((rawScore / maxScore) * 100);
-          const lessonTitle = att?.lesson_title || att?.lessonTitle || 'درس بدون عنوان';
-          const subjectName =
-            att?.subject_name ||
-            att?.subjectName ||
-            att?.subject?.name ||
-            att?.subject?.title ||
-            null;
-          const subjectId = att?.subject_id ?? att?.subjectId ?? att?.subject?.id ?? null;
-
+          const scoreFraction = (att.score !== null && att.score !== undefined)
+            ? Number(att.score)
+            : null;
+          const percentage = scoreFraction !== null ? Math.round(scoreFraction * 100) : null;
           return {
-            ...att,
-            attemptId,
-            createdAt,
+            attemptId:   idx + 1,
+            createdAt:   att.attempted_at ?? '',
             createdMs,
-            rawScore,
-            maxScore,
-            percentage,
-            lessonTitle,
-            subjectName,
-            subjectId,
+            score:       scoreFraction,          // raw 0-1 fraction (for < 0.5 weakness check)
+            rawScore:    scoreFraction !== null ? Math.round(scoreFraction * 100) : 0,
+            maxScore:    100,
+            percentage,                          // null for no-score (activity-only) entries
+            lessonTitle: att.lesson_title ?? 'درس بدون عنوان',
+            subjectName: att.subject_name ?? null,
+            subjectId:   att.subject_id  ?? null,
           };
-        };
+        });
 
-        const normalizedAttempts = (Array.isArray(rawAttempts) ? rawAttempts : [])
-          .filter((att) => att && typeof att === 'object')
-          .map(normalizeAttempt)
+        // Scored-only, oldest→newest (drives chart & subject card)
+        const scoredAsc = allAttempts
+          .filter(a => a.percentage !== null)
           .sort((a, b) => a.createdMs - b.createdMs);
 
-        setAttempts(normalizedAttempts);
+        setAttempts(allAttempts); // heatmap useMemo consumes ALL entries
 
-        const latestAttempt = normalizedAttempts[normalizedAttempts.length - 1];
-        const latestSubjectMeta = [...normalizedAttempts]
-          .reverse()
-          .map((att) => {
-            const meta = SUBJECTS_META.find((s) => String(s.id) === String(att.subjectId));
-            return {
-              name: att.subjectName || meta?.name || null,
-              emoji: meta?.emoji || '📘',
-              color: meta?.color || '#103B66',
-            };
-          })
-          .find((subject) => subject.name);
-
+        const last = scoredAsc[scoredAsc.length - 1];
         setSubjectStats([{
-          id: 'all',
-          key: 'all-attempts',
-          name: latestSubjectMeta?.name || 'المادة الحالية',
-          emoji: latestSubjectMeta?.emoji || '📘',
-          color: latestSubjectMeta?.color || '#103B66',
-          attemptsCount: normalizedAttempts.length,
-          lastRawScore: latestAttempt?.rawScore || 0,
-          lastPercentage: latestAttempt?.percentage || 0,
-          quizzes: normalizedAttempts.slice(-10).map((att) => ({
-            date: att.createdAt,
-            score: att.percentage,
-          })),
+          id:             'all',
+          key:            'all-attempts',
+          name:           last?.subjectName ?? 'التقدم العام',
+          emoji:          '📊',
+          color:          '#103B66',
+          attemptsCount:  scoredAsc.length,
+          lastRawScore:   last?.rawScore ?? 0,
+          lastPercentage: last?.percentage ?? 0,
+          quizzes:        scoredAsc.slice(-5).map(a => ({ date: a.createdAt, score: a.percentage })),
         }]);
         setSelectedChartSubject('all');
         setActiveTab('all');
 
-        const normalizedQuizResults = [...normalizedAttempts]
+        // Recent quiz table: scored, newest-first
+        const tableRows = [...scoredAsc]
           .sort((a, b) => b.createdMs - a.createdMs)
-          .map((att) => {
-            const dateObj = new Date(att.createdAt || Date.now());
+          .map(att => {
+            const dateObj = new Date(att.createdAt);
             const formattedDate = Number.isNaN(dateObj.getTime())
               ? '—'
               : dateObj.toLocaleString('ar-EG', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              });
-
+                  year: 'numeric', month: '2-digit', day: '2-digit',
+                  hour: '2-digit', minute: '2-digit', hour12: false,
+                });
             return {
-              subjectId: att.subjectId ? String(att.subjectId) : '',
-              subjectName: att.subjectName || 'غير محدد',
-              attemptId: att.attemptId,
-              quizId: att.quiz_id ?? att.quizId ?? null,
-              lessonId: att.lesson_id ?? att.lessonId ?? null,
-              teacherId: att.teacher_id ?? att.teacherId ?? null,
-              rawScore: att.rawScore,
-              maxScore: att.maxScore,
-              percentage: att.percentage,
+              attemptId:   att.attemptId,
+              date:        formattedDate,
               displayDate: att.createdAt,
-              date: formattedDate,
               lessonTitle: att.lessonTitle,
-              createdMs: att.createdMs,
+              percentage:  att.percentage,
+              rawScore:    att.rawScore,
+              maxScore:    att.maxScore,
+              subjectName: att.subjectName ?? '—',
+              subjectId:   att.subjectId ? String(att.subjectId) : '',
+              score:       att.score,   // kept for weakness threshold check (< 0.5)
+              createdMs:   att.createdMs,
             };
           });
 
-        setQuizResults(normalizedQuizResults);
+        setQuizResults(tableRows);
         setRemGaps([]);
       } catch (err) {
-        console.error('❌ Failed to fetch attempts analytics:', err);
-        console.error('❌ Error details:', err.response?.data);
+        console.error('❌ Failed to fetch student dashboard:', err);
         setAttempts([]);
         setSubjectStats([]);
         setQuizResults([]);
@@ -246,11 +213,13 @@ const ProgressAnalytics = () => {
     fetchRealData();
   }, []);
 
-  // ── Derived: line chart data (created_at vs score) ───────────────────────
+
+  // ── Derived: line chart data — scored attempts only, oldest→newest ─────────
   const lineData = useMemo(() => {
     if (!attempts.length) return [];
 
     return [...attempts]
+      .filter(att => att.percentage !== null)  // exclude activity-only (null-score) entries
       .sort((a, b) => a.createdMs - b.createdMs)
       .map((att) => {
         const d = new Date(att.createdAt);
@@ -348,6 +317,41 @@ const ProgressAnalytics = () => {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+
+        {/* ════════ OVERALL PROGRESS HERO CARD ════════ */}
+        <section>
+          <div className="bg-gradient-to-br from-[#103B66] to-blue-500 dark:from-blue-900 dark:to-blue-700 rounded-2xl p-6 flex items-center justify-between gap-6 shadow-lg">
+            <div>
+              <p className="text-blue-100 text-sm font-medium mb-1">التقدم العام</p>
+              <p className="text-5xl font-black text-white tracking-tight">
+                {/* Safe: shows 'جاري التحديث...' if field not yet deployed */}
+                {overallProgress != null ? `${overallProgress}%` : 'جاري التحديث...'}
+              </p>
+              <p className="text-blue-200 text-xs mt-2">
+                {quizResults.length > 0
+                  ? `بناءً على ${quizResults.length} اختبار مكتمل`
+                  : 'لا توجد اختبارات مكتملة بعد'}
+              </p>
+            </div>
+            {overallProgress != null && (
+              <div dir="ltr" className="flex-shrink-0">
+                <svg width="80" height="80" viewBox="0 0 44 44">
+                  <circle cx="22" cy="22" r="16" fill="none" strokeWidth="4" stroke="rgba(255,255,255,0.25)" />
+                  <circle
+                    cx="22" cy="22" r="16" fill="none" strokeWidth="4" stroke="white"
+                    strokeDasharray={`${((overallProgress / 100) * (2 * Math.PI * 16)).toFixed(2)} ${(2 * Math.PI * 16).toFixed(2)}`}
+                    strokeDashoffset={(2 * Math.PI * 16 / 4).toFixed(2)}
+                    strokeLinecap="round"
+                    style={{ transition: 'stroke-dasharray 0.8s ease' }}
+                  />
+                  <text x="22" y="26" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white">
+                    {overallProgress}%
+                  </text>
+                </svg>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* ════════ SECTION 1 — Subject Summary Cards ════════ */}
         <section>
@@ -649,36 +653,37 @@ const ProgressAnalytics = () => {
                       </td>
                     </tr>
                   ) : quizResults.map((att, i) => {
-                    const maxScore = Number(att.maxScore ?? 5) || 5;
-                    const rawScore = Number(att.rawScore || att.score || 0);
-                    const percentage = att.percentage || Math.round((rawScore / maxScore) * 100);
+                    // score is the raw 0-1 fraction; percentage is pre-computed as Math.round(score*100)
+                    const percentage = att.percentage ?? 0;
+                    const scoreLabel = `${Math.round((att.score ?? 0) * 100)}%`;
                     const badge = getMasteryBadge(percentage);
-                    const meta  = SUBJECTS_META.find(s => s.id === att.subjectId);
                     return (
                       <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
                         <td className="px-5 py-3.5 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
                           {att.date}
                         </td>
                         <td className="px-5 py-3.5 text-sm font-bold text-gray-800 dark:text-white whitespace-nowrap">
-                          {meta?.emoji} {att.subjectName || meta?.name}
+                          {/* subject_name bound directly; safe fallback if backend hasn't deployed it */}
+                          {att.subjectName ?? 'جاري التحديث...'}
                         </td>
                         <td className="px-5 py-3.5 text-sm text-gray-700 dark:text-gray-300 max-w-[160px] truncate">
                           {att.lessonTitle}
                         </td>
                         <td className="px-5 py-3.5 whitespace-nowrap">
                           <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${badge.bgCls} ${badge.textCls}`}>
-                            {rawScore} / {maxScore} ({percentage}%)
+                            {scoreLabel}
                           </span>
                         </td>
                         <td className="px-5 py-3.5">
                           <div className="flex flex-wrap gap-1.5 max-w-[220px]">
-                            {percentage < 50
+                            {/* spec: score < 0.5 → show lesson_title as weak topic, else '-' */}
+                            {att.score < 0.5
                               ? (
                                   <span className="text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 px-2 py-0.5 rounded-full font-medium">
-                                    يحتاج مراجعة
+                                    {att.lessonTitle}
                                   </span>
                                 )
-                              : <span className="text-xs text-green-600 dark:text-green-400 font-bold">{t('no_weakness_detected')}</span>
+                              : <span className="text-xs text-green-600 dark:text-green-400 font-bold">—</span>
                             }
                           </div>
                         </td>

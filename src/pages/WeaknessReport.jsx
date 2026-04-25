@@ -931,8 +931,17 @@ const WeaknessReport = () => {
   };
 
   const handleBackToLesson = () => {
-    if (lesson && subjectId) {
-      navigate('/course-details', { state: { lesson, subjectId } });
+    const resolvedLessonTeacherId = teacherId ?? lesson?.teacher_id ?? lesson?.teacherId ?? null;
+    if (lesson && subjectId && resolvedLessonTeacherId != null) {
+      const courseDetailsPath = `/course-details?lessonId=${encodeURIComponent(String(lesson.id))}&teacherId=${encodeURIComponent(String(resolvedLessonTeacherId))}&subjectId=${encodeURIComponent(String(subjectId))}`;
+      navigate(courseDetailsPath, {
+        state: {
+          lesson,
+          subjectId,
+          subjectName,
+          teacherId: resolvedLessonTeacherId,
+        },
+      });
     } else {
       navigate('/dashboard');
     }

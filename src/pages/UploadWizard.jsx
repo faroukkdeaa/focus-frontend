@@ -153,7 +153,7 @@ const QuestionCard = ({ q, qIdx, apiSubtopics, onPatch, onPatchOption, onRemove,
               <option value="">اختر الموضوع الفرعي</option>
               {apiSubtopics.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.name}
+                  {item.title}
                 </option>
               ))}
             </select>
@@ -236,6 +236,8 @@ const UploadWizard = () => {
   // ── Step 3 state ──
   const [questions,       setQuestions]       = useState([mkQuestion()]);
   const [showQuizVal,     setShowQuizVal]      = useState(false);
+  const [quizTitle,       setQuizTitle]       = useState('');
+  const [quizTitleManual, setQuizTitleManual] = useState(false);
 
   // ── Step 4 state ──
   const [publishing, setPublishing] = useState(false);
@@ -279,54 +281,30 @@ const UploadWizard = () => {
       .finally(() => setLoadingOpts(false));
   }, [subject]);
 
-  // Fetch subtopics for quiz metadata based on selected lesson
+  // Fetch subtopics for quiz metadata based on selected lesson within selected subject
   useEffect(() => {
-    if (!lessonId) {
-      console.warn('⚠️ Cannot fetch subtopics: lesson ID is missing.');
+    if (!subject || !lessonId) {
+      console.warn('⚠️ Cannot fetch subtopics: subject ID or lesson ID is missing.');
       setApiSubtopics([]);
       return;
     }
 
-    api.get(`/lesson/${lessonId}/subtopics`)
+    api.get(`/subjects/${subject}/subtopics`)
       .then((res) => {
         console.log('🔥 RAW SUBTOPICS RESPONSE:', res.data);
-
-        const payload = res.data?.data || res.data;
-        let extractedSubtopics = [];
-
-        if (payload && typeof payload === 'object') {
-          // 1. Find the first level array (usually 'units' or 'chapters')
-          const unitsArray = payload.units || payload.chapters || Object.values(payload).find(v => Array.isArray(v)) || [];
-
-          // 2. Iterate through units and extract the nested subtopics/lessons
-          extractedSubtopics = unitsArray.flatMap(unit => {
-            // Look for the nested array inside the unit
-            const nested = unit.subtopics || unit.sub_topics || unit.lessons || unit.topics || unit.children || Object.values(unit).find(v => Array.isArray(v));
-
-            // If we found a nested array, return it. If not, return the unit itself as a fallback.
-            return Array.isArray(nested) && nested.length > 0 ? nested : [unit];
-          });
-
-          // If unitsArray was empty but the payload itself is an array
-          if (unitsArray.length === 0 && Array.isArray(payload)) {
-            extractedSubtopics = payload;
-          }
-        }
-
-        // 3. Normalize for the dropdown
-        const finalSubtopics = extractedSubtopics.map(item => ({
-          id: item.id || item.subtopic_id,
-          name: item.name || item.title || item.subtopic_name || `موضوع ${item.id}`
-        }));
-
-        console.log('✅ FLATTENED SUBTOPICS:', finalSubtopics);
-        setApiSubtopics(finalSubtopics);
+        const responseData = res.data?.data || res.data || {};
+        const units = responseData.units || [];
+        const lessons = units.flatMap((unit) => unit.lessons || []);
+        const currentLesson = lessons.find((lesson) => String(lesson.id) === String(lessonId));
+        const lessonSubtopics = currentLesson?.subtopics || [];
+        console.log('✅ LESSON SUBTOPICS:', lessonSubtopics);
+        setApiSubtopics(lessonSubtopics);
       })
       .catch((err) => {
         console.error('❌ Failed to fetch subtopics', err);
         setApiSubtopics([]);
       });
-  }, [lessonId]);
+  }, [subject, lessonId]);
 
   // Fetch lessons when unit changes
   useEffect(() => {
@@ -344,6 +322,14 @@ const UploadWizard = () => {
       .catch(err => console.error('Failed to fetch lessons', err))
       .finally(() => setLoadingOpts(false));
   }, [unit]);
+
+  const selectedLessonObj = apiLessons.find((l) => String(l.id) === String(lessonId));
+  const selectedLessonTitle = selectedLessonObj ? (selectedLessonObj.title || selectedLessonObj.name || '') : '';
+
+  useEffect(() => {
+    if (quizTitleManual) return;
+    setQuizTitle(selectedLessonTitle || '');
+  }, [selectedLessonTitle, quizTitleManual]);
 
   const formatBytes = (bytes) => {
     if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -364,6 +350,13 @@ const UploadWizard = () => {
       return;
     }
     setVideoFile(file);
+  };
+
+  const handleQuizTitleChange = (value) => {
+    setQuizTitle(value);
+    const normalizedLessonTitle = (selectedLessonTitle || '').trim();
+    const normalizedValue = value.trim();
+    setQuizTitleManual(normalizedValue.length > 0 && normalizedValue !== normalizedLessonTitle);
   };
 
   // ── Validation ────────────────────────────────────────────────────────────
@@ -430,9 +423,8 @@ const UploadWizard = () => {
     setPublishing(true);
     try {
       // الاستناد للدرس المختار الموجود فعلياً بدلاً من إنشائه
-      const selectedLesson = apiLessons.find(l => String(l.id) === String(lessonId));
-      const actualLessonName = selectedLesson ? (selectedLesson.title || selectedLesson.name) : 'درس جديد';
-      const actualLessonId = selectedLesson ? selectedLesson.id : lessonId;
+      const actualLessonName = selectedLessonTitle || 'درس جديد';
+      const actualLessonId = selectedLessonObj ? selectedLessonObj.id : lessonId;
 
       const selectedSubjectObj = apiSubjects.find(s => String(s.id) === String(subject));
       const actualSubjectName = selectedSubjectObj ? (selectedSubjectObj.name || selectedSubjectObj.title) : subject;
@@ -463,7 +455,7 @@ const UploadWizard = () => {
         }));
 
         const quizPayload = {
-          title: `اختبار الدرس: ${actualLessonName}`,
+          title: quizTitle.trim() || actualLessonName,
           video_id: newVideoId,
           questions: quizQuestions,
         };
@@ -491,7 +483,7 @@ const UploadWizard = () => {
 
   const uniqueSubtopics = [...new Set(questions.map(q => q.subtopic).filter(Boolean))].map(subId => {
     const subtopic = apiSubtopics.find(st => String(st.id) === String(subId));
-    return subtopic?.name || subId;
+    return subtopic?.title || subId;
   });
 
   const checklist = [
@@ -853,6 +845,25 @@ const UploadWizard = () => {
                 <ClipboardList className="w-4 h-4" />
                 {questions.length} / 40
               </div>
+            </div>
+
+            {/* Quiz title binding */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                عنوان الاختبار
+              </label>
+              <input
+                type="text"
+                value={quizTitle}
+                onChange={(e) => handleQuizTitleChange(e.target.value)}
+                placeholder={selectedLessonTitle || 'اكتب عنوان الاختبار'}
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-800 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#103B66] dark:focus:ring-blue-500 transition"
+              />
+              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                {!quizTitleManual
+                  ? 'يتم مزامنة العنوان تلقائياً مع اسم الدرس.'
+                  : 'تم تخصيص عنوان الاختبار يدوياً.'}
+              </p>
             </div>
 
             {/* Validation banners */}

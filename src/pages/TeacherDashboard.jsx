@@ -26,18 +26,6 @@ const TeacherDashboard = () => {
   const [modalError, setModalError] = useState('');
 
   useEffect(() => {
-    // جلب اسم المدرس من localStorage
-    const userJson = localStorage.getItem('user');
-    if (userJson) {
-      try {
-        const userData = JSON.parse(userJson);
-        setTeacherName(userData.name || 'مدرس');
-      } catch (err) {
-        console.error('Error parsing user data:', err);
-      }
-    }
-
-    // جلب بيانات الداشبورد
     fetchDashboardData();
   }, []);
 
@@ -46,49 +34,39 @@ const TeacherDashboard = () => {
       setLoading(true);
       setError(null);
 
-      // 1. Get teacher profile from localStorage
-      const userJson = localStorage.getItem('user');
-      let userData = null;
-      if (userJson) {
-        userData = JSON.parse(userJson);
-      }
+      // Single source of truth: GET /api/teachers/dashboard
+      const res = await api.get('/teachers/dashboard');
+      const payload = res.data ?? {};
+      const teacher = payload.teacher ?? {};
 
-      if (!userData || !userData.teacher_id) {
-        // Fallback if not standard TeacherResource
-        const meRes = await api.get('/me');
-        userData = meRes.data?.user || meRes.data;
-      }
+      // Bind teacher name directly from the API response
+      setTeacherName(teacher.teacher_name || 'مدرس');
 
-      const teacherId = userData?.teacher_id || userData?.id;
-      const subjectId = userData?.subject_id;
-      const subjectName = userData?.subject_name || 'المادة الخاصة بي';
-
-      // 2. Fetch lessons count & stats from backend
-      let lessonsCount = 0;
-      if (teacherId) {
-        try {
-          const lessonsRes = await api.get(`/teachers/${teacherId}/lessons`);
-          lessonsCount = lessonsRes.data?.lessons?.total || lessonsRes.data?.lessons?.data?.length || 0;
-        } catch (err) {
-          console.warn("Could not fetch teacher lessons:", err);
-        }
-      }
-
-      // 3. Update dashboard data
       setData({
         stats: {
-          totalStudents: 0,
-          totalLessons: lessonsCount,
-          averageRating: userData?.rating || 'N/A'
+          // إجمالي الطلاب: count unique students using student_id
+          totalStudents: Array.isArray(payload.student_attempts)
+            ? new Set(payload.student_attempts.map(item => item.student_id)).size
+            : 0,
+          // الدروس: bound to videos_count from the dashboard payload
+          totalLessons: Number(payload.videos_count ?? 0),
+          // متوسط التقييم: API returns decimal fraction (e.g. "1.0000" = 100%)
+          averageRating: payload.average_score != null && Number.isFinite(Number(payload.average_score))
+            ? `${Math.round(Number(payload.average_score) * 100)}%`
+            : 'N/A',
         },
-        my_courses: subjectId ? [{
-          id: subjectId,
-          subjectId: subjectId,
-          title: subjectName,
-          grade: 'الصفوف الدراسية',
-          lessonsCount: lessonsCount
-        }] : [],
-        enrolled_students: []
+        // Single subject card — subject lives inside teacher object, not a subjects array
+        my_courses: teacher.subject_name
+          ? [{
+              id: teacher.teacher_id ?? 1,
+              title: teacher.subject_name,
+              grade: 'الصفوف الدراسية',
+              // Lesson count bound to videos_count from the dashboard payload
+              lessonsCount: Number(payload.videos_count ?? 0),
+            }]
+          : [],
+        // Store raw student_attempts array — unique dedup happens at render time
+        enrolled_students: Array.isArray(payload.student_attempts) ? payload.student_attempts : [],
       });
 
     } catch (err) {
@@ -345,31 +323,33 @@ const TeacherDashboard = () => {
                 <tr>
                   <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">{t('full_name')}</th>
                   <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">{t('email')}</th>
-                  <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">{t('grade')}</th>
-                  <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">{t('subject_progress')}</th>
+                  <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">آخر اختبار</th>
+                  <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">الدرجة</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {data.enrolled_students.map((student) => (
-                  <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    <td className="px-6 py-4 text-sm font-bold text-gray-800 dark:text-white">{student.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400" dir="ltr">{student.email}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{student.grade}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${student.progress >= 70 ? 'bg-green-500 dark:bg-green-400' :
-                              student.progress >= 50 ? 'bg-yellow-500 dark:bg-yellow-400' : 'bg-red-500 dark:bg-red-400'
-                              }`}
-                            style={{ width: `${student.progress}%` }}
-                          />
-                        </div>
-                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300 w-12">{student.progress}%</span>
-                      </div>
+                {Array.from(
+                  new Map(data.enrolled_students.map(item => [item.student_id, item])).values()
+                ).map((student) => {
+                  const scorePercent = student.score != null && Number.isFinite(Number(student.score))
+                    ? `${Math.round(Number(student.score) * 100)}%`
+                    : '—';
+                  return (
+                    <tr key={student.student_id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                      <td className="px-6 py-4 text-sm font-bold text-gray-800 dark:text-white">{student.student_name || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400" dir="ltr">{student.student_email || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{student.quiz_title || '—'}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-gray-800 dark:text-white">{scorePercent}</td>
+                    </tr>
+                  );
+                })}
+                {data.enrolled_students.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                      لا يوجد طلاب حتى الآن.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

@@ -147,13 +147,25 @@ const SignUp = () => {
               navigate('/dashboard');
             }
           } else {
-            navigate('/course-details', { 
-              state: { 
-                lesson: pending.lesson, 
-                subjectId: pending.subjectId, 
-                subjectName: pending.subjectName 
-              } 
-            });
+            const pendingTeacherId =
+              pending.teacherId ??
+              pending.lesson?.teacher_id ??
+              pending.lesson?.teacherId ??
+              null;
+
+            if (pending.lesson?.id != null && pendingTeacherId != null) {
+              const courseDetailsPath = `/course-details?lessonId=${encodeURIComponent(String(pending.lesson.id))}&teacherId=${encodeURIComponent(String(pendingTeacherId))}&subjectId=${encodeURIComponent(String(pending.subjectId ?? ''))}`;
+              navigate(courseDetailsPath, {
+                state: {
+                  lesson: pending.lesson,
+                  subjectId: pending.subjectId,
+                  subjectName: pending.subjectName,
+                  teacherId: pendingTeacherId,
+                },
+              });
+            } else {
+              navigate('/dashboard');
+            }
           }
           return;
         } catch {

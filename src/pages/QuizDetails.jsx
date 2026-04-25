@@ -90,17 +90,19 @@ const QuizDetails = () => {
     try {
       let attemptsList = [];
       let quizPayload = {};
+      let responseData = {};
 
       // 1. Try Primary Teacher Endpoint
       try {
         const { data } = await api.get(`/quizzes-details/${id}`);
-        const responseData = data?.data || data || {};
+        responseData = data?.data || data || {};
         quizPayload = responseData.quiz || responseData;
 
-        let primaryAttempts = responseData.attempts || responseData.students || quizPayload.attempts || quizPayload.quiz_attempts || [];
-        if (typeof primaryAttempts === 'object' && !Array.isArray(primaryAttempts)) {
+        let primaryAttempts = responseData.student_attempts || responseData.attempts || (Array.isArray(responseData.quiz_attempts_count) ? responseData.quiz_attempts_count : null) || responseData.students || quizPayload.attempts || quizPayload.quiz_attempts || [];
+        if (typeof primaryAttempts === 'object' && primaryAttempts !== null && !Array.isArray(primaryAttempts)) {
           primaryAttempts = Object.values(primaryAttempts);
         }
+        if (!Array.isArray(primaryAttempts)) primaryAttempts = [];
         attemptsList = primaryAttempts;
       } catch (err) {
         console.warn('Primary endpoint failed.');
@@ -119,10 +121,11 @@ const QuizDetails = () => {
             quizPayload = fallbackQuiz;
           }
 
-          let fallbackAttempts = fallbackData.attempts || fallbackData.students || fallbackQuiz.attempts || fallbackQuiz.quiz_attempts || [];
-          if (typeof fallbackAttempts === 'object' && !Array.isArray(fallbackAttempts)) {
+          let fallbackAttempts = fallbackData.student_attempts || fallbackData.attempts || fallbackData.students || fallbackQuiz.attempts || fallbackQuiz.quiz_attempts || [];
+          if (typeof fallbackAttempts === 'object' && fallbackAttempts !== null && !Array.isArray(fallbackAttempts)) {
             fallbackAttempts = Object.values(fallbackAttempts);
           }
+          if (!Array.isArray(fallbackAttempts)) fallbackAttempts = [];
 
           if (fallbackAttempts.length > 0) {
             attemptsList = fallbackAttempts;
@@ -133,14 +136,24 @@ const QuizDetails = () => {
       }
 
       // 3. Calculate KPIs safely
-      const totalAttemptsCount = attemptsList.length;
+      // Prefer server-provided aggregate fields; fall back to local calculation
+      const totalAttemptsCount =
+        // quiz_attempts_count may be a number OR an array — handle both
+        typeof responseData.quiz_attempts_count === 'number'
+          ? responseData.quiz_attempts_count
+          : Array.isArray(responseData.quiz_attempts_count)
+            ? responseData.quiz_attempts_count.length
+            : Array.isArray(responseData.student_attempts)
+              ? responseData.student_attempts.length
+              : attemptsList.length;
+
       let totalScorePercent = 0;
       let passedCount = 0;
 
       const mappedStudents = attemptsList.map((attempt, index) => {
-        const score = Number(attempt.score || 0);
-        const maxScore = Number(attempt.max_score || quizPayload.max_score || 100);
-        const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+        // score is a 0–1 decimal fraction from the API (e.g. 0.8 = 80%)
+        const score = Number(attempt.score ?? 0);
+        const percentage = Math.round(score * 100);
 
         totalScorePercent += percentage;
         if (percentage >= 50) passedCount++;
@@ -151,17 +164,23 @@ const QuizDetails = () => {
           id: attempt.id || attempt.attempt_id || `attempt-${index}`,
           studentName: attempt.student?.name || attempt.user?.name || attempt.student_name || 'طالب غير معروف',
           score,
-          total: maxScore,
-          maxScore,
-          percentage: Math.round(percentage),
+          percentage,
           quizDate: rawDate,
           date: rawDate ? new Date(rawDate).toLocaleDateString('ar-EG') : 'غير محدد',
-          rawScoreText: `${score} / ${maxScore}`,
+          // Display score as a formatted percentage string
+          rawScoreText: `${percentage}%`,
           isPass: percentage >= 50,
         };
       });
 
-      const avgScoreCalc = totalAttemptsCount > 0 ? Math.round(totalScorePercent / totalAttemptsCount) : 0;
+      // Bind average_score from API payload; score is a 0–1 fraction so multiply by 100
+      const avgScoreCalc =
+        responseData.average_score != null && Number.isFinite(Number(responseData.average_score))
+          ? Math.round(Number(responseData.average_score) * 100)
+          : attemptsList.length > 0
+            ? Math.round(totalScorePercent / attemptsList.length)
+            : 0;
+
       const passRateCalc = totalAttemptsCount > 0 ? Math.round((passedCount / totalAttemptsCount) * 100) : 0;
 
       // 4. Update State

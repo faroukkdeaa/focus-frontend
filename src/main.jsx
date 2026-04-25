@@ -60,7 +60,7 @@ const applyInitialSettings = () => {
 applyInitialSettings();
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
+  
     <LanguageProvider>
       <ThemeProvider>
         <NotificationProvider>
@@ -68,5 +68,5 @@ createRoot(document.getElementById('root')).render(
         </NotificationProvider>
       </ThemeProvider>
     </LanguageProvider>
-  </StrictMode>,
+
 )

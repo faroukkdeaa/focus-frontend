@@ -64,20 +64,19 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // POST /api/login — بيرجع { user: { role, student_name|teacher_name, student_id|teacher_id, user_id }, token }
+      // POST /api/login — بيرجع { user: { data: { ...userFields }, videos_count, quizzes_count, average_score }, token }
       const response = await api.post('/login', { email, password });
 
-      // الـ response ممكن يكون { user: {...}, token } أو { data: {...}, token }
-      const user = response.data.user ?? response.data.data;
-      const token = response.data.token;
+      const userData = response.data?.user ?? {};
+      const token = response.data?.token;
 
-      if (!user || !token) {
+      if (!userData || !token) {
         setError('حدث خطأ في استلام بيانات تسجيل الدخول.');
         return;
       }
 
       // التحقق من نوع الحساب اللي اختاره المستخدم
-      if (user.role !== accountType) {
+      if (userData?.role !== accountType) {
         setError(`هذا الحساب ليس حساب ${accountType === 'student' ? 'طالب' : 'مدرس'}.`);
         return;
       }
@@ -85,14 +84,17 @@ const Login = () => {
       // تطبيع مفاتيح الـ API → مفاتيح موحدة تستخدمها كل صفحات الـ app
       // student_name/teacher_name → name  |  user_id → id
       const normalizedUser = {
-        id:           String(user.user_id ?? user.id ?? user.student_id ?? user.teacher_id ?? ''),
-        student_id:   user.student_id   ?? null,
-        teacher_id:   user.teacher_id   ?? null,
-        name:         user.student_name ?? user.teacher_name ?? user.name ?? email,
-        email:        user.email ?? email,
-        role:         user.role,
-        subject_id:   user.subject_id   ?? null,
-        subject_name: user.subject_name ?? null,
+        id:           String(userData.user_id ?? userData.id ?? userData.student_id ?? userData.teacher_id ?? ''),
+        student_id:   userData.student_id   ?? null,
+        teacher_id:   userData.teacher_id   ?? null,
+        name:         userData.student_name ?? userData.teacher_name ?? userData.name ?? email,
+        email:        userData.email ?? email,
+        role:         userData.role,
+        subject_id:   userData.subject_id   ?? null,
+        subject_name: userData.subject_name ?? null,
+        videos_count: Number(userData?.videos_count ?? 0) || 0,
+        quizzes_count: Number(userData?.quizzes_count ?? 0) || 0,
+        average_score: userData?.average_score ?? null,
       };
 
       localStorage.setItem('token', token);
@@ -124,13 +126,25 @@ const Login = () => {
               navigate('/dashboard');
             }
           } else {
-            navigate('/course-details', { 
-              state: { 
-                lesson: pending.lesson, 
-                subjectId: pending.subjectId, 
-                subjectName: pending.subjectName 
-              } 
-            });
+            const pendingTeacherId =
+              pending.teacherId ??
+              pending.lesson?.teacher_id ??
+              pending.lesson?.teacherId ??
+              null;
+
+            if (pending.lesson?.id != null && pendingTeacherId != null) {
+              const courseDetailsPath = `/course-details?lessonId=${encodeURIComponent(String(pending.lesson.id))}&teacherId=${encodeURIComponent(String(pendingTeacherId))}&subjectId=${encodeURIComponent(String(pending.subjectId ?? ''))}`;
+              navigate(courseDetailsPath, {
+                state: {
+                  lesson: pending.lesson,
+                  subjectId: pending.subjectId,
+                  subjectName: pending.subjectName,
+                  teacherId: pendingTeacherId,
+                },
+              });
+            } else {
+              navigate('/dashboard');
+            }
           }
           return;
         } catch {
@@ -158,14 +172,14 @@ const Login = () => {
       } else {
         navigate('/'); // الطالب يذهب للرئيسية
       }
-    } catch (err) {
+    } catch (error) {
       const message =
-        err.response?.data?.error ||
-        err.response?.data?.message ||
-        err.message ||
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
         'فشل تسجيل الدخول. تحقق من الاتصال والمعلومات.';
       setError(message);
-      console.error('Login error:', err);
+      console.error('Login Details Error:', error.response || error);
     } finally {
       setLoading(false);
     }
