@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Brain, Menu, X,
+  Menu, X,
   LayoutDashboard, TrendingUp, MessageSquare, BarChart2, Upload,
   Bell, User, Settings, LogOut, ShieldCheck,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from './LangToggle';
 import NotificationBell from './NotificationBell';
+import Logo from './Logo';
 
 // ── Role-based nav definitions ────────────────────────────────────────────────
 
@@ -119,19 +120,7 @@ const GlobalLayout = ({ children }) => {
             </button>
 
             {/* Logo — click navigates to home */}
-            <button
-              onClick={() => navigate(homeRoute)}
-              className="flex items-center gap-2 group"
-            >
-              <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-xl shadow-sm
-                group-hover:shadow-md transition-shadow">
-                <Brain className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-black text-[#103B66] dark:text-blue-400 text-lg
-                tracking-tight hidden sm:block select-none">
-                {t('app_name')}
-              </span>
-            </button>
+            <Logo className="group" />
           </div>
 
           {/* ── Center: Desktop nav links ── */}
@@ -189,7 +178,7 @@ const GlobalLayout = ({ children }) => {
               className="hidden md:flex p-2 rounded-xl text-red-500 dark:text-red-400
                 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-5 h-5 rtl:-scale-x-100" />
             </button>
           </div>
 
@@ -209,19 +198,12 @@ const GlobalLayout = ({ children }) => {
           />
 
           {/* Panel */}
-          <div className={`absolute top-0 ${isRtl ? 'right-0' : 'left-0'} h-full w-72
+          <div className={`absolute top-0 start-0 h-full w-72
             bg-white dark:bg-gray-800 shadow-2xl flex flex-col`}>
 
             {/* Drawer header */}
             <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-              <div className="flex items-center gap-2">
-                <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-lg">
-                  <Brain className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-black text-[#103B66] dark:text-blue-400 text-lg tracking-tight">
-                  {t('app_name')}
-                </span>
-              </div>
+              <Logo className="group scale-95 origin-left" />
               <button
                 onClick={closeDrawer}
                 className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
@@ -280,7 +262,7 @@ const GlobalLayout = ({ children }) => {
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold
                   text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
-                <LogOut className="w-4 h-4 flex-shrink-0" />
+                <LogOut className="w-4 h-4 flex-shrink-0 rtl:-scale-x-100" />
                 {t('logout')}
               </button>
             </div>

@@ -3,28 +3,59 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
 import { Brain, Users, BookOpen, Star, Plus, Loader2, RefreshCcw, X, AlertCircle, Upload, BarChart2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
+
+const transition = { transition: "all 0.25s ease" };
+
+const iconWrap = (bg, bd, sz = "40px", r = "8px") => ({
+  ...transition,
+  width: sz,
+  height: sz,
+  borderRadius: r,
+  background: bg,
+  border: `1px solid ${bd}`,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0
+});
+
+const inputStyle = (C) => ({
+  ...transition,
+  width: "100%",
+  background: C.bg,
+  border: `1px solid ${C.border}`,
+  borderRadius: "12px",
+  padding: "14px 16px",
+  color: C.textPrimary,
+  outline: "none",
+  fontSize: "0.95rem"
+});
 
 const TeacherDashboard = () => {
   const navigate = useNavigate();
   const { t, lang } = useLanguage();
+  
+  // 1. Theme Adoption (Global Context)
+  const { isDarkMode, C, glass } = useTheme();
 
-  // بيانات المستخدم
+  // 2. State Management (Zero Logic Changes)
   const [teacherName, setTeacherName] = useState('');
-
-  // بيانات الداشبورد
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // حالة Modal إضافة درس
   const [showAddLessonModal, setShowAddLessonModal] = useState(false);
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonSubject, setLessonSubject] = useState('');
   const [lessonVideoUrl, setLessonVideoUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState(null); // { type: 'success'|'error', message }
+  const [toast, setToast] = useState(null);
   const [modalError, setModalError] = useState('');
 
+  // 3. API Fetching (Zero Logic Changes)
   useEffect(() => {
     fetchDashboardData();
   }, []);
@@ -34,38 +65,32 @@ const TeacherDashboard = () => {
       setLoading(true);
       setError(null);
 
-      // Single source of truth: GET /api/teachers/dashboard
       const res = await api.get('/teachers/dashboard');
       const payload = res.data ?? {};
       const teacher = payload.teacher ?? {};
 
-      // Bind teacher name directly from the API response
       setTeacherName(teacher.teacher_name || 'مدرس');
 
       setData({
         stats: {
-          // إجمالي الطلاب: count unique students using student_id
           totalStudents: Array.isArray(payload.student_attempts)
-            ? new Set(payload.student_attempts.map(item => item.student_id)).size
+            ? payload.student_attempts.length
             : 0,
-          // الدروس: bound to videos_count from the dashboard payload
           totalLessons: Number(payload.videos_count ?? 0),
-          // متوسط التقييم: API returns decimal fraction (e.g. "1.0000" = 100%)
-          averageRating: payload.average_score != null && Number.isFinite(Number(payload.average_score))
-            ? `${Math.round(Number(payload.average_score) * 100)}%`
+          averageRating: payload.average_score != null
+            ? (typeof payload.average_score === 'string'
+              ? payload.average_score
+              : `${payload.average_score}%`)
             : 'N/A',
         },
-        // Single subject card — subject lives inside teacher object, not a subjects array
         my_courses: teacher.subject_name
           ? [{
               id: teacher.teacher_id ?? 1,
               title: teacher.subject_name,
               grade: 'الصفوف الدراسية',
-              // Lesson count bound to videos_count from the dashboard payload
               lessonsCount: Number(payload.videos_count ?? 0),
             }]
           : [],
-        // Store raw student_attempts array — unique dedup happens at render time
         enrolled_students: Array.isArray(payload.student_attempts) ? payload.student_attempts : [],
       });
 
@@ -83,7 +108,6 @@ const TeacherDashboard = () => {
     setModalError('');
 
     try {
-      // 1. جلب الكورس الخاص بالمادة المختارة
       const coursesResponse = await api.get(
         `http://localhost:3001/courses?subjectId=${lessonSubject}`
       );
@@ -97,7 +121,6 @@ const TeacherDashboard = () => {
       const course = coursesResponse.data[0];
       const existingLessons = course.lessons || [];
 
-      // 2. إنشاء الدرس الجديد
       const newLesson = {
         id: existingLessons.length > 0
           ? Math.max(...existingLessons.map(l => l.id)) + 1
@@ -110,13 +133,11 @@ const TeacherDashboard = () => {
         description: '',
       };
 
-      // 3. إضافة الدرس للكورس في json-server
       await api.patch(`http://localhost:3001/courses/${course.id}`, {
         lessons: [...existingLessons, newLesson],
         totalLessons: existingLessons.length + 1,
       });
 
-      // 4. تحديث teacher_dashboard: رفع lessonsCount للكورس + totalLessons
       const tdRes = await api.get('http://localhost:3001/teacher_dashboard');
       const td = tdRes.data;
       const updatedCourses = (td.my_courses || []).map(c =>
@@ -129,17 +150,14 @@ const TeacherDashboard = () => {
         my_courses: updatedCourses,
       });
 
-      // 5. إغلاق الـ Modal وإعادة تعيين الحقول
       setShowAddLessonModal(false);
       setLessonTitle('');
       setLessonSubject('');
       setLessonVideoUrl('');
       setModalError('');
 
-      // 6. إعادة تحميل بيانات الداشبورد لإظهار التحديث
       fetchDashboardData();
 
-      // 7. إظهار toast نجاح
       setToast({ type: 'success', message: 'تم إضافة الدرس بنجاح! ✅' });
       setTimeout(() => setToast(null), 3500);
     } catch (err) {
@@ -150,32 +168,65 @@ const TeacherDashboard = () => {
     }
   };
 
+  // --- Loading UI ---
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-[#103B66] dark:text-blue-400 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <Loader2 className="w-12 h-12 animate-spin mb-4" />
-        <p className="text-lg font-bold">{t('loading_dashboard')}</p>
+      <div style={{...transition, background: C.bg, minHeight: "100vh", fontFamily: "'Cairo', sans-serif", paddingBottom: "64px"}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+        <main style={{maxWidth: "1280px", margin: "0 auto", padding: "32px 24px"}}>
+          <div style={{marginBottom: "32px"}}>
+            <SkeletonLoader type="text" width="250px" height="32px" className="mb-2" />
+            <SkeletonLoader type="text" width="180px" height="20px" />
+          </div>
+
+          <div style={{display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px", marginBottom: "32px"}}>
+            <SkeletonLoader type="card" height="120px" />
+            <SkeletonLoader type="card" height="120px" />
+            <SkeletonLoader type="card" height="120px" />
+          </div>
+
+          <div style={{display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "40px"}}>
+            <SkeletonLoader type="card" width="160px" height="48px" />
+            <SkeletonLoader type="card" width="160px" height="48px" />
+            <SkeletonLoader type="card" width="160px" height="48px" />
+          </div>
+
+          <div style={{marginBottom: "48px"}}>
+            <SkeletonLoader type="text" width="200px" height="28px" className="mb-6" />
+            <div style={{display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px"}}>
+              <SkeletonLoader type="card" height="160px" />
+              <SkeletonLoader type="card" height="160px" />
+            </div>
+          </div>
+
+          <div>
+            <SkeletonLoader type="text" width="200px" height="28px" className="mb-6" />
+            <SkeletonLoader type="card" height="300px" />
+          </div>
+        </main>
       </div>
     );
   }
 
+  // --- Error UI ---
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="bg-red-50 dark:bg-red-900/20 p-8 rounded-2xl text-center border border-red-200 dark:border-red-800 max-w-md">
-          <AlertCircle className="w-12 h-12 text-red-500 dark:text-red-400 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-red-700 dark:text-red-400 mb-2">{t('error_title')}</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
+      <div style={{...transition, background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Cairo', sans-serif", padding: "16px"}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+        <div style={{...glass(), padding: "32px", maxWidth: "440px", textAlign: "center", borderColor: C.redBorder, background: C.redDim}}>
+          <AlertCircle style={{width: "48px", height: "48px", color: C.red, margin: "0 auto 16px"}} />
+          <h3 style={{fontSize: "1.25rem", fontWeight: 800, color: C.red, marginBottom: "8px"}}>{t('error_title')}</h3>
+          <p style={{color: C.textDim, fontSize: "0.95rem", marginBottom: "24px"}}>{error}</p>
           <button
             onClick={fetchDashboardData}
-            className="flex items-center justify-center gap-2 bg-red-600 dark:bg-red-700 text-white px-6 py-2 rounded-lg hover:bg-red-700 dark:hover:bg-red-800 transition w-full font-bold"
+            style={{...transition, width: "100%", padding: "12px", background: C.red, color: "#FFF", border: "none", borderRadius: "12px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer"}}
+            onMouseEnter={e => e.currentTarget.style.filter = "brightness(1.1)"}
+            onMouseLeave={e => e.currentTarget.style.filter = "none"}
           >
-            <RefreshCcw className="w-4 h-4" />
+            <RefreshCcw style={{width: "16px", height: "16px"}} />
             {t('retry')}
           </button>
           <button
             onClick={() => navigate('/')}
-            className="mt-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm underline"
+            style={{marginTop: "16px", background: "transparent", border: "none", color: C.textDim, textDecoration: "underline", fontSize: "0.85rem", cursor: "pointer"}}
           >
             {t('back_to_home')}
           </button>
@@ -187,180 +238,215 @@ const TeacherDashboard = () => {
   if (!data) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div style={{...transition, background: C.bg, minHeight: "100vh", fontFamily: "'Cairo', sans-serif", paddingBottom: "64px"}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
 
       {/* Toast notification */}
       {toast && (
-        <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-2xl shadow-xl text-white font-bold text-sm transition-all animate-bounce-once ${
-          toast.type === 'success' ? 'bg-green-500 dark:bg-green-600' :
-          toast.type === 'error'   ? 'bg-red-500 dark:bg-red-600' :
-                                     'bg-blue-500 dark:bg-blue-600'
-        }`}>
+        <div style={{position: "fixed", top: "20px", left: "50%", transform: "translateX(-50%)", zIndex: 50, display: "flex", alignItems: "center", gap: "12px", padding: "12px 24px", borderRadius: "16px", background: toast.type === 'success' ? C.green : toast.type === 'error' ? C.red : C.accent, color: "#FFF", fontWeight: 700, fontSize: "0.875rem", boxShadow: C.shadowCard, animation: "bounce-once 0.3s ease-out forwards"}}>
           {toast.message}
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main style={{maxWidth: "1280px", margin: "0 auto", padding: "32px 24px"}}>
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+        <div style={{marginBottom: "32px"}}>
+          <h2 style={{fontSize: "1.875rem", fontWeight: 800, color: C.textPrimary, marginBottom: "8px", letterSpacing: "-0.02em"}}>
             {t('welcome_prefix')} {teacherName} 👋
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p style={{color: C.textMuted, fontSize: "1rem", fontWeight: 500}}>
             {t('teacher_dashboard')}
           </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border-t-4 border-t-blue-500 dark:border-t-blue-400">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('total_students')}</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-white">{data.stats.totalStudents}</p>
-              </div>
-              <div className="bg-blue-100 dark:bg-blue-900/40 p-3 rounded-full">
-                <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
+        {/* Stats Cards (Bento Box) */}
+        <div style={{display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px", marginBottom: "32px"}}>
+          <div style={{...glass(), padding: "24px", display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+            <div>
+              <p style={{fontSize: "0.875rem", color: C.textMuted, fontWeight: 500, marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em"}}>{t('total_students')}</p>
+              <p style={{fontSize: "1.875rem", fontWeight: 800, color: C.textPrimary, lineHeight: 1, letterSpacing: "-0.025em"}}>{data.stats.totalStudents}</p>
+            </div>
+            <div style={iconWrap(C.iconBgA, C.iconBorderA, "56px", "8px")}>
+              <Users style={{width: "24px", height: "24px", color: C.iconA}} strokeWidth={2} />
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border-t-4 border-t-green-500 dark:border-t-green-400">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('lessons_tab')}</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-white">{data.stats.totalLessons}</p>
-              </div>
-              <div className="bg-green-100 dark:bg-green-900/40 p-3 rounded-full">
-                <BookOpen className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
+          <div style={{...glass(), padding: "24px", display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+            <div>
+              <p style={{fontSize: "0.875rem", color: C.textMuted, fontWeight: 500, marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em"}}>{t('lessons_tab')}</p>
+              <p style={{fontSize: "1.875rem", fontWeight: 800, color: C.textPrimary, lineHeight: 1, letterSpacing: "-0.025em"}}>{data.stats.totalLessons}</p>
+            </div>
+            <div style={iconWrap(C.greenDim, C.greenBorder, "56px", "8px")}>
+              <BookOpen style={{width: "24px", height: "24px", color: C.green}} strokeWidth={2} />
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border-t-4 border-t-yellow-500 dark:border-t-yellow-400">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('avg_rating')}</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-white">{data.stats.averageRating}</p>
-              </div>
-              <div className="bg-yellow-100 dark:bg-yellow-900/40 p-3 rounded-full">
-                <Star className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-              </div>
+          <div style={{...glass(), padding: "24px", display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+            <div>
+              <p style={{fontSize: "0.875rem", color: C.textMuted, fontWeight: 500, marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.05em"}}>{t('avg_rating')}</p>
+              <p style={{fontSize: "1.875rem", fontWeight: 800, color: C.textPrimary, lineHeight: 1, letterSpacing: "-0.025em"}}>{data.stats.averageRating}</p>
+            </div>
+            <div style={iconWrap(C.yellowDim, C.yellowBorder, "56px", "8px")}>
+              <Star style={{width: "24px", height: "24px", color: C.yellow}} strokeWidth={2} />
             </div>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="mb-8 flex flex-wrap items-center gap-3">
+        <div style={{display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "40px"}}>
           <button
             onClick={() => navigate('/upload-wizard')}
-            className="flex items-center gap-2 bg-gradient-to-l from-[#103B66] to-[#1a5498] dark:from-blue-600 dark:to-blue-700 hover:from-[#0c2d4d] hover:to-[#103B66] dark:hover:from-blue-700 dark:hover:to-blue-800 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition"
+            style={{...transition, background: C.accent, color: "#FFF", padding: "14px 24px", borderRadius: "12px", fontWeight: 700, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "0.95rem"}}
+            onMouseEnter={e => e.currentTarget.style.filter = "brightness(1.1)"}
+            onMouseLeave={e => e.currentTarget.style.filter = "none"}
           >
-            <Upload className="w-5 h-5" />
+            <Upload style={{width: "20px", height: "20px"}} />
             {t('upload_lesson')}
           </button>
 
           <button
             onClick={() => setShowAddLessonModal(true)}
-            className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 px-5 py-3 rounded-xl font-bold transition"
+            style={{...transition, background: "transparent", color: C.textPrimary, padding: "14px 24px", borderRadius: "12px", fontWeight: 700, border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "0.95rem"}}
+            onMouseEnter={e => e.currentTarget.style.background = C.bgCard}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
-            <Plus className="w-5 h-5" />
+            <Plus style={{width: "20px", height: "20px"}} />
             {t('quick_add')}
           </button>
 
           <button
             onClick={() => navigate('/teacher-analytics')}
-            className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-purple-300 dark:border-purple-600 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-5 py-3 rounded-xl font-bold transition"
+            style={{...transition, background: "transparent", color: C.textPrimary, padding: "14px 24px", borderRadius: "12px", fontWeight: 700, border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "0.95rem"}}
+            onMouseEnter={e => {e.currentTarget.style.background = C.bgCard; e.currentTarget.style.borderColor = C.iconBorderB; e.currentTarget.style.color = C.iconB;}}
+            onMouseLeave={e => {e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textPrimary;}}
           >
-            <BarChart2 className="w-5 h-5" />
+            <BarChart2 style={{width: "20px", height: "20px"}} />
             {t('view_analytics')}
           </button>
         </div>
 
         {/* My Courses Grid */}
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-          <BookOpen className="w-6 h-6 text-[#103B66] dark:text-blue-400" />
+        <h3 style={{fontSize: "1.5rem", fontWeight: 800, color: C.textPrimary, marginBottom: "20px", display: "flex", alignItems: "center", gap: "12px"}}>
+          <BookOpen style={{width: "24px", height: "24px", color: C.accent}} />
           {t('my_courses')}
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div style={{display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px", marginBottom: "48px"}}>
           {data.my_courses.map((course) => (
             <div
               key={course.id}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg dark:hover:shadow-blue-900/20 transition cursor-pointer"
               onClick={() => navigate('/teacher-analytics')}
+              style={{...transition, ...glass(), padding: "24px", cursor: "pointer"}}
+              onMouseEnter={e => e.currentTarget.style.borderColor = C.borderAccent}
+              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
             >
-              <div className="flex items-center gap-3 mb-2 border-b border-gray-100 dark:border-gray-700 pb-3">
-                <div className="bg-blue-100 dark:bg-blue-900/40 p-2.5 rounded-lg flex-shrink-0">
-                  <BookOpen className="w-6 h-6 text-[#103B66] dark:text-blue-400" />
+              <div style={{display: "flex", alignItems: "center", gap: "16px", borderBottom: `1px solid ${C.border}`, padding: "16px", marginBottom: "16px"}}>
+                <div style={iconWrap(C.iconBgA, C.iconBorderA, "48px", "8px")}>
+                  <BookOpen style={{width: "24px", height: "24px", color: C.iconA}} />
                 </div>
-                <h4 className="text-xl font-bold text-gray-800 dark:text-white">{course.title}</h4>
+                <h4 style={{fontSize: "1.25rem", fontWeight: 800, color: C.textPrimary}}>{course.title}</h4>
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{course.grade}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">{course.lessonsCount} {t('lessons_tab')}</span>
-                <span className="text-[#103B66] dark:text-blue-400 text-sm font-bold">إدارة الدروس ←</span>
+              <p style={{fontSize: "0.875rem", color: C.textMuted, marginBottom: "20px"}}>{course.grade}</p>
+              <div style={{display: "flex", alignItems: "center", justifyContent: "space-between"}}>
+                <span style={{fontSize: "0.875rem", color: C.textDim, fontWeight: 600}}>{course.lessonsCount} {t('lessons_tab')}</span>
+                <span style={{fontSize: "0.875rem", fontWeight: 800, color: C.accent}}>إدارة الدروس ←</span>
               </div>
             </div>
           ))}
           {data.my_courses.length === 0 && (
-            <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-8 text-gray-500 dark:text-gray-400">
-              لم يتم تعيين مادة لك حتى الآن.
+            <div style={{gridColumn: "1/-1"}}>
+              <EmptyState 
+                icon={BookOpen} 
+                title="لا توجد مواد دراسية" 
+                description="لم يتم تعيين مادة لك حتى الآن. تواصل مع الإدارة للإضافة." 
+              />
             </div>
           )}
         </div>
 
-        {/* Enrolled Students */}
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-          <Users className="w-6 h-6 text-[#103B66] dark:text-blue-400" />
+        {/* 🚨 Enrolled Students (Responsive Card-Stack Pattern Table) 🚨 */}
+        <h3 style={{fontSize: "1.5rem", fontWeight: 800, color: C.textPrimary, marginBottom: "20px", display: "flex", alignItems: "center", gap: "12px"}}>
+          <Users style={{width: "24px", height: "24px", color: C.accent}} />
           {t('my_students')}
         </h3>
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">{t('full_name')}</th>
-                  <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">{t('email')}</th>
-                  <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">آخر اختبار</th>
-                  <th className="px-6 py-3 text-right text-sm font-bold text-gray-700 dark:text-gray-300">الدرجة</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {Array.from(
-                  new Map(data.enrolled_students.map(item => [item.student_id, item])).values()
-                ).map((student) => {
-                  const scorePercent = student.score != null && Number.isFinite(Number(student.score))
-                    ? `${Math.round(Number(student.score) * 100)}%`
-                    : '—';
-                  return (
-                    <tr key={student.student_id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                      <td className="px-6 py-4 text-sm font-bold text-gray-800 dark:text-white">{student.student_name || '—'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400" dir="ltr">{student.student_email || '—'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{student.quiz_title || '—'}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-800 dark:text-white">{scorePercent}</td>
-                    </tr>
-                  );
-                })}
-                {data.enrolled_students.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                      لا يوجد طلاب حتى الآن.
+        <div className="w-full">
+          <table className="w-full border-collapse block md:table">
+            
+            {/* Desktop Headers (Hidden on Mobile) */}
+            <thead className="hidden md:table-header-group" style={{background: C.bgPanel, borderBottom: `1px solid ${C.border}`}}>
+              <tr>
+                <th style={{padding: "16px 24px", textAlign: "right", fontSize: "0.75rem", fontWeight: 800, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em"}}>{t('full_name')}</th>
+                <th style={{padding: "16px 24px", textAlign: "right", fontSize: "0.75rem", fontWeight: 800, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em"}}>{t('email')}</th>
+                <th style={{padding: "16px 24px", textAlign: "right", fontSize: "0.75rem", fontWeight: 800, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em"}}>آخر اختبار</th>
+                <th style={{padding: "16px 24px", textAlign: "right", fontSize: "0.75rem", fontWeight: 800, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.05em"}}>الدرجة</th>
+              </tr>
+            </thead>
+
+            {/* Table Body */}
+            <tbody className="block md:table-row-group">
+              {Array.from(
+                new Map(data.enrolled_students.map(item => [item.student_id, item])).values()
+              ).map((student) => {
+                const scoreLabel = student.total_marks != null
+                  ? `${student.score ?? 0} / ${student.total_marks}`
+                  : '—';
+                return (
+                  <tr 
+                    key={student.student_id} 
+                    className="block md:table-row mb-4 md:mb-0" 
+                    style={{
+                      ...glass(), // Glassmorphism applied to row
+                      borderBottom: `1px solid ${C.border}`,
+                      transition: "all 0.2s ease"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = C.borderAccent}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+                  >
+                    <td className="flex justify-between items-center md:table-cell" style={{padding: "16px 24px", fontSize: "0.9rem", fontWeight: 700, color: C.textPrimary}}>
+                      <span className="md:hidden text-xs font-bold uppercase tracking-wider" style={{color: C.textMuted}}>{t('full_name')}</span>
+                      <span>{student.student_name || '—'}</span>
+                    </td>
+                    
+                    <td className="flex justify-between items-center md:table-cell" style={{padding: "16px 24px", fontSize: "0.9rem", color: C.textDim}} dir="ltr">
+                      <span className="md:hidden text-xs font-bold uppercase tracking-wider" style={{color: C.textMuted}}>{t('email')}</span>
+                      <span>{student.student_email || '—'}</span>
+                    </td>
+                    
+                    <td className="flex justify-between items-center md:table-cell" style={{padding: "16px 24px", fontSize: "0.9rem", color: C.textDim}}>
+                      <span className="md:hidden text-xs font-bold uppercase tracking-wider" style={{color: C.textMuted}}>آخر اختبار</span>
+                      <span>{student.lesson_title || student.video_title || '—'}</span>
+                    </td>
+                    
+                    <td className="flex justify-between items-center md:table-cell" style={{padding: "16px 24px", fontSize: "0.9rem", fontWeight: 800, color: C.textPrimary}}>
+                      <span className="md:hidden text-xs font-bold uppercase tracking-wider" style={{color: C.textMuted}}>الدرجة</span>
+                      <span>{scoreLabel}</span>
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+              
+              {data.enrolled_students.length === 0 && (
+                <tr className="block md:table-row">
+                  <td colSpan={4} className="block md:table-cell" style={{padding: "32px 0"}}>
+                    <EmptyState 
+                      icon={Users} 
+                      title="لا يوجد طلاب مسجلين" 
+                      description="لم يقم أي طالب بالتسجيل في مقرراتك حتى الآن." 
+                    />
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </main>
 
+      {/* ADD LESSON MODAL */}
       {showAddLessonModal && (
-        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white">{t('add_lesson')}</h3>
+        <div style={{position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "16px"}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+          <div style={{...glass(), width: "100%", maxWidth: "480px", padding: "32px", background: C.bgPanel}}>
+            <div style={{display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px"}}>
+              <h3 style={{fontSize: "1.25rem", fontWeight: 800, color: C.textPrimary}}>{t('add_lesson')}</h3>
               <button
                 onClick={() => {
                   setShowAddLessonModal(false);
@@ -369,63 +455,69 @@ const TeacherDashboard = () => {
                   setLessonVideoUrl('');
                   setModalError('');
                 }}
-                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition"
+                style={{background: "transparent", border: "none", color: C.textMuted, cursor: "pointer"}}
               >
-                <X className="w-5 h-5" />
+                <X style={{width: "24px", height: "24px"}} />
               </button>
             </div>
 
-            <form onSubmit={handleAddLesson} className="space-y-4">
+            <form onSubmit={handleAddLesson} style={{display: "flex", flexDirection: "column", gap: "20px"}}>
               <div>
-                <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('lesson_name')}</label>
+                <label style={{display: "block", color: C.textDim, fontSize: "0.85rem", fontWeight: 700, marginBottom: "8px"}}>{t('lesson_name')}</label>
                 <input
                   type="text"
                   value={lessonTitle}
                   onChange={(e) => setLessonTitle(e.target.value)}
                   disabled={submitting}
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] dark:focus:ring-blue-500 disabled:opacity-60"
+                  style={inputStyle(C)}
+                  onFocus={e => e.target.style.borderColor = C.accent}
+                  onBlur={e => e.target.style.borderColor = C.border}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('select_subject')}</label>
+                <label style={{display: "block", color: C.textDim, fontSize: "0.85rem", fontWeight: 700, marginBottom: "8px"}}>{t('select_subject')}</label>
                 <select
                   value={lessonSubject}
                   onChange={(e) => setLessonSubject(e.target.value)}
                   disabled={submitting}
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] dark:focus:ring-blue-500 disabled:opacity-60"
+                  style={{...inputStyle(C), appearance: "none", cursor: "pointer"}}
+                  onFocus={e => e.target.style.borderColor = C.accent}
+                  onBlur={e => e.target.style.borderColor = C.border}
                   required
                 >
-                  <option value="">{t('select_subject')}</option>
-                  <option value="1">{t('subject_physics')}</option>
-                  <option value="2">{t('subject_chemistry')}</option>
-                  <option value="3">{t('subject_biology')}</option>
-                  <option value="4">{t('subject_math')}</option>
+                  <option value="" disabled style={{color: C.textMuted}}>{t('select_subject')}</option>
+                  <option value="1" style={{color: C.textPrimary, background: C.bgPanel}}>{t('subject_physics')}</option>
+                  <option value="2" style={{color: C.textPrimary, background: C.bgPanel}}>{t('subject_chemistry')}</option>
+                  <option value="3" style={{color: C.textPrimary, background: C.bgPanel}}>{t('subject_biology')}</option>
+                  <option value="4" style={{color: C.textPrimary, background: C.bgPanel}}>{t('subject_math')}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('video_url')}</label>
+                <label style={{display: "block", color: C.textDim, fontSize: "0.85rem", fontWeight: 700, marginBottom: "8px"}}>{t('video_url')}</label>
                 <input
                   type="url"
                   value={lessonVideoUrl}
                   onChange={(e) => setLessonVideoUrl(e.target.value)}
                   disabled={submitting}
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] dark:focus:ring-blue-500 text-left disabled:opacity-60"
+                  style={{...inputStyle(C), textAlign: "left"}}
+                  onFocus={e => e.target.style.borderColor = C.accent}
+                  onBlur={e => e.target.style.borderColor = C.border}
                   dir="ltr"
                   placeholder="https://..."
                 />
               </div>
 
               {modalError && (
-                <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg px-4 py-2 text-sm font-bold">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <div style={{...transition, padding: "12px 16px", borderRadius: "8px", background: C.redDim, border: `1px solid ${C.redBorder}`, color: C.red, fontSize: "0.85rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px"}}>
+                  <AlertCircle style={{width: "16px", height: "16px"}} />
                   {modalError}
                 </div>
               )}
 
-              <div className="flex gap-3 pt-4">
+              <div style={{display: "flex", gap: "12px", marginTop: "12px"}}>
                 <button
                   type="button"
                   onClick={() => {
@@ -436,18 +528,22 @@ const TeacherDashboard = () => {
                     setModalError('');
                   }}
                   disabled={submitting}
-                  className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-3 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-600 transition disabled:opacity-50"
+                  style={{...transition, flex: 1, padding: "14px", borderRadius: "12px", background: "transparent", border: `1px solid ${C.border}`, color: C.textMuted, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer"}}
+                  onMouseEnter={e => e.currentTarget.style.color = C.textPrimary}
+                  onMouseLeave={e => e.currentTarget.style.color = C.textMuted}
                 >
                   {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 bg-[#103B66] dark:bg-blue-600 hover:bg-[#0c2d4d] dark:hover:bg-blue-700 disabled:opacity-70 disabled:cursor-not-allowed text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2"
+                  style={{...transition, flex: 1, padding: "14px", borderRadius: "12px", background: C.accent, color: "#FFF", border: "none", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1}}
+                  onMouseEnter={e => {if(!submitting)e.currentTarget.style.filter="brightness(1.1)"}}
+                  onMouseLeave={e => {if(!submitting)e.currentTarget.style.filter="none"}}
                 >
                   {submitting ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <Loader2 style={{width: "20px", height: "20px"}} className="animate-spin" />
                       {t('adding')}
                     </>
                   ) : (

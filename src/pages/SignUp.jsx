@@ -3,15 +3,28 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import api from '../api/api';
 import { Loader2, GraduationCap, BookOpen } from 'lucide-react';
+import Logo from '../components/Logo';
 import { isValidEmail, isValidPassword, isValidFullName } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
 import ThemeToggle from '../components/ThemeToggle';
+import { useTheme } from '../context/ThemeContext';
+
+/* ════════════════════════════════════════════════════
+   DESIGN SYSTEM — Extracted from LandingPage.jsx
+════════════════════════════════════════════════════ */
+function buildTheme(dk){return dk?{bg:"#0B1120",bgPanel:"#0D1526",bgCard:"rgba(255,255,255,0.035)",border:"rgba(255,255,255,0.08)",borderAccent:"rgba(79,70,229,0.38)",accent:"#4F46E5",accentDim:"rgba(79,70,229,0.14)",iconA:"#38BDF8",iconBgA:"rgba(56,189,248,0.10)",iconBorderA:"rgba(56,189,248,0.22)",textPrimary:"#F8FAFC",textMuted:"#94A3B8",textDim:"#475569",shadowCard:"0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",trackBg:"rgba(255,255,255,0.06)",green:"#34D399",greenDim:"rgba(52,211,153,0.12)",greenBorder:"rgba(52,211,153,0.22)",red:"#F87171",redDim:"rgba(248,113,113,0.10)",redBorder:"rgba(248,113,113,0.20)",yellow:"#FBBF24",yellowDim:"rgba(251,191,36,0.12)",yellowBorder:"rgba(251,191,36,0.22)",headerBg:"rgba(11,17,32,0.88)"}:{bg:"#F8FAFC",bgPanel:"#FFFFFF",bgCard:"#FFFFFF",border:"#E2E8F0",borderAccent:"rgba(15,76,129,0.28)",accent:"#0F4C81",accentDim:"rgba(15,76,129,0.08)",iconA:"#0F4C81",iconBgA:"rgba(15,76,129,0.08)",iconBorderA:"rgba(15,76,129,0.18)",textPrimary:"#0F172A",textMuted:"#64748B",textDim:"#94A3B8",shadowCard:"0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",trackBg:"#E2E8F0",green:"#059669",greenDim:"rgba(5,150,105,0.08)",greenBorder:"rgba(5,150,105,0.18)",red:"#EF4444",redDim:"rgba(239,68,68,0.08)",redBorder:"rgba(239,68,68,0.18)",yellow:"#D97706",yellowDim:"rgba(217,119,6,0.08)",yellowBorder:"rgba(217,119,6,0.18)",headerBg:"rgba(248,250,252,0.90)"};}
+const _c=(T,x)=>({background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:"16px",boxShadow:T.shadowCard,...x});
+const _t={transition:"all 0.25s ease"};
+const _input = (T) => ({..._t, width: "100%", background: T.bg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "14px 16px", color: T.textPrimary, outline: "none", fontSize: "0.95rem"});
 
 const SignUp = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { t, lang } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
   const [accountType, setAccountType] = useState('student'); // 'student' or 'teacher'
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -203,86 +216,80 @@ const SignUp = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-4 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div dir={lang==='ar'?'rtl':'ltr'} style={{..._t,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px",fontFamily:"'Cairo',sans-serif"}}>
       {/* Language & Theme Toggles */}
-      <div className="absolute top-4 end-4 flex items-center gap-3">
+      <div style={{position:"absolute",top:"16px",right:lang==='ar'?'auto':"16px",left:lang==='ar'?"16px":'auto',display:"flex",alignItems:"center",gap:"12px"}}>
         <ThemeToggle />
         <LangToggle />
       </div>
+
       {/* 1. اللوجو والعنوان */}
-      <div className="text-center mb-8">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <h1 className="text-4xl font-bold text-[#103B66]">{t('app_name')}</h1>
-          <svg className="w-10 h-10 text-[#103B66]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-4A2.5 2.5 0 0 1 9.5 2Z" />
-            <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-4A2.5 2.5 0 0 0 14.5 2Z" />
-          </svg>
+      <div style={{textAlign:"center",marginBottom:"32px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"12px",marginBottom:"8px"}}>
+          <h1 style={{fontSize:"2.5rem",fontWeight:800,color:T.accent,letterSpacing:"-0.02em"}}>{t('app_name')}</h1>
+          <Logo className="justify-center mb-6 scale-110" />
         </div>
-        <p className="text-gray-500 dark:text-gray-400 text-lg">{t('tagline')}</p>
+        <p style={{color:T.textMuted,fontSize:"1.1rem",fontWeight:500}}>{t('tagline')}</p>
       </div>
 
       {/* 2. كارت إنشاء الحساب */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl w-full max-w-md p-8">
-        <h2 className="text-2xl font-bold text-center text-gray-800 dark:text-white mb-2">{t('signup_title')}</h2>
-        <p className="text-center text-gray-400 dark:text-gray-500 mb-6 text-sm">{t('signup_subtitle')}</p>
+      <div style={{..._t,..._c(T),width:"100%",maxWidth:"480px",padding:"40px"}}>
+        <h2 style={{fontSize:"1.75rem",fontWeight:800,textAlign:"center",color:T.textPrimary,marginBottom:"8px"}}>{t('signup_title')}</h2>
+        <p style={{textAlign:"center",color:T.textMuted,fontSize:"0.95rem",marginBottom:"32px"}}>{t('signup_subtitle')}</p>
 
         {/* تبويبات نوع الحساب */}
-        <div className="flex gap-2 mb-6">
+        <div style={{display:"flex",gap:"12px",marginBottom:"32px"}}>
           <button
             type="button"
             onClick={() => { setAccountType('student'); setError(''); }}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold transition-all duration-200 ${
-              accountType === 'student'
-                ? 'bg-[#103B66] text-white shadow-lg'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
+            style={{..._t,flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",padding:"14px",borderRadius:"12px",fontWeight:700,cursor:"pointer",border:accountType==='student'?`1px solid ${T.accent}`:`1px solid ${T.border}`,background:accountType==='student'?T.accent:T.bg,color:accountType==='student'?"#FFF":T.textMuted}}
           >
-            <GraduationCap className="w-5 h-5" />
+            <GraduationCap style={{width:"20px",height:"20px"}} />
             {t('student')}
           </button>
           <button
             type="button"
             onClick={() => { setAccountType('teacher'); setError(''); }}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold transition-all duration-200 ${
-              accountType === 'teacher'
-                ? 'bg-[#103B66] text-white shadow-lg'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
+            style={{..._t,flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",padding:"14px",borderRadius:"12px",fontWeight:700,cursor:"pointer",border:accountType==='teacher'?`1px solid ${T.accent}`:`1px solid ${T.border}`,background:accountType==='teacher'?T.accent:T.bg,color:accountType==='teacher'?"#FFF":T.textMuted}}
           >
-            <BookOpen className="w-5 h-5" />
+            <BookOpen style={{width:"20px",height:"20px"}} />
             {t('teacher')}
           </button>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm text-center">
+          <div style={{..._t,marginBottom:"24px",padding:"14px",borderRadius:"12px",background:T.redDim,border:`1px solid ${T.redBorder}`,color:T.red,fontSize:"0.9rem",textAlign:"center",fontWeight:600}}>
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSignup} className="space-y-4">
+        <form onSubmit={handleSignup} style={{display:"flex",flexDirection:"column",gap:"20px"}}>
           <div>
-            <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('full_name')}</label>
+            <label style={{display:"block",color:T.textDim,fontSize:"0.85rem",fontWeight:700,marginBottom:"8px"}}>{t('full_name')}</label>
             <input
               type="text"
               placeholder="أحمد محمد"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               disabled={loading}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] placeholder:text-right disabled:opacity-60 dark:text-white dark:placeholder:text-gray-400"
+              style={_input(T)}
+              onFocus={e=>{e.target.style.borderColor=T.accent}}
+              onBlur={e=>{e.target.style.borderColor=T.border}}
               required
             />
           </div>
 
           <div>
-            <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('email')}</label>
+            <label style={{display:"block",color:T.textDim,fontSize:"0.85rem",fontWeight:700,marginBottom:"8px"}}>{t('email')}</label>
             <input
               type="email"
               placeholder="ahmed@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] text-left placeholder:text-right disabled:opacity-60 dark:text-white dark:placeholder:text-gray-400"
+              style={{..._input(T),textAlign:"left"}}
+              onFocus={e=>{e.target.style.borderColor=T.accent}}
+              onBlur={e=>{e.target.style.borderColor=T.border}}
               dir="ltr"
               required
             />
@@ -291,61 +298,64 @@ const SignUp = () => {
           {/* حقول خاصة بالمدرس */}
           {accountType === 'teacher' && (
             <div>
-              <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('subject')}</label>
+              <label style={{display:"block",color:T.textDim,fontSize:"0.85rem",fontWeight:700,marginBottom:"8px"}}>{t('subject')}</label>
               <select
                 value={subjectId}
                 onChange={(e) => setSubjectId(e.target.value)}
                 disabled={loading}
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] disabled:opacity-60 dark:text-white"
+                style={{..._input(T),appearance:"none",cursor:"pointer"}}
+                onFocus={e=>{e.target.style.borderColor=T.accent}}
+                onBlur={e=>{e.target.style.borderColor=T.border}}
                 required
               >
-                <option value="">{t('select_subject')}</option>
+                <option value="" disabled style={{color:T.textMuted}}>{t('select_subject')}</option>
                 {subjects.length > 0 ? (
-                  subjects.map(sub => {
-                    console.log('Rendering subject:', sub);
-                    return (
-                      <option key={sub.id} value={sub.id}>
-                        {lang === 'ar' ? (sub.name || sub.title) : (sub.name_en || sub.title_en || sub.name || sub.title)}
-                      </option>
-                    );
-                  })
+                  subjects.map(sub => (
+                    <option key={sub.id} value={sub.id} style={{color:T.textPrimary,background:T.bgPanel}}>
+                      {lang === 'ar' ? (sub.name || sub.title) : (sub.name_en || sub.title_en || sub.name || sub.title)}
+                    </option>
+                  ))
                 ) : (
-                  <option disabled>جاري التحميل...</option>
+                  <option disabled style={{color:T.textMuted}}>جاري التحميل...</option>
                 )}
               </select>
             </div>
           )}
 
           <div>
-            <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('password')}</label>
+            <label style={{display:"block",color:T.textDim,fontSize:"0.85rem",fontWeight:700,marginBottom:"8px"}}>{t('password')}</label>
             <input
               type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] text-left placeholder:text-right disabled:opacity-60 dark:text-white dark:placeholder:text-gray-400"
+              style={{..._input(T),textAlign:"left"}}
+              onFocus={e=>{e.target.style.borderColor=T.accent}}
+              onBlur={e=>{e.target.style.borderColor=T.border}}
               dir="ltr"
               required
             />
           </div>
 
           <div>
-            <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('confirm_password')}</label>
+            <label style={{display:"block",color:T.textDim,fontSize:"0.85rem",fontWeight:700,marginBottom:"8px"}}>{t('confirm_password')}</label>
             <input
               type="password"
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={loading}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] text-left placeholder:text-right disabled:opacity-60 dark:text-white dark:placeholder:text-gray-400"
+              style={{..._input(T),textAlign:"left"}}
+              onFocus={e=>{e.target.style.borderColor=T.accent}}
+              onBlur={e=>{e.target.style.borderColor=T.border}}
               dir="ltr"
               required
             />
           </div>
 
           {accountType === 'teacher' && (
-            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm text-center">
+            <div style={{..._t,padding:"14px",borderRadius:"12px",background:T.yellowDim,border:`1px solid ${T.yellowBorder}`,color:T.yellow,fontSize:"0.85rem",textAlign:"center",fontWeight:600}}>
               {t('teacher_signup_note')}
             </div>
           )}
@@ -353,11 +363,13 @@ const SignUp = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#103B66] hover:bg-[#0c2d4d] disabled:bg-[#103B66] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition duration-300 shadow-lg mt-4 flex items-center justify-center gap-2"
+            style={{..._t,width:"100%",background:T.accent,color:"#FFF",padding:"16px",borderRadius:"12px",fontWeight:800,border:"none",cursor:loading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",marginTop:"12px",fontSize:"1rem",opacity:loading?0.7:1}}
+            onMouseEnter={e=>{if(!loading)e.currentTarget.style.filter="brightness(1.1)"}}
+            onMouseLeave={e=>{if(!loading)e.currentTarget.style.filter="none"}}
           >
             {loading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 style={{width:"20px",height:"20px"}} className="animate-spin" />
                 {t('creating_account')}
               </>
             ) : (
@@ -366,10 +378,10 @@ const SignUp = () => {
           </button>
         </form>
 
-        <div className="mt-6 text-center">
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
+        <div style={{marginTop:"32px",textAlign:"center"}}>
+          <p style={{color:T.textDim,fontSize:"0.9rem",fontWeight:500}}>
             {t('already_have_account')}{' '}
-            <Link to={`/login${searchParams.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : ''}`} className="text-[#103B66] font-bold hover:underline">
+            <Link to={`/login${searchParams.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : ''}`} style={{color:T.accent,fontWeight:800,textDecoration:"none"}}>
               {t('login_link')}
             </Link>
           </p>
@@ -377,9 +389,9 @@ const SignUp = () => {
       </div>
 
       {/* زر العودة */}
-      <div className="mt-8" onClick={() => navigate('/')}>
-        <button type="button" className="text-gray-500 flex items-center gap-2 hover:text-[#103B66] transition">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div style={{marginTop:"40px",cursor:"pointer"}} onClick={() => navigate('/')}>
+        <button type="button" style={{..._t,background:"transparent",border:"none",color:T.textMuted,display:"flex",alignItems:"center",gap:"8px",fontWeight:600,fontSize:"0.9rem",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.color=T.accent} onMouseLeave={e=>e.currentTarget.style.color=T.textMuted}>
+          <svg style={{width:"16px",height:"16px"}} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
           {t('back_to_home')}

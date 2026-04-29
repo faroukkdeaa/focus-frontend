@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import { translations } from '../i18n/translations';
+import i18n from '../i18n/i18n';
 
 const LanguageContext = createContext(null);
 
@@ -46,6 +47,7 @@ export const LanguageProvider = ({ children }) => {
     const saved = readSavedLang();
     // Apply immediately so there's no flash before first render
     applyDOMDirection(saved);
+    i18n.changeLanguage(saved);
     return saved;
   });
 
@@ -53,6 +55,7 @@ export const LanguageProvider = ({ children }) => {
     if (newLang !== 'ar' && newLang !== 'en') return;
     applyDOMDirection(newLang);
     persistLang(newLang);
+    i18n.changeLanguage(newLang);
     setLangState(newLang);
   }, []);
 

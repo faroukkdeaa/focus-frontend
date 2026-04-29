@@ -4,12 +4,81 @@ import api from '../api/api';
 import { isValidLoginIdentifier, isValidPassword } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
-import ThemeToggle from '../components/ThemeToggle';
+import { useTheme } from '../context/ThemeContext';
+import Logo from '../components/Logo';
+import { Brain, Sun, Moon, ArrowRight, Loader2, User, GraduationCap } from 'lucide-react';
+
+/* ════════════════════════════════════════════════════
+   DESIGN SYSTEM — Extracted from LandingPage.jsx
+════════════════════════════════════════════════════ */
+function buildTheme(dark) {
+  return dark
+    ? {
+        bg:           "#0B1120",
+        bgPanel:      "#0D1526",
+        bgCard:       "rgba(255,255,255,0.035)",
+        border:       "rgba(255,255,255,0.08)",
+        borderAccent: "rgba(79,70,229,0.38)",
+        borderRed:    "rgba(239,68,68,0.22)",
+        accent:       "#4F46E5",
+        accentDim:    "rgba(79,70,229,0.14)",
+        iconA:        "#38BDF8",
+        iconBgA:      "rgba(56,189,248,0.10)",
+        iconBorderA:  "rgba(56,189,248,0.22)",
+        textPrimary:  "#F8FAFC",
+        textMuted:    "#94A3B8",
+        textDim:      "#475569",
+        shadowCard:   "0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",
+        inputBg:      "rgba(255,255,255,0.04)",
+        inputBorder:  "rgba(255,255,255,0.10)",
+        tabBg:        "rgba(255,255,255,0.04)",
+        redIcon:      "#F87171",
+        redDim:       "rgba(248,113,113,0.10)",
+        redBorder:    "rgba(248,113,113,0.20)",
+      }
+    : {
+        bg:           "#F8FAFC",
+        bgPanel:      "#FFFFFF",
+        bgCard:       "#FFFFFF",
+        border:       "#E2E8F0",
+        borderAccent: "rgba(15,76,129,0.28)",
+        borderRed:    "rgba(239,68,68,0.20)",
+        accent:       "#0F4C81",
+        accentDim:    "rgba(15,76,129,0.08)",
+        iconA:        "#0F4C81",
+        iconBgA:      "rgba(15,76,129,0.08)",
+        iconBorderA:  "rgba(15,76,129,0.18)",
+        textPrimary:  "#0F172A",
+        textMuted:    "#64748B",
+        textDim:      "#94A3B8",
+        shadowCard:   "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",
+        inputBg:      "#F8FAFC",
+        inputBorder:  "#E2E8F0",
+        tabBg:        "#F1F5F9",
+        redIcon:      "#EF4444",
+        redDim:       "rgba(239,68,68,0.08)",
+        redBorder:    "rgba(239,68,68,0.18)",
+      };
+}
+
+const glass = (T) => ({
+  background:   T.bgCard,
+  border:       `1px solid ${T.border}`,
+  borderRadius: "20px",
+  boxShadow:    T.shadowCard,
+});
+
+const transition = {
+  transition: "background 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease",
+};
 
 const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { t, lang } = useLanguage();
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
   const [accountType, setAccountType] = useState('student'); // 'student' or 'teacher'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -185,103 +254,218 @@ const Login = () => {
     }
   };
 
+  /* ── inline input style ── */
+  const inputStyle = {
+    ...transition,
+    width:        "100%",
+    background:   T.inputBg,
+    border:       `1px solid ${T.inputBorder}`,
+    borderRadius: "12px",
+    padding:      "13px 16px",
+    fontSize:     "0.9rem",
+    color:        T.textPrimary,
+    outline:      "none",
+    boxSizing:    "border-box",
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col items-center justify-center p-4 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div
+      dir={lang === 'ar' ? 'rtl' : 'ltr'}
+      style={{
+        ...transition,
+        background:   T.bg,
+        minHeight:    "100vh",
+        display:      "flex",
+        flexDirection:"column",
+        alignItems:   "center",
+        justifyContent:"center",
+        padding:      "24px",
+        fontFamily:   "'Cairo', sans-serif",
+        position:     "relative",
+      }}
+    >
 
-      {/* Language & Theme Toggles */}
-      <div className="absolute top-4 end-4 flex items-center gap-3">
-        <ThemeToggle />
+      {/* ── Top-right controls ── */}
+      <div style={{ position: "absolute", top: "20px", right: "20px", display: "flex", alignItems: "center", gap: "10px" }}>
         <LangToggle />
+        <button
+          onClick={toggleTheme}
+          title={isDark ? "Light Mode" : "Dark Mode"}
+          style={{
+            ...transition,
+            width: "38px", height: "38px", borderRadius: "50%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: T.bgCard,
+            border: `1px solid ${T.border}`,
+            cursor: "pointer", color: T.textMuted,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = T.borderAccent; e.currentTarget.style.color = T.accent; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMuted; }}
+        >
+          {isDark
+            ? <Sun style={{ width: "16px", height: "16px" }} strokeWidth={1.5} />
+            : <Moon style={{ width: "16px", height: "16px" }} strokeWidth={1.5} />
+          }
+        </button>
       </div>
 
-      {/* 1. اللوجو والعنوان */}
-      <div className="text-center mb-8">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <h1 className="text-4xl font-bold text-[#103B66]">{t('app_name')}</h1>
-          {/* أيقونة المخ (SVG بسيط) */}
-          <svg className="w-10 h-10 text-[#103B66]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-4A2.5 2.5 0 0 1 9.5 2Z" />
-            <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-4A2.5 2.5 0 0 0 14.5 2Z" />
-          </svg>
-        </div>
-        <p className="text-gray-500 dark:text-gray-400 text-lg">{t('tagline')}</p>
+      {/* ── Logo & Tagline ── */}
+      <div style={{ textAlign: "center", marginBottom: "32px" }}>
+        <Logo className="justify-center mb-6 scale-110" />
+        <p style={{ ...transition, color: T.textMuted, fontSize: "0.9rem" }}>{t('tagline')}</p>
       </div>
 
-      {/* 2. كارت تسجيل الدخول */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl w-full max-w-md p-8">
-        <h2 className="text-2xl font-bold text-center text-gray-800 dark:text-white mb-2">{t('login_title')}</h2>
-        <p className="text-center text-gray-400 dark:text-gray-500 mb-6 text-sm">{t('login_subtitle')}</p>
+      {/* ── Auth Card (glass) ── */}
+      <div
+        style={{
+          ...transition,
+          ...glass(T),
+          width:    "100%",
+          maxWidth: "420px",
+          padding:  "36px 32px",
+        }}
+      >
+        <h2 style={{ ...transition, color: T.textPrimary, fontSize: "1.35rem", fontWeight: 800, textAlign: "center", marginBottom: "6px" }}>
+          {t('login_title')}
+        </h2>
+        <p style={{ ...transition, color: T.textDim, fontSize: "0.82rem", textAlign: "center", marginBottom: "24px" }}>
+          {t('login_subtitle')}
+        </p>
 
-        {/* رسالة الخطأ */}
+        {/* ── Error Message ── */}
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm text-center">
+          <div
+            style={{
+              ...transition,
+              marginBottom: "18px",
+              padding: "12px 16px",
+              borderRadius: "12px",
+              background: T.redDim,
+              border: `1px solid ${T.redBorder}`,
+              color: T.redIcon,
+              fontSize: "0.82rem",
+              textAlign: "center",
+            }}
+          >
             {error}
           </div>
         )}
 
-        {/* التبويب (Tabs: طالب / مدرس) */}
-        <div className="bg-gray-100 dark:bg-gray-700 p-1 rounded-full flex mb-6">
-          <button
-            type="button"
-            onClick={() => setAccountType('student')}
-            className={`flex-1 py-2 rounded-full text-sm font-bold transition-all flex items-center justify-center gap-2
-              ${accountType === 'student' ? 'bg-[#103B66] text-white shadow-md' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-          >
-            {/* أيقونة طالب */}
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-            {t('student')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setAccountType('teacher')}
-            className={`flex-1 py-2 rounded-full text-sm font-bold transition-all flex items-center justify-center gap-2
-              ${accountType === 'teacher' ? 'bg-[#103B66] text-white shadow-md' : 'text-gray-500 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-          >
-            {/* أيقونة مدرس */}
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"></path></svg>
-            {t('teacher')}
-          </button>
+        {/* ── Account Type Tabs ── */}
+        <div
+          style={{
+            ...transition,
+            background: T.tabBg,
+            border: `1px solid ${T.border}`,
+            borderRadius: "14px",
+            padding: "4px",
+            display: "flex",
+            marginBottom: "24px",
+          }}
+        >
+          {[
+            { key: 'student', label: t('student'), Icon: User },
+            { key: 'teacher', label: t('teacher'), Icon: GraduationCap },
+          ].map(tab => {
+            const active = accountType === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setAccountType(tab.key)}
+                style={{
+                  ...transition,
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: "11px",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                  border: "none",
+                  cursor: "pointer",
+                  background: active ? T.accent : "transparent",
+                  color: active ? "#FFFFFF" : T.textMuted,
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.color = T.textPrimary; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.color = T.textMuted; }}
+              >
+                <tab.Icon style={{ width: "15px", height: "15px" }} strokeWidth={2} />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* الفورم */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('email_or_phone')}</label>
+        {/* ── Form ── */}
+        <form onSubmit={handleLogin}>
+          {/* Email / Phone */}
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{ ...transition, display: "block", color: T.textMuted, fontSize: "0.8rem", fontWeight: 700, marginBottom: "8px" }}>
+              {t('email_or_phone')}
+            </label>
             <input
               type="text"
               placeholder="ahmed@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] text-left placeholder:text-right disabled:opacity-60 dark:text-white dark:placeholder:text-gray-400"
-              dir="ltr" // عشان الايميل يتكتب انجليزي صح
+              dir="ltr"
+              style={{
+                ...inputStyle,
+                opacity: loading ? 0.6 : 1,
+                textAlign: "left",
+              }}
+              onFocus={e => { e.target.style.borderColor = T.borderAccent; }}
+              onBlur={e => { e.target.style.borderColor = T.inputBorder; }}
             />
           </div>
 
-          <div>
-            <label className="block text-gray-600 dark:text-gray-300 text-sm font-bold mb-2">{t('password')}</label>
+          {/* Password */}
+          <div style={{ marginBottom: "24px" }}>
+            <label style={{ ...transition, display: "block", color: T.textMuted, fontSize: "0.8rem", fontWeight: 700, marginBottom: "8px" }}>
+              {t('password')}
+            </label>
             <input
               type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#103B66] text-left placeholder:text-right disabled:opacity-60 dark:text-white dark:placeholder:text-gray-400"
               dir="ltr"
+              style={{
+                ...inputStyle,
+                opacity: loading ? 0.6 : 1,
+                textAlign: "left",
+              }}
+              onFocus={e => { e.target.style.borderColor = T.borderAccent; }}
+              onBlur={e => { e.target.style.borderColor = T.inputBorder; }}
             />
           </div>
 
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#103B66] hover:bg-[#0c2d4d] disabled:bg-[#103B66] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition duration-300 shadow-lg mt-4 flex items-center justify-center gap-2"
+            style={{
+              ...transition,
+              width: "100%",
+              padding: "14px",
+              borderRadius: "12px",
+              fontSize: "0.95rem",
+              fontWeight: 700,
+              background: T.accent,
+              color: "#FFFFFF",
+              border: "none",
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.7 : 1,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            }}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.opacity = "0.88"; }}
+            onMouseLeave={e => { if (!loading) e.currentTarget.style.opacity = loading ? "0.7" : "1"; }}
           >
             {loading ? (
               <>
-                <svg className="animate-spin w-5 h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
+                <Loader2 style={{ width: "18px", height: "18px" }} className="animate-spin" />
                 {t('logging_in')}
               </>
             ) : (
@@ -290,19 +474,46 @@ const Login = () => {
           </button>
         </form>
 
-        {/* روابط سفلية */}
-        <div className="mt-6 text-center space-y-2">
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            {t('no_account')} <Link to={`/signup${searchParams.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : ''}`} className="text-[#103B66] font-bold hover:underline">{t('register_now')}</Link>
+        {/* ── Bottom Links ── */}
+        <div style={{ marginTop: "24px", textAlign: "center" }}>
+          <p style={{ ...transition, color: T.textMuted, fontSize: "0.82rem", marginBottom: "8px" }}>
+            {t('no_account')}{' '}
+            <Link
+              to={`/signup${searchParams.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect'))}` : ''}`}
+              style={{ color: T.accent, fontWeight: 700, textDecoration: "none" }}
+              onMouseEnter={e => { e.currentTarget.style.textDecoration = "underline"; }}
+              onMouseLeave={e => { e.currentTarget.style.textDecoration = "none"; }}
+            >
+              {t('register_now')}
+            </Link>
           </p>
-          <Link to="/forgot-password" className="block text-gray-400 dark:text-gray-500 text-sm hover:text-gray-600 dark:hover:text-gray-300">{t('forgot_password')}</Link>
+          <Link
+            to="/forgot-password"
+            style={{ ...transition, color: T.textDim, fontSize: "0.8rem", textDecoration: "none" }}
+            onMouseEnter={e => { e.currentTarget.style.color = T.textMuted; }}
+            onMouseLeave={e => { e.currentTarget.style.color = T.textDim; }}
+          >
+            {t('forgot_password')}
+          </Link>
         </div>
       </div>
 
-      {/* زر العودة */}
-      <div className="mt-8" onClick={() => navigate('/')}>
-        <button type="button" className="text-gray-500 flex items-center gap-2 hover:text-[#103B66] transition">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+      {/* ── Back to Home ── */}
+      <div style={{ marginTop: "28px" }}>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          style={{
+            ...transition,
+            display: "flex", alignItems: "center", gap: "6px",
+            background: "transparent", border: "none",
+            color: T.textDim, fontSize: "0.82rem",
+            cursor: "pointer",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = T.accent; }}
+          onMouseLeave={e => { e.currentTarget.style.color = T.textDim; }}
+        >
+          <ArrowRight style={{ width: "14px", height: "14px" }} />
           {t('back_to_home')}
         </button>
       </div>

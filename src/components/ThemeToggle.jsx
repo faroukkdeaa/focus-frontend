@@ -19,7 +19,8 @@ const ThemeToggle = ({ className = '' }) => {
         bg-white dark:bg-gray-800
         shadow-sm hover:shadow-md
         transition-all duration-200
-        w-10 h-10
+        min-w-[44px] min-h-[44px] w-11 h-11
+        focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none
         ${className}
       `}
       aria-label="Toggle theme"

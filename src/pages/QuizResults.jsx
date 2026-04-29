@@ -2,11 +2,23 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useRef } from 'react';
 import { CheckCircle2, XCircle, AlertCircle, RefreshCcw, ArrowRight, Home, Award, Brain } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+
+/* ════════════════════════════════════════════════════
+   DESIGN SYSTEM — Extracted from LandingPage.jsx
+════════════════════════════════════════════════════ */
+function buildTheme(dk){return dk?{bg:"#0B1120",bgCard:"rgba(255,255,255,0.035)",border:"rgba(255,255,255,0.08)",borderAccent:"rgba(79,70,229,0.38)",accent:"#4F46E5",accentDim:"rgba(79,70,229,0.14)",iconA:"#38BDF8",iconBgA:"rgba(56,189,248,0.10)",iconBorderA:"rgba(56,189,248,0.22)",iconB:"#818CF8",iconBgB:"rgba(129,140,248,0.11)",iconBorderB:"rgba(129,140,248,0.25)",textPrimary:"#F8FAFC",textMuted:"#94A3B8",textDim:"#475569",shadowCard:"0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",trackBg:"rgba(255,255,255,0.06)",green:"#34D399",greenDim:"rgba(52,211,153,0.12)",greenBorder:"rgba(52,211,153,0.22)",red:"#F87171",redDim:"rgba(248,113,113,0.10)",redBorder:"rgba(248,113,113,0.20)",yellow:"#FBBF24",yellowDim:"rgba(251,191,36,0.12)",yellowBorder:"rgba(251,191,36,0.22)",headerBg:"rgba(11,17,32,0.88)"}:{bg:"#F8FAFC",bgCard:"#FFFFFF",border:"#E2E8F0",borderAccent:"rgba(15,76,129,0.28)",accent:"#0F4C81",accentDim:"rgba(15,76,129,0.08)",iconA:"#0F4C81",iconBgA:"rgba(15,76,129,0.08)",iconBorderA:"rgba(15,76,129,0.18)",iconB:"#2563EB",iconBgB:"rgba(37,99,235,0.07)",iconBorderB:"rgba(37,99,235,0.16)",textPrimary:"#0F172A",textMuted:"#64748B",textDim:"#94A3B8",shadowCard:"0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",trackBg:"#E2E8F0",green:"#059669",greenDim:"rgba(5,150,105,0.08)",greenBorder:"rgba(5,150,105,0.18)",red:"#EF4444",redDim:"rgba(239,68,68,0.08)",redBorder:"rgba(239,68,68,0.18)",yellow:"#D97706",yellowDim:"rgba(217,119,6,0.08)",yellowBorder:"rgba(217,119,6,0.18)",headerBg:"rgba(248,250,252,0.90)"};}
+const _c=(T,x)=>({background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:"16px",boxShadow:T.shadowCard,...x});
+const _t={transition:"all 0.25s ease"};
+const _iw=(bg,bd,sz="40px",r="10px")=>({..._t,width:sz,height:sz,borderRadius:r,background:bg,border:`1px solid ${bd}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0});
 
 const QuizResults = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { t, lang } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
   const savedRef = useRef(false);
 
   const stateData = location.state || (() => {
@@ -60,88 +72,66 @@ const QuizResults = () => {
   // Redirect if no data (e.g., direct access)
   if (!stateData) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="bg-yellow-50 p-8 rounded-2xl text-center border border-yellow-200 max-w-md">
-            <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-            <p className="text-yellow-700 mb-4">{t('no_results')}</p>
-            <button onClick={() => navigate('/dashboard')} className="text-[#103B66] hover:underline font-bold">
-                {t('back_home')}
-            </button>
+      <div dir={lang==='ar'?'rtl':'ltr'} style={{..._t,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Cairo',sans-serif"}}>
+        <div style={{..._t,..._c(T),borderColor:T.yellowBorder,padding:"32px",textAlign:"center",maxWidth:"440px"}}>
+          <AlertCircle style={{width:"48px",height:"48px",color:T.yellow,margin:"0 auto 16px"}} />
+          <p style={{color:T.yellow,marginBottom:"16px",fontWeight:600}}>{t('no_results')}</p>
+          <button onClick={() => navigate('/dashboard')} style={{..._t,background:"transparent",border:"none",color:T.accent,cursor:"pointer",fontWeight:700}}>{t('back_home')}</button>
         </div>
       </div>
     );
   }
 
   let feedbackMessage = "";
-  let feedbackColor = "";
+  let feedbackColor = T.green;
   
   if (percentage >= 90) {
     feedbackMessage = t('excellent');
-    feedbackColor = "text-green-600";
+    feedbackColor = T.green;
   } else if (percentage >= 75) {
     feedbackMessage = t('very_good');
-    feedbackColor = "text-blue-600";
+    feedbackColor = T.accent;
   } else if (percentage >= 50) {
     feedbackMessage = t('good');
-    feedbackColor = "text-yellow-600";
+    feedbackColor = T.yellow;
   } else {
     feedbackMessage = t('needs_work');
-    feedbackColor = "text-red-600";
+    feedbackColor = T.red;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div dir={lang==='ar'?'rtl':'ltr'} style={{..._t,background:T.bg,minHeight:"100vh",padding:"32px 16px",fontFamily:"'Cairo',sans-serif"}}>
+      <div style={{maxWidth:"800px",margin:"0 auto",display:"flex",flexDirection:"column",gap:"24px"}}>
         
         {/* Score Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center relative overflow-hidden">
-            <div className={`absolute top-0 right-0 w-full h-2 ${
-                percentage >= 50 ? 'bg-green-500' : 'bg-red-500'
-            }`}></div>
+        <div style={{..._t,..._c(T),padding:"40px",textAlign:"center",position:"relative",overflow:"hidden"}}>
+            {/* Thin top accent bar */}
+            <div style={{position:"absolute",top:0,right:0,width:"100%",height:"3px",background:percentage>=50?T.green:T.red,borderRadius:"3px"}} />
             
-            <div className="w-32 h-32 mx-auto bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center mb-6 relative">
-                {/* Circular Progress (Simplified Visual) */}
-                <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                        cx="64"
-                        cy="64"
-                        r="60"
-                        stroke="currentColor"
-                        strokeWidth="8"
-                        fill="transparent"
-                        className="text-gray-200 dark:text-gray-600"
-                    />
-                    <circle
-                        cx="64"
-                        cy="64"
-                        r="60"
-                        stroke="currentColor"
-                        strokeWidth="8"
-                        fill="transparent"
-                        strokeDasharray={377}
-                        strokeDashoffset={377 - (377 * percentage) / 100}
-                        className={percentage >= 50 ? 'text-green-500' : 'text-red-500'}
-                    />
+            <div style={{position:"relative",width:"128px",height:"128px",margin:"0 auto 24px"}}>
+                <svg style={{width:"100%",height:"100%",transform:"rotate(-90deg)"}} viewBox="0 0 128 128">
+                    <circle cx="64" cy="64" r="60" stroke={T.trackBg} strokeWidth="8" fill="transparent" />
+                    <circle cx="64" cy="64" r="60" stroke={percentage>=50?T.green:T.red} strokeWidth="8" fill="transparent" strokeDasharray={377} strokeDashoffset={377-(377*percentage)/100} strokeLinecap="round" style={{transition:"stroke-dashoffset 1s ease"}} />
                 </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-3xl font-bold text-[#103B66]">{percentage}%</span>
+                <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                    <span style={{fontSize:"2rem",fontWeight:900,color:T.accent}}>{percentage}%</span>
                 </div>
             </div>
 
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">{t('quiz_result')}</h1>
-            <p className={`text-lg font-medium mb-1 ${feedbackColor}`}>{feedbackMessage}</p>
-            <p className="text-gray-500 dark:text-gray-400">
-                {t('correct_of_prefix')} <span className="font-bold text-[#103B66]">{score}</span> {t('correct_of_middle')} <span className="font-bold text-[#103B66]">{total}</span> {t('correct_of_suffix')}
+            <h1 style={{..._t,fontSize:"1.4rem",fontWeight:800,color:T.textPrimary,marginBottom:"8px"}}>{t('quiz_result')}</h1>
+            <p style={{fontSize:"1rem",fontWeight:700,color:feedbackColor,marginBottom:"4px"}}>{feedbackMessage}</p>
+            <p style={{color:T.textMuted,fontSize:"0.85rem"}}>
+                {t('correct_of_prefix')} <span style={{fontWeight:700,color:T.accent}}>{score}</span> {t('correct_of_middle')} <span style={{fontWeight:700,color:T.accent}}>{total}</span> {t('correct_of_suffix')}
             </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px"}}>
             <button
                 onClick={() => navigate(`/quiz/${quizId}`)}
-                className="bg-[#103B66] text-white py-4 rounded-xl font-bold hover:bg-[#0c2d4d] transition flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10"
+                style={{..._t,background:T.accent,color:"#FFF",padding:"14px",borderRadius:"12px",fontWeight:700,border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",fontSize:"0.9rem"}}
             >
-                <RefreshCcw className="w-5 h-5" /> {t('retake_quiz')}
+                <RefreshCcw style={{width:"20px",height:"20px"}} /> {t('retake_quiz')}
             </button>
             <button 
                 onClick={() => {
@@ -154,75 +144,94 @@ const QuizResults = () => {
                         navigate('/dashboard');
                     }
                 }}
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 py-4 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center justify-center gap-2"
+                style={{..._t,background:"transparent",border:`1px solid ${T.border}`,color:T.textMuted,padding:"14px",borderRadius:"12px",fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",fontSize:"0.9rem"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=T.borderAccent}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border}}
             >
-                <ArrowRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} /> {t('back_to_lesson')}
+                <ArrowRight style={{width:"20px",height:"20px",...(lang==='en'?{transform:"rotate(180deg)"}:{})}} /> {t('back_to_lesson')}
             </button>
         </div>
 
-        {/* Weakness Report CTA */}
-        <button
-            onClick={() =>
-                navigate('/weakness-report', {
-                    state: { score, total, questions, userAnswers, lesson, subjectId },
-                })
-            }
-            className="w-full flex items-center justify-center gap-2 py-4 rounded-xl font-bold border-2 border-[#103B66] text-[#103B66] hover:bg-[#103B66] hover:text-white transition-all group"
-        >
-            <Brain className="w-5 h-5 group-hover:animate-pulse" />
-            {t('view_weakness_report')}
-        </button>
+        {/* Smart Contextual CTA */}
+        {percentage >= 90 ? (
+          <button
+              onClick={() => {
+                  if (lesson && subjectId && resolvedLessonTeacherId != null) {
+                      const courseDetailsPath = `/course-details?lessonId=${encodeURIComponent(String(lesson.id ?? lessonId ?? ''))}&teacherId=${encodeURIComponent(String(resolvedLessonTeacherId))}&subjectId=${encodeURIComponent(String(subjectId))}`;
+                      navigate(courseDetailsPath, {
+                          state: { lesson, subjectId, subjectName, teacherId: resolvedLessonTeacherId },
+                      });
+                  } else {
+                      navigate('/dashboard');
+                  }
+              }}
+              style={{..._t,width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",padding:"14px",borderRadius:"12px",fontWeight:700,border:`1px solid ${T.greenBorder}`,background:T.greenDim,color:T.green,cursor:"pointer",fontSize:"0.9rem"}}
+              onMouseEnter={e=>{e.currentTarget.style.background=T.green;e.currentTarget.style.color="#FFF"}}
+              onMouseLeave={e=>{e.currentTarget.style.background=T.greenDim;e.currentTarget.style.color=T.green}}
+          >
+              <Award style={{width:"20px",height:"20px"}} />
+              {lang === 'ar' ? 'إتقان تام! المتابعة للدرس التالي' : 'Mastery Achieved! Continue to Next Lesson'}
+          </button>
+        ) : (
+          <button
+              onClick={() =>
+                  navigate('/weakness-report', {
+                      state: { score, total, questions, userAnswers, lesson, subjectId },
+                  })
+              }
+              style={{..._t,width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",padding:"14px",borderRadius:"12px",fontWeight:700,border:`1px solid ${T.borderAccent}`,background:T.accentDim,color:T.accent,cursor:"pointer",fontSize:"0.9rem"}}
+              onMouseEnter={e=>{e.currentTarget.style.background=T.accent;e.currentTarget.style.color="#FFF"}}
+              onMouseLeave={e=>{e.currentTarget.style.background=T.accentDim;e.currentTarget.style.color=T.accent}}
+          >
+              <Brain style={{width:"20px",height:"20px"}} />
+              {t('view_weakness_report')}
+          </button>
+        )}
 
         {/* Answer Review Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 md:p-8">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
-                <Award className="w-6 h-6 text-[#103B66]" />
-                {t('review_answers')}
-            </h2>
+        <div style={{..._t,..._c(T),padding:"32px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"24px"}}>
+              <div style={_iw(T.iconBgA,T.iconBorderA,"36px","10px")}>
+                <Award style={{color:T.iconA,width:"18px",height:"18px"}} strokeWidth={2} />
+              </div>
+              <h2 style={{..._t,color:T.textPrimary,fontSize:"1.2rem",fontWeight:800}}>{t('review_answers')}</h2>
+            </div>
 
-            <div className="space-y-6">
+            <div style={{display:"flex",flexDirection:"column",gap:"20px"}}>
                 {questions.map((q, index) => {
                     const userAnswerIndex = userAnswers[index];
                     const isCorrect = userAnswerIndex === q.correct;
                     const isSkipped = userAnswerIndex === null || userAnswerIndex === undefined;
 
                     return (
-                        <div key={index} className={`p-4 rounded-xl border ${
-                            isCorrect ? 'border-green-100 bg-green-50/30' : 'border-red-100 bg-red-50/30'
-                        }`}>
-                            <div className="flex items-start gap-3">
-                                <div className={`mt-1 min-w-[24px] h-6 rounded-full flex items-center justify-center text-white text-xs font-bold ${
-                                    isCorrect ? 'bg-green-500' : 'bg-red-500'
-                                }`}>
+                        <div key={index} style={{..._t,padding:"16px 20px",borderRadius:"12px",border:`1px solid ${isCorrect?T.greenBorder:T.redBorder}`,background:isCorrect?T.greenDim:T.redDim}}>
+                            <div style={{display:"flex",alignItems:"flex-start",gap:"12px"}}>
+                                <div style={{..._t,marginTop:"2px",minWidth:"24px",height:"24px",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF",fontSize:"0.7rem",fontWeight:700,background:isCorrect?T.green:T.red}}>
                                     {index + 1}
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-gray-800 dark:text-white mb-3">{q.question}</h3>
+                                <div style={{flex:1}}>
+                                    <h3 style={{..._t,fontWeight:700,color:T.textPrimary,marginBottom:"12px",fontSize:"0.9rem"}}>{q.question}</h3>
                                     
-                                    <div className="space-y-2">
-                                        {/* User's Answer */}
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <span className="text-gray-500 dark:text-gray-400">{t('your_answer')}:</span>
+                                    <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+                                        <div style={{display:"flex",alignItems:"center",gap:"8px",fontSize:"0.82rem"}}>
+                                            <span style={{color:T.textDim}}>{t('your_answer')}:</span>
                                             {isSkipped ? (
-                                                <span className="text-orange-500 font-medium flex items-center gap-1">
-                                                    <AlertCircle className="w-4 h-4" /> {t('not_answered')}
+                                                <span style={{color:T.yellow,fontWeight:600,display:"flex",alignItems:"center",gap:"4px"}}>
+                                                    <AlertCircle style={{width:"16px",height:"16px"}} /> {t('not_answered')}
                                                 </span>
                                             ) : (
-                                                <span className={`font-bold flex items-center gap-1 ${
-                                                    isCorrect ? 'text-green-700' : 'text-red-700'
-                                                }`}>
-                                                    {isCorrect ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                                <span style={{fontWeight:700,display:"flex",alignItems:"center",gap:"4px",color:isCorrect?T.green:T.red}}>
+                                                    {isCorrect ? <CheckCircle2 style={{width:"16px",height:"16px"}} /> : <XCircle style={{width:"16px",height:"16px"}} />}
                                                     {q.options[userAnswerIndex]}
                                                 </span>
                                             )}
                                         </div>
 
-                                        {/* Correct Answer (if wrong) */}
                                         {!isCorrect && (
-                                            <div className="flex items-center gap-2 text-sm bg-white/50 dark:bg-gray-700/50 p-2 rounded-lg inline-block">
-                                                <span className="text-gray-500 dark:text-gray-400">{t('correct_answer')}:</span>
-                                                <span className="font-bold text-green-700 flex items-center gap-1">
-                                                    <CheckCircle2 className="w-4 h-4" />
+                                            <div style={{display:"flex",alignItems:"center",gap:"8px",fontSize:"0.82rem",background:T.greenDim,border:`1px solid ${T.greenBorder}`,padding:"8px 12px",borderRadius:"8px"}}>
+                                                <span style={{color:T.textDim}}>{t('correct_answer')}:</span>
+                                                <span style={{fontWeight:700,color:T.green,display:"flex",alignItems:"center",gap:"4px"}}>
+                                                    <CheckCircle2 style={{width:"16px",height:"16px"}} />
                                                     {q.options[q.correct]}
                                                 </span>
                                             </div>

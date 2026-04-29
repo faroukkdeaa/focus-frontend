@@ -3,6 +3,36 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/api';
 import { ArrowRight, Play, Pause, Volume2, Settings, ChevronLeft, ChevronRight, CheckCircle2, User, Loader2, Zap } from "lucide-react";
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+
+function buildTheme(dark) {
+  return dark ? {
+    bg:"#0B1120", bgPanel:"#0D1526", bgCard:"rgba(255,255,255,0.035)", border:"rgba(255,255,255,0.08)",
+    borderAccent:"rgba(79,70,229,0.38)", accent:"#4F46E5", accentDim:"rgba(79,70,229,0.14)",
+    iconA:"#38BDF8", iconBgA:"rgba(56,189,248,0.10)", iconBorderA:"rgba(56,189,248,0.22)",
+    iconB:"#818CF8", iconBgB:"rgba(129,140,248,0.11)", iconBorderB:"rgba(129,140,248,0.25)",
+    textPrimary:"#F8FAFC", textMuted:"#94A3B8", textDim:"#475569",
+    shadowCard:"0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",
+    green:"#34D399", greenDim:"rgba(52,211,153,0.12)", greenBorder:"rgba(52,211,153,0.22)",
+    purple:"#A78BFA", purpleDim:"rgba(167,139,250,0.12)", purpleBorder:"rgba(167,139,250,0.22)",
+    redDim:"rgba(248,113,113,0.10)", redBorder:"rgba(248,113,113,0.20)", redIcon:"#F87171",
+    trackBg:"rgba(255,255,255,0.06)",
+  } : {
+    bg:"#F8FAFC", bgPanel:"#FFFFFF", bgCard:"#FFFFFF", border:"#E2E8F0",
+    borderAccent:"rgba(15,76,129,0.28)", accent:"#0F4C81", accentDim:"rgba(15,76,129,0.08)",
+    iconA:"#0F4C81", iconBgA:"rgba(15,76,129,0.08)", iconBorderA:"rgba(15,76,129,0.18)",
+    iconB:"#2563EB", iconBgB:"rgba(37,99,235,0.07)", iconBorderB:"rgba(37,99,235,0.16)",
+    textPrimary:"#0F172A", textMuted:"#64748B", textDim:"#94A3B8",
+    shadowCard:"0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",
+    green:"#059669", greenDim:"rgba(5,150,105,0.08)", greenBorder:"rgba(5,150,105,0.18)",
+    purple:"#7C3AED", purpleDim:"rgba(124,58,237,0.08)", purpleBorder:"rgba(124,58,237,0.18)",
+    redDim:"rgba(239,68,68,0.08)", redBorder:"rgba(239,68,68,0.18)", redIcon:"#EF4444",
+    trackBg:"#E2E8F0",
+  };
+}
+const card=(T,x)=>({background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:"16px",boxShadow:T.shadowCard,...x});
+const tr={transition:"background 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease"};
+const iw=(bg,bd,sz="48px",r="8px")=>({...tr,width:sz,height:sz,borderRadius:r,background:bg,border:`1px solid ${bd}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0});
 
 // يحلل رابط الفيديو ويحدد نوعه (youtube / vimeo / direct / generic)
 const parseVideoUrl = (url) => {
@@ -20,6 +50,9 @@ const LessonInterface = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, lang } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
 
   // ── Auth guard: إذا المستخدم مش مسجّل → وجّهه لتسجيل الدخول مع رابط العودة ──
   const isLoggedIn = !!localStorage.getItem('token');
@@ -34,7 +67,7 @@ const LessonInterface = () => {
   const [activeTeacher, setActiveTeacher] = useState(null); // ✅ Start with null, set from API
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [completingLesson, setCompletingLesson] = useState(false);
+  const [_completingLesson, setCompletingLesson] = useState(false);
   const [lessonCompleteToast, setLessonCompleteToast] = useState(false);
 
   // بيانات من الـ API (single source: /teachers/{teacher}/lessons/{lesson}/content)
@@ -146,13 +179,21 @@ const LessonInterface = () => {
           ? rawQuizzes.map((quiz, idx) => {
               const q = typeof quiz === 'object' ? quiz : { quiz_id: quiz };
               const qId = q?.quiz_id ?? q?.id ?? idx + 1;
+              const totalMarks = q?.total_marks ?? null;
+              const rawScore = q?.score ?? null;
+              const derivedPercentage =
+                totalMarks && rawScore != null
+                  ? Math.round((Number(rawScore) / Number(totalMarks)) * 100)
+                  : null;
               return {
                 id: qId,
                 quiz_id: qId,
                 teacher_id: teacherPayload?.teacher_id ?? teacherIdForRequest,
                 // attempted flag comes from the quizzes array item per the new payload spec
                 has_attempted: Boolean(q?.attempted ?? q?.has_attempted),
-                score: q?.score ?? null,
+                score: rawScore,
+                total_marks: totalMarks,
+                percentage: q?.percentage ?? derivedPercentage,
               };
             })
           : [];
@@ -218,14 +259,19 @@ const LessonInterface = () => {
 
   const completedCount = completedIds.size;
   const totalCount = lessons.length;
-  const progressPercent = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
+  const progressPercent = totalCount ? Math.min(100, Math.round((completedCount / totalCount) * 100)) : 0;
 
   const mainQuiz = lessonQuizzes?.[0] ?? null;
   const quizData = mainQuiz ? {
     ...mainQuiz,
     has_attempted: Boolean(mainQuiz?.has_attempted),
-    score: mainQuiz?.score ?? null
+    score: mainQuiz?.score ?? null,
+    percentage: mainQuiz?.percentage ?? null
   } : null;
+  const scoreText = quizData?.total_marks
+    ? `${quizData?.score} / ${quizData?.total_marks} (${quizData?.percentage ?? 0}%)`
+    : `${quizData?.score ?? '-'}`;
+  const buttonLabel = `تم الاختبار - درجتك: ${scoreText}`;
 
   const routeLessonId = currentLesson?.id ?? lessonId;
   const activeTeacherInfo = teachers.find((t) => String(t.id) === String(activeTeacher));
@@ -245,7 +291,7 @@ const LessonInterface = () => {
     }
   };
 
-  const handleCompleteLesson = async () => {
+  const _handleCompleteLesson = async () => {
     if (!currentLesson || completedIds.has(currentLesson.id)) return;
     setCompletingLesson(true);
     try {
@@ -275,22 +321,19 @@ const LessonInterface = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-[#103B66] font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <Loader2 className="w-12 h-12 animate-spin mb-4" />
-        <p className="text-lg font-bold">{t('loading')}</p>
+      <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{...tr,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Cairo',sans-serif"}}>
+        <Loader2 style={{color:T.accent,width:"48px",height:"48px",marginBottom:"16px"}} className="animate-spin" />
+        <p style={{...tr,color:T.textPrimary,fontSize:"1.1rem",fontWeight:700}}>{t('loading')}</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="bg-red-50 dark:bg-red-900/20 p-8 rounded-2xl text-center border border-red-200 dark:border-red-800 max-w-md">
-          <p className="text-red-700 mb-4">{error}</p>
-          <button 
-            onClick={() => navigate('/dashboard')}
-            className="text-gray-500 hover:text-gray-700 text-sm underline"
-          >
+      <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{...tr,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Cairo',sans-serif"}}>
+        <div style={{...tr,...card(T),border:`1px solid ${T.redBorder}`,padding:"40px",textAlign:"center",maxWidth:"420px",width:"100%"}}>
+          <p style={{...tr,color:T.redIcon,fontSize:"0.9rem",marginBottom:"16px"}}>{error}</p>
+          <button onClick={() => navigate('/dashboard')} style={{...tr,background:"transparent",border:"none",color:T.textDim,fontSize:"0.85rem",cursor:"pointer",textDecoration:"underline"}}>
             {t('back_to_dashboard')}
           </button>
         </div>
@@ -300,19 +343,14 @@ const LessonInterface = () => {
 
   if (!currentLesson || !course) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="bg-white dark:bg-gray-800 p-10 rounded-2xl shadow text-center border border-gray-200 dark:border-gray-700 max-w-md">
-          <p className="text-4xl mb-4">📭</p>
-          <h2 className="text-xl font-bold text-gray-700 dark:text-white mb-2">لا توجد دروس متاحة</h2>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-            {teachers.length === 0
-              ? 'لا يوجد مدرسون مرتبطون بهذه المادة بعد.'
-              : 'المدرس لم يرفع دروساً بعد. جرّب اختيار مدرس آخر.'}
+      <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{...tr,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Cairo',sans-serif"}}>
+        <div style={{...tr,...card(T),padding:"48px",textAlign:"center",maxWidth:"420px",width:"100%"}}>
+          <p style={{fontSize:"2.5rem",marginBottom:"16px"}}>📭</p>
+          <h2 style={{...tr,color:T.textPrimary,fontSize:"1.2rem",fontWeight:700,marginBottom:"8px"}}>لا توجد دروس متاحة</h2>
+          <p style={{...tr,color:T.textMuted,fontSize:"0.85rem",marginBottom:"24px"}}>
+            {teachers.length === 0 ? 'لا يوجد مدرسون مرتبطون بهذه المادة بعد.' : 'المدرس لم يرفع دروساً بعد. جرّب اختيار مدرس آخر.'}
           </p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="bg-[#103B66] text-white px-6 py-2.5 rounded-lg font-bold hover:bg-[#0c2d4d] transition"
-          >
+          <button onClick={() => navigate('/dashboard')} style={{...tr,padding:"12px 28px",borderRadius:"12px",fontSize:"0.9rem",fontWeight:700,background:T.accent,color:"#FFF",border:"none",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.opacity="0.88"}} onMouseLeave={e=>{e.currentTarget.style.opacity="1"}}>
             {t('back_to_dashboard')}
           </button>
         </div>
@@ -320,36 +358,31 @@ const LessonInterface = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+  console.log("Current Lesson Attempt Data:", quizData);
 
-      {/* Toast إتمام الدرس */}
+  return (
+    <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{...tr,background:T.bg,minHeight:"100vh",fontFamily:"'Cairo',sans-serif"}}>
+
+      {/* Toast */}
       {lessonCompleteToast && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white font-bold px-6 py-3 rounded-2xl shadow-xl flex items-center gap-2 animate-bounce">
-          <CheckCircle2 className="w-5 h-5" />
+        <div style={{position:"fixed",top:"20px",left:"50%",transform:"translateX(-50%)",zIndex:50,background:T.green,color:"#FFF",fontWeight:700,padding:"12px 24px",borderRadius:"14px",boxShadow:T.shadowCard,display:"flex",alignItems:"center",gap:"8px"}} className="animate-bounce">
+          <CheckCircle2 style={{width:"18px",height:"18px"}} />
           تمّ تسجيل إتمام الدرس بنجاح! ✅
         </div>
       )}
 
-      {/* 1. الهيدر (Header) */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-2 text-gray-600 hover:text-[#103B66] transition"
-            >
-              <ArrowRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
-              <span className="font-bold">{t('back_to_dashboard')}</span>
-            </button>
-            
-            <div className="text-center hidden md:block">
-              <h1 className="text-lg font-bold text-[#103B66]">{course.subjectName} - {currentLesson.title}</h1>
-              <p className="text-sm text-gray-500">{currentLesson.chapter}</p>
-            </div>
-            
-            <div className="w-32"></div>
+      {/* Header */}
+      <header style={{...tr,position:"sticky",top:0,zIndex:20,background:isDark?"rgba(11,17,32,0.88)":"rgba(248,250,252,0.90)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:`1px solid ${T.border}`}}>
+        <div style={{maxWidth:"1280px",margin:"0 auto",padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <button onClick={() => navigate('/dashboard')} style={{...tr,display:"flex",alignItems:"center",gap:"8px",background:"transparent",border:"none",color:T.textMuted,cursor:"pointer",fontWeight:700,fontSize:"0.85rem"}} onMouseEnter={e=>{e.currentTarget.style.color=T.accent}} onMouseLeave={e=>{e.currentTarget.style.color=T.textMuted}}>
+            <ArrowRight style={{width:"18px",height:"18px",...(lang==='en'?{transform:"rotate(180deg)"}:{})}} />
+            {t('back_to_dashboard')}
+          </button>
+          <div style={{textAlign:"center",display:"none"}} className="md:!block">
+            <h1 style={{...tr,color:T.accent,fontSize:"1rem",fontWeight:700}}>{course.subjectName} - {currentLesson.title}</h1>
+            <p style={{...tr,color:T.textDim,fontSize:"0.78rem"}}>{currentLesson.chapter}</p>
           </div>
+          <div style={{width:"128px"}} />
         </div>
       </header>
 
@@ -359,42 +392,42 @@ const LessonInterface = () => {
           {/* 2. منطقة الفيديو (تاخد مساحة عمودين) */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* معلومات المدرس الحالي */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-              {/* شريط معلومات المدرس */}
-              <div className="bg-gradient-to-r from-[#103B66] to-[#1a5a99] dark:from-gray-700 dark:to-gray-600 p-4">
+            {/* Theater Mode — generous outer padding draws focus to the player */}
+            <div style={{...tr,...card(T),overflow:"hidden",padding:"0"}}>
+
+              {/* Teacher bar — upgraded to 24px padding for breathing room */}
+              <div style={{...tr,padding:"20px 24px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:"16px"}}>
                 {activeTeacherInfo ? (
-                  <div className="flex items-center gap-4">
-                    {/* أيقونة المدرس */}
-                    <div className="p-3 rounded-full bg-white/20 backdrop-blur-sm shrink-0">
-                      <User className="w-8 h-8 text-white" />
+                  <>
+                    <div style={iw(T.iconBgA,T.iconBorderA,"48px","8px")}>
+                      <User style={{color:T.iconA,width:"22px",height:"22px"}} strokeWidth={2} />
                     </div>
-                    
-                    {/* بيانات المدرس */}
-                    <div className="flex-1 text-right">
-                       <p className="text-xs text-white/80 mb-1">المدرس</p>
-                       <h3 className="font-bold text-xl text-white mb-1">
-                         {activeTeacherInfo?.name}
-                       </h3>
-                       {activeTeacherInfo?.rating != null && (
-                         <div className="flex items-center gap-2 justify-end">
-                           <span className="text-sm text-white/90">
-                             ⭐ {activeTeacherInfo?.rating}
-                           </span>
-                         </div>
-                       )}
+                    <div style={{flex:1,minWidth:0}}>
+                      <p style={{...tr,color:T.textDim,fontSize:"0.75rem",fontWeight:500,marginBottom:"2px"}}>المدرس</p>
+                      <h3 style={{...tr,color:T.textPrimary,fontWeight:700,fontSize:"1.05rem",lineHeight:1.3}}>{activeTeacherInfo?.name}</h3>
+                      {activeTeacherInfo?.rating != null && (
+                        <span style={{...tr,color:T.textMuted,fontSize:"0.78rem"}}>⭐ {activeTeacherInfo?.rating}</span>
+                      )}
                     </div>
-                  </div>
+                    {/* Lesson title badge — helps users confirm context without scrolling */}
+                    {currentLesson && (
+                      <div style={{...tr,background:T.accentDim,border:`1px solid ${T.borderAccent}`,borderRadius:"8px",padding:"6px 12px",flexShrink:0}}>
+                        <p style={{...tr,color:T.accent,fontSize:"0.75rem",fontWeight:700,maxWidth:"180px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={currentLesson.title}>
+                          {currentLesson.title}
+                        </p>
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  <div className="flex items-center justify-center gap-2 py-2">
-                    <Loader2 className="w-5 h-5 text-white animate-spin" />
-                    <p className="text-white">جاري تحميل بيانات المدرس...</p>
+                  <div style={{display:"flex",alignItems:"center",gap:"8px",padding:"8px 0"}}>
+                    <Loader2 style={{color:T.accent,width:"18px",height:"18px"}} className="animate-spin" />
+                    <p style={{...tr,color:T.textMuted,fontSize:"0.85rem"}}>جاري تحميل بيانات المدرس...</p>
                   </div>
                 )}
               </div>
 
-              {/* مشغل الفيديو */}
-              <div className="relative bg-black aspect-video group overflow-hidden">
+              {/* Video Player */}
+              <div style={{position:"relative",background:"#000",aspectRatio:"16/9",overflow:"hidden"}} className="group">
 
                 {/* جاري تحميل بيانات الفيديو */}
                 {loading ? (
@@ -493,90 +526,72 @@ const LessonInterface = () => {
               </div>
             </div>
 
-            {/* أزرار التنقل والاختبار */}
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-4 w-full">
+            {/* ── Action Bar (Rhythmic 8pt spacing, two logical zones) ── */}
+            <div style={{...tr,...card(T),padding:"16px 24px"}}>
+
+              {/* Zone 1: Primary navigation */}
+              <div style={{display:"flex",alignItems:"center",gap:"16px",flexWrap:"wrap"}}>
+
+                {/* Prev button */}
                 <button
                   onClick={handlePreviousLesson}
-                  disabled={currentIndex === 0}
-                  className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={currentIndex===0}
+                  style={{...tr,height:"40px",padding:"0 16px",borderRadius:"8px",border:`1px solid ${T.border}`,background:"transparent",color:currentIndex===0?T.textDim:T.textMuted,cursor:currentIndex===0?"not-allowed":"pointer",opacity:currentIndex===0?0.45:1,display:"flex",alignItems:"center",gap:"6px",fontSize:"0.875rem",fontWeight:700,flexShrink:0}}
+                  onMouseEnter={e=>{if(currentIndex!==0)e.currentTarget.style.borderColor=T.borderAccent;}}
+                  onMouseLeave={e=>{if(currentIndex!==0)e.currentTarget.style.borderColor=T.border;}}
                 >
-                  <ChevronRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
+                  <ChevronRight style={{width:"16px",height:"16px",...(lang==='en'?{transform:"rotate(180deg)"}:{})}} />
                   {t('prev_lesson')}
                 </button>
 
-                {/* زر اختبار الدرس — مسار التطبيق: /quiz/:lessonId/:teacherId/:quizId */}
-                {quizData?.has_attempted ? (
-                  <div
-                    role="status"
-                    className="flex-1 text-white text-base font-bold py-3 rounded-lg shadow-lg flex items-center justify-center gap-2 bg-green-600 cursor-default opacity-90 select-none"
-                  >
-                    <Zap className="w-5 h-5 text-green-200" />
-                    تم الاختبار - النتيجة: {quizData.score != null ? `${quizData.score}%` : '—'}
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (lessonQuizzes.length === 0 || !quizData) return;
-                      if (!isLoggedIn) {
-                        navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
-                        return;
-                      }
-                      const qId = quizData.quiz_id ?? quizData.id;
-                      navigate(`/quiz/${routeLessonId}/${activeTeacher}/${qId}`);
-                    }}
-                    disabled={lessonQuizzes.length === 0}
-                    className={`flex-1 text-white text-base font-bold py-3 rounded-lg shadow-lg transition flex items-center justify-center gap-2 ${
-                      lessonQuizzes.length > 0
-                        ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 hover:scale-105 transform cursor-pointer'
-                        : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60'
-                    }`}
-                  >
-                    <Zap className={`w-5 h-5 ${lessonQuizzes.length > 0 ? 'text-yellow-300' : 'text-gray-200'}`} />
-                    {lessonQuizzes.length > 0 ? 'بدء الاختبار' : 'لا يوجد اختبار'}
-                  </button>
-                )}
+                {/* Quiz CTA (primary action — centered, prominent) */}
+                <div style={{flex:1,display:"flex",justifyContent:"center"}}>
+                  {quizData?.has_attempted ? (
+                    <div role="status" style={{...tr,height:"40px",padding:"0 20px",background:T.greenDim,border:`1px solid ${T.greenBorder}`,color:T.green,fontSize:"0.875rem",fontWeight:700,borderRadius:"8px",display:"flex",alignItems:"center",gap:"8px"}}>
+                      <Zap style={{width:"16px",height:"16px"}} />
+                      {buttonLabel}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { if (lessonQuizzes.length===0||!quizData) return; if (!isLoggedIn) { navigate('/login?redirect='+encodeURIComponent(window.location.pathname),{replace:true}); return; } const qId=quizData.quiz_id??quizData.id; navigate(`/quiz/${routeLessonId}/${activeTeacher}/${qId}`); }}
+                      disabled={lessonQuizzes.length===0}
+                      style={{...tr,height:"40px",padding:"0 20px",borderRadius:"8px",fontSize:"0.875rem",fontWeight:700,border:"none",display:"flex",alignItems:"center",gap:"8px",color:"#FFF",cursor:lessonQuizzes.length>0?"pointer":"not-allowed",opacity:lessonQuizzes.length>0?1:0.45,background:lessonQuizzes.length>0?T.purple:T.textDim}}
+                      onMouseEnter={e=>{if(lessonQuizzes.length>0)e.currentTarget.style.filter="brightness(1.12)";}}
+                      onMouseLeave={e=>{e.currentTarget.style.filter="none";}}
+                    >
+                      <Zap style={{width:"16px",height:"16px",color:lessonQuizzes.length>0?"#FDE68A":T.textMuted}} />
+                      {lessonQuizzes.length > 0 ? 'بدء الاختبار' : 'لا يوجد اختبار'}
+                    </button>
+                  )}
+                </div>
 
+                {/* Next button */}
                 <button
                   onClick={handleNextLesson}
-                  disabled={currentIndex === lessons.length - 1}
-                  className="flex-1 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled={currentIndex===lessons.length-1}
+                  style={{...tr,height:"40px",padding:"0 16px",borderRadius:"8px",border:`1px solid ${T.border}`,background:"transparent",color:currentIndex===lessons.length-1?T.textDim:T.textMuted,cursor:currentIndex===lessons.length-1?"not-allowed":"pointer",opacity:currentIndex===lessons.length-1?0.45:1,display:"flex",alignItems:"center",gap:"6px",fontSize:"0.875rem",fontWeight:700,flexShrink:0}}
+                  onMouseEnter={e=>{if(currentIndex!==lessons.length-1)e.currentTarget.style.borderColor=T.borderAccent;}}
+                  onMouseLeave={e=>{if(currentIndex!==lessons.length-1)e.currentTarget.style.borderColor=T.border;}}
                 >
                   {t('next_lesson')}
-                  <ChevronLeft className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
+                  <ChevronLeft style={{width:"16px",height:"16px",...(lang==='en'?{transform:"rotate(180deg)"}:{})}} />
                 </button>
               </div>
 
-              {/* قسم الكويزات */}
-              {lessonQuizzes.length > 0 && (
-                <div id="quizzes-section" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 w-full animate-fade-in-up">
+              {/* Zone 2: Extra quiz cards (only when multiple quizzes exist) */}
+              {lessonQuizzes.length > 1 && (
+                <div id="quizzes-section" style={{marginTop:"16px",paddingTop:"16px",borderTop:`1px solid ${T.border}`,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:"12px"}}>
                   {lessonQuizzes.map((quiz, qIdx) =>
                     quiz.has_attempted ? (
-                      <div
-                        key={quiz.quiz_id || quiz.id || qIdx}
-                        role="status"
-                        className="text-white text-base font-bold py-3 px-4 rounded-lg shadow-md flex items-center justify-center gap-2 bg-green-600 cursor-default opacity-90 select-none"
-                      >
-                        <Zap className="w-5 h-5 text-green-200" />
-                        تم الاختبار - النتيجة: {quiz.score != null ? `${quiz.score}%` : '—'}
+                      <div key={quiz.quiz_id || quiz.id || qIdx} role="status" style={{...tr,background:T.greenDim,border:`1px solid ${T.greenBorder}`,color:T.green,fontSize:"0.8rem",fontWeight:700,height:"40px",padding:"0 16px",borderRadius:"8px",display:"flex",alignItems:"center",justifyContent:"center",gap:"6px"}}>
+                        <Zap style={{width:"14px",height:"14px"}} />
+                        {quiz.percentage != null ? `اختبار ${qIdx+1} — ${quiz.percentage}%` : `اختبار ${qIdx+1} — تم`}
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        key={quiz.quiz_id || quiz.id || qIdx}
-                        onClick={() => {
-                          if (!isLoggedIn) {
-                            navigate('/login?redirect=' + encodeURIComponent(window.location.pathname), { replace: true });
-                            return;
-                          }
-                          const qId = quiz.quiz_id || quiz.id;
-                          navigate(`/quiz/${routeLessonId}/${activeTeacher}/${qId}`);
-                        }}
-                        className="text-white text-base font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 transform hover:-translate-y-0.5 cursor-pointer"
-                      >
-                        <Zap className="w-5 h-5 text-yellow-300" />
-                        {lessonQuizzes.length > 1 ? `بدء اختبار ${qIdx + 1}` : 'بدء الاختبار'}
+                      <button type="button" key={quiz.quiz_id || quiz.id || qIdx} onClick={() => { if (!isLoggedIn) { navigate('/login?redirect='+encodeURIComponent(window.location.pathname),{replace:true}); return; } const qId=quiz.quiz_id||quiz.id; navigate(`/quiz/${routeLessonId}/${activeTeacher}/${qId}`); }} style={{...tr,background:T.purple,color:"#FFF",fontSize:"0.8rem",fontWeight:700,height:"40px",padding:"0 16px",borderRadius:"8px",border:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:"6px",cursor:"pointer"}} onMouseEnter={e=>{e.currentTarget.style.opacity="0.88";}} onMouseLeave={e=>{e.currentTarget.style.opacity="1";}}>
+                        <Zap style={{width:"14px",height:"14px",color:"#FDE68A"}} />
+                        بدء اختبار {qIdx + 1}
                       </button>
                     )
                   )}
@@ -585,29 +600,29 @@ const LessonInterface = () => {
             </div>
 
             {/* وصف الدرس */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 border-b dark:border-gray-700 pb-2">وصف الدرس</h3>
-              <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+            <div style={{...tr,...card(T),padding:"28px"}}>
+              <h3 style={{...tr,color:T.textPrimary,fontSize:"1.1rem",fontWeight:700,marginBottom:"16px",paddingBottom:"12px",borderBottom:`1px solid ${T.border}`}}>وصف الدرس</h3>
+              <p style={{...tr,color:T.textMuted,fontSize:"0.9rem",lineHeight:1.8,marginBottom:"24px"}}>
                 {currentLesson.description || 'لا يوجد وصف متاح لهذا الدرس.'}
               </p>
               
               {currentLesson.chapter && (
-                <div className="bg-blue-50 border-r-4 border-[#103B66] p-4 rounded-lg mb-6">
-                  <h4 className="font-bold text-[#103B66] mb-2">الفصل:</h4>
-                  <p className="text-lg text-gray-800">{currentLesson.chapter}</p>
+                <div style={{...tr,background:T.accentDim,borderRight:`3px solid ${T.accent}`,padding:"16px",borderRadius:"10px",marginBottom:"24px"}}>
+                  <h4 style={{...tr,color:T.accent,fontWeight:700,fontSize:"0.85rem",marginBottom:"6px"}}>الفصل:</h4>
+                  <p style={{...tr,color:T.textPrimary,fontSize:"1rem"}}>{currentLesson.chapter}</p>
                 </div>
               )}
 
               <div>
-                <h4 className="font-bold text-gray-800 mb-3">معلومات الدرس:</h4>
-                <ul className="space-y-2">
-                  <li className="flex items-center gap-2 text-gray-600">
-                    <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    <span>المدة: {currentLesson.duration}</span>
+                <h4 style={{...tr,color:T.textPrimary,fontWeight:700,fontSize:"0.9rem",marginBottom:"12px"}}>معلومات الدرس:</h4>
+                <ul style={{listStyle:"none",padding:0,margin:0,display:"flex",flexDirection:"column",gap:"10px"}}>
+                  <li style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                    <div style={iw(T.greenDim,T.greenBorder,"28px","8px")}><CheckCircle2 style={{color:T.green,width:"14px",height:"14px"}} /></div>
+                    <span style={{...tr,color:T.textMuted,fontSize:"0.85rem"}}>المدة: {currentLesson.duration}</span>
                   </li>
-                  <li className="flex items-center gap-2 text-gray-600">
-                    <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    <span>الحالة: {currentLesson.completed ? 'مكتمل' : 'قيد التنفيذ'}</span>
+                  <li style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                    <div style={iw(T.greenDim,T.greenBorder,"28px","8px")}><CheckCircle2 style={{color:T.green,width:"14px",height:"14px"}} /></div>
+                    <span style={{...tr,color:T.textMuted,fontSize:"0.85rem"}}>الحالة: {currentLesson.completed ? 'مكتمل' : 'قيد التنفيذ'}</span>
                   </li>
                 </ul>
               </div>
@@ -616,59 +631,39 @@ const LessonInterface = () => {
 
           {/* 3. القائمة الجانبية (محتوى الكورس) */}
           <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 sticky top-24">
-              <div className="p-4 border-b dark:border-gray-700">
-                <h3 className="font-bold text-gray-800 dark:text-white">محتويات الكورس</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{totalCount} {t('lessons_tab')} • {course.subjectName}</p>
+            <div style={{...tr,...card(T),position:"sticky",top:"96px",overflow:"hidden"}}>
+              <div style={{...tr,padding:"16px 20px",borderBottom:`1px solid ${T.border}`}}>
+                <h3 style={{...tr,color:T.textPrimary,fontWeight:700,fontSize:"0.95rem"}}>محتويات الكورس</h3>
+                <p style={{...tr,color:T.textDim,fontSize:"0.75rem",marginTop:"4px"}}>{totalCount} {t('lessons_tab')} • {course.subjectName}</p>
               </div>
               
-              <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
+              <div style={{padding:"16px",maxHeight:"500px",overflowY:"auto",display:"flex",flexDirection:"column",gap:"10px"}}>
                 {lessons.map((lesson) => {
                   const isCurrent = lesson.id === currentLesson.id;
                   return (
-                    <div
-                      key={lesson.id}
-                      onClick={() => setCurrentLesson(lesson)}
-                      className={`p-3 rounded-lg border-2 transition-all cursor-pointer flex items-start gap-3 group ${
-                        isCurrent
-                          ? "border-[#103B66] bg-blue-50"
-                          : lesson.completed
-                          ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"
-                          : "border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 dark:bg-gray-700/30"
-                      }`}
-                    >
-                      {/* رقم الدرس أو علامة الصح */}
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                        lesson.completed ? "bg-green-500 text-white" : 
-                        isCurrent ? "bg-[#103B66] text-white" : "bg-gray-200 text-gray-600"
-                      }`}>
-                        {lesson.completed ? <CheckCircle2 className="w-5 h-5" /> : <span className="text-sm font-bold">{lesson.id}</span>}
+                    <div key={lesson.id} onClick={() => setCurrentLesson(lesson)} style={{...tr,padding:"12px",borderRadius:"12px",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:"12px",background:isCurrent?T.accentDim:lesson.completed?T.greenDim:"transparent",border:`1px solid ${isCurrent?T.borderAccent:lesson.completed?T.greenBorder:T.border}`}} onMouseEnter={e=>{if(!isCurrent&&!lesson.completed) e.currentTarget.style.borderColor=T.borderAccent}} onMouseLeave={e=>{if(!isCurrent&&!lesson.completed) e.currentTarget.style.borderColor=T.border}}>
+                      <div style={iw(lesson.completed?T.greenDim:isCurrent?T.accentDim:T.bgCard, lesson.completed?T.greenBorder:isCurrent?T.borderAccent:T.border, "32px","10px")}>
+                        {lesson.completed ? <CheckCircle2 style={{color:T.green,width:"16px",height:"16px"}} /> : <span style={{...tr,color:isCurrent?T.accent:T.textMuted,fontSize:"0.75rem",fontWeight:700}}>{lesson.id}</span>}
                       </div>
-
-                      <div className="flex-1">
-                        <h4 className={`font-bold text-sm ${isCurrent ? "text-[#103B66]" : "text-gray-700 dark:text-gray-200"}`}>
-                          {lesson.title}
-                        </h4>
-                        <div className="flex justify-between items-center mt-1">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">{lesson.duration}</span>
-                          {isCurrent && <span className="text-[10px] bg-[#103B66] text-white px-2 py-0.5 rounded-full">جاري المشاهدة</span>}
+                      <div style={{flex:1,minWidth:0}}>
+                        <h4 style={{...tr,fontWeight:700,fontSize:"0.82rem",color:isCurrent?T.accent:T.textPrimary}}>{lesson.title}</h4>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"4px"}}>
+                          <span style={{...tr,color:T.textDim,fontSize:"0.72rem"}}>{lesson.duration}</span>
+                          {isCurrent && <span style={{...tr,background:T.accent,color:"#FFF",fontSize:"0.6rem",padding:"2px 8px",borderRadius:"999px",fontWeight:700}}>جاري المشاهدة</span>}
                         </div>
                       </div>
                     </div>
                   );
                 })}
 
-                {/* شريط التقدم */}
-                <div className="mt-6 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                  <div className="flex justify-between text-sm mb-2">
-                     <span className="font-bold text-gray-600 dark:text-gray-300">{t('overall_progress')}</span>
-                     <span className="font-bold text-[#103B66]">{progressPercent}%</span>
+                {/* Progress bar */}
+                <div style={{...tr,marginTop:"20px",background:T.accentDim,border:`1px solid ${T.borderAccent}`,padding:"16px",borderRadius:"12px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:"0.82rem",marginBottom:"10px"}}>
+                     <span style={{...tr,color:T.textMuted,fontWeight:700}}>{t('overall_progress')}</span>
+                     <span style={{...tr,color:T.accent,fontWeight:700}}>{progressPercent}%</span>
                   </div>
-                  <div className="h-2 bg-gray-300 dark:bg-gray-600 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-[#103B66] rounded-full transition-all"
-                      style={{ width: `${progressPercent}%` }}
-                    ></div>
+                  <div style={{height:"6px",background:T.trackBg,borderRadius:"999px",overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${progressPercent}%`,background:T.accent,borderRadius:"999px",transition:"width 0.6s ease"}} />
                   </div>
                 </div>
               </div>

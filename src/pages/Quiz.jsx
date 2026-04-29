@@ -3,6 +3,15 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../api/api';
 import { ArrowRight, Clock, Loader2, AlertCircle, Trophy, BookOpen } from "lucide-react";
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+
+/* ════════════════════════════════════════════════════
+   DESIGN SYSTEM — Extracted from LandingPage.jsx
+════════════════════════════════════════════════════ */
+function buildTheme(dk){return dk?{bg:"#0B1120",bgCard:"rgba(255,255,255,0.035)",border:"rgba(255,255,255,0.08)",borderAccent:"rgba(79,70,229,0.38)",accent:"#4F46E5",accentDim:"rgba(79,70,229,0.14)",iconA:"#38BDF8",iconBgA:"rgba(56,189,248,0.10)",iconBorderA:"rgba(56,189,248,0.22)",textPrimary:"#F8FAFC",textMuted:"#94A3B8",textDim:"#475569",shadowCard:"0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",trackBg:"rgba(255,255,255,0.06)",green:"#34D399",greenDim:"rgba(52,211,153,0.12)",greenBorder:"rgba(52,211,153,0.22)",red:"#F87171",redDim:"rgba(248,113,113,0.10)",redBorder:"rgba(248,113,113,0.20)",yellow:"#FBBF24",yellowDim:"rgba(251,191,36,0.12)",yellowBorder:"rgba(251,191,36,0.22)",headerBg:"rgba(11,17,32,0.88)"}:{bg:"#F8FAFC",bgCard:"#FFFFFF",border:"#E2E8F0",borderAccent:"rgba(15,76,129,0.28)",accent:"#0F4C81",accentDim:"rgba(15,76,129,0.08)",iconA:"#0F4C81",iconBgA:"rgba(15,76,129,0.08)",iconBorderA:"rgba(15,76,129,0.18)",textPrimary:"#0F172A",textMuted:"#64748B",textDim:"#94A3B8",shadowCard:"0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",trackBg:"#E2E8F0",green:"#059669",greenDim:"rgba(5,150,105,0.08)",greenBorder:"rgba(5,150,105,0.18)",red:"#EF4444",redDim:"rgba(239,68,68,0.08)",redBorder:"rgba(239,68,68,0.18)",yellow:"#D97706",yellowDim:"rgba(217,119,6,0.08)",yellowBorder:"rgba(217,119,6,0.18)",headerBg:"rgba(248,250,252,0.90)"};}
+const _c=(T,x)=>({background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:"16px",boxShadow:T.shadowCard,...x});
+const _t={transition:"all 0.25s ease"};
+const _iw=(bg,bd,sz="40px",r="10px")=>({..._t,width:sz,height:sz,borderRadius:r,background:bg,border:`1px solid ${bd}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0});
 
 // تحويل سؤال real API للشكل الداخلي ({ id, question, options:[], correct:N })
 const normalizeQuestion = (q, idx) => {
@@ -42,8 +51,11 @@ const Quiz = () => {
   const location = useLocation();
   const { teacherId, lessonId, quizId } = useParams(); // ✅ Extract all 3 IDs from URL
   const { t, lang } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
 
-  // ── Auth guard: الزائر يتحوّل لتسجيل الدخول مع رابط العودة ──
+  // ── Auth guard ──
   const isLoggedIn = !!localStorage.getItem('token');
   useEffect(() => {
     if (!isLoggedIn) {
@@ -342,39 +354,32 @@ const Quiz = () => {
   // Loading State
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-[#103B66] font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <Loader2 className="w-12 h-12 animate-spin mb-4" />
-        <p className="text-lg font-bold">{t('loading_quiz')}</p>
+      <div dir={lang==='ar'?'rtl':'ltr'} style={{..._t,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Cairo',sans-serif"}}>
+        <Loader2 style={{width:"48px",height:"48px",color:T.accent,marginBottom:"16px"}} className="animate-spin" />
+        <p style={{fontSize:"1.1rem",fontWeight:700,color:T.textPrimary}}>{t('loading_quiz')}</p>
       </div>
     );
   }
 
-  // Already Attempted State — شاشة مخصصة وليست مجرد خطأ
+  // Already Attempted
   if (alreadyAttempted) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 font-['Cairo'] px-4" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-2xl p-10 text-center max-w-md w-full shadow-lg">
-          <div className="w-20 h-20 mx-auto mb-5 bg-amber-100 dark:bg-amber-800/30 rounded-full flex items-center justify-center">
-            <Trophy className="w-10 h-10 text-amber-500" />
+      <div dir={lang==='ar'?'rtl':'ltr'} style={{..._t,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Cairo',sans-serif",padding:"16px"}}>
+        <div style={{..._t,..._c(T),borderColor:T.yellowBorder,padding:"40px",textAlign:"center",maxWidth:"440px",width:"100%"}}>
+          <div style={{..._iw(T.yellowDim,T.yellowBorder,"72px","50%"),margin:"0 auto 20px"}}>
+            <Trophy style={{width:"36px",height:"36px",color:T.yellow}} />
           </div>
-          <h2 className="text-2xl font-bold text-amber-800 dark:text-amber-300 mb-3">
+          <h2 style={{..._t,fontSize:"1.4rem",fontWeight:800,color:T.textPrimary,marginBottom:"12px"}}>
             لقد اجتزت هذا الاختبار مسبقاً!
           </h2>
-          <p className="text-amber-700 dark:text-amber-400 mb-6 leading-relaxed">
+          <p style={{..._t,color:T.textMuted,marginBottom:"24px",lineHeight:1.7,fontSize:"0.9rem"}}>
             يمكنك مراجعة إجاباتك السابقة من لوحة التحكم، أو الاستمرار في تعلُّم الدروس الأخرى.
           </p>
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={handleBackToLesson}
-              className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white py-3 px-6 rounded-xl font-bold transition"
-            >
-              <BookOpen className="w-5 h-5" />
-              العودة للدرس
+          <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+            <button onClick={handleBackToLesson} style={{..._t,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",background:T.accent,color:"#FFF",padding:"12px 24px",borderRadius:"12px",fontWeight:700,border:"none",cursor:"pointer",fontSize:"0.9rem"}}>
+              <BookOpen style={{width:"20px",height:"20px"}} /> العودة للدرس
             </button>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="text-amber-700 dark:text-amber-400 hover:underline text-sm font-medium"
-            >
+            <button onClick={()=>navigate('/dashboard')} style={{..._t,background:"transparent",border:"none",color:T.textMuted,cursor:"pointer",fontWeight:600,fontSize:"0.82rem"}}>
               اذهب للوحة التحكم
             </button>
           </div>
@@ -386,16 +391,11 @@ const Quiz = () => {
   // Error State
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="bg-red-50 p-8 rounded-2xl text-center border border-red-200 max-w-md">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-red-700 mb-4">{error}</p>
-          <button
-            onClick={handleBackToLesson}
-            className="text-gray-500 hover:text-gray-700 text-sm underline"
-          >
-            {t('back_to_lesson')}
-          </button>
+      <div dir={lang==='ar'?'rtl':'ltr'} style={{..._t,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Cairo',sans-serif"}}>
+        <div style={{..._t,..._c(T),borderColor:T.redBorder,padding:"32px",textAlign:"center",maxWidth:"440px"}}>
+          <AlertCircle style={{width:"48px",height:"48px",color:T.red,margin:"0 auto 16px"}} />
+          <p style={{color:T.red,marginBottom:"16px",fontWeight:600}}>{error}</p>
+          <button onClick={handleBackToLesson} style={{..._t,background:"transparent",border:"none",color:T.textMuted,cursor:"pointer",fontSize:"0.85rem",textDecoration:"underline"}}>{t('back_to_lesson')}</button>
         </div>
       </div>
     );
@@ -403,15 +403,10 @@ const Quiz = () => {
 
   if (!quizData || questions.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="bg-yellow-50 p-8 rounded-2xl text-center border border-yellow-200 max-w-md">
-          <p className="text-yellow-700 mb-4">{t('quiz_no_data')}</p>
-          <button
-            onClick={handleBackToLesson}
-            className="text-gray-500 hover:text-gray-700 text-sm underline"
-          >
-            {t('back_to_lesson')}
-          </button>
+      <div dir={lang==='ar'?'rtl':'ltr'} style={{..._t,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Cairo',sans-serif"}}>
+        <div style={{..._t,..._c(T),borderColor:T.yellowBorder,padding:"32px",textAlign:"center",maxWidth:"440px"}}>
+          <p style={{color:T.yellow,marginBottom:"16px",fontWeight:600}}>{t('quiz_no_data')}</p>
+          <button onClick={handleBackToLesson} style={{..._t,background:"transparent",border:"none",color:T.textMuted,cursor:"pointer",fontSize:"0.85rem",textDecoration:"underline"}}>{t('back_to_lesson')}</button>
         </div>
       </div>
     );
@@ -422,62 +417,27 @@ const Quiz = () => {
     const passed = percentage >= 50;
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 font-['Cairo'] px-4" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <div className={`rounded-2xl p-10 text-center max-w-md w-full shadow-lg border
-          ${passed
-            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700'
-            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
-          }`}>
-
-          {/* أيقونة */}
-          <div className={`w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center
-            ${passed ? 'bg-emerald-100 dark:bg-emerald-800/30' : 'bg-red-100 dark:bg-red-800/30'}`}>
-            <Trophy className={`w-12 h-12 ${passed ? 'text-emerald-500' : 'text-red-500'}`} />
+      <div dir={lang==='ar'?'rtl':'ltr'} style={{..._t,background:T.bg,minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'Cairo',sans-serif",padding:"16px"}}>
+        <div style={{..._t,..._c(T),borderColor:passed?T.greenBorder:T.redBorder,padding:"40px",textAlign:"center",maxWidth:"440px",width:"100%"}}>
+          <div style={{..._iw(passed?T.greenDim:T.redDim,passed?T.greenBorder:T.redBorder,"80px","50%"),margin:"0 auto 24px"}}>
+            <Trophy style={{width:"40px",height:"40px",color:passed?T.green:T.red}} />
           </div>
-
-          {/* العنوان */}
-          <h2 className={`text-2xl font-bold mb-2
-            ${passed ? 'text-emerald-800 dark:text-emerald-300' : 'text-red-800 dark:text-red-300'}`}>
+          <h2 style={{..._t,fontSize:"1.5rem",fontWeight:800,color:T.textPrimary,marginBottom:"8px"}}>
             {passed ? 'أحسنت! لقد نجحت' : 'لم تجتز الاختبار'}
           </h2>
-
-          {/* الدرجة الدائرية */}
-          <div className="relative w-36 h-36 mx-auto my-6">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="52" fill="none"
-                className="stroke-gray-200 dark:stroke-gray-700" strokeWidth="10" />
-              <circle cx="60" cy="60" r="52" fill="none"
-                className={passed ? 'stroke-emerald-500' : 'stroke-red-500'}
-                strokeWidth="10" strokeLinecap="round"
-                strokeDasharray={`${(percentage / 100) * 327} 327`}
-                style={{ transition: 'stroke-dasharray 1s ease' }} />
+          <div style={{position:"relative",width:"144px",height:"144px",margin:"24px auto"}}>
+            <svg style={{width:"100%",height:"100%",transform:"rotate(-90deg)"}} viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="52" fill="none" strokeWidth="10" stroke={T.trackBg} />
+              <circle cx="60" cy="60" r="52" fill="none" stroke={passed?T.green:T.red} strokeWidth="10" strokeLinecap="round" strokeDasharray={`${(percentage/100)*327} 327`} style={{transition:'stroke-dasharray 1s ease'}} />
             </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className={`text-3xl font-black ${passed ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                {finalScoreData.score}
-              </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                من {finalScoreData.total}
-              </span>
+            <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+              <span style={{fontSize:"1.8rem",fontWeight:900,color:passed?T.green:T.red}}>{finalScoreData.score}</span>
+              <span style={{fontSize:"0.7rem",color:T.textDim}}>من {finalScoreData.total}</span>
             </div>
           </div>
-
-          {/* النسبة المئوية */}
-          <p className={`text-lg font-bold mb-6
-            ${passed ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-            {percentage}%
-          </p>
-
-          {/* زر العودة فقط – بدون إعادة امتحان */}
-          <button
-            onClick={handleBackToLesson}
-            className={`w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl font-bold transition
-              ${passed
-                ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                : 'bg-red-500 hover:bg-red-600 text-white'
-              }`}>
-            <BookOpen className="w-5 h-5" />
-            العودة للدرس
+          <p style={{fontSize:"1.1rem",fontWeight:700,color:passed?T.green:T.red,marginBottom:"24px"}}>{percentage}%</p>
+          <button onClick={handleBackToLesson} style={{..._t,width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",padding:"12px 24px",borderRadius:"12px",fontWeight:700,border:"none",cursor:"pointer",background:T.accent,color:"#FFF",fontSize:"0.9rem"}}>
+            <BookOpen style={{width:"20px",height:"20px"}} /> العودة للدرس
           </button>
         </div>
       </div>
@@ -486,76 +446,67 @@ const Quiz = () => {
 
   // --- واجهة الامتحان (Quiz View) ---
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div dir={lang==='ar'?'rtl':'ltr'} style={{..._t,background:T.bg,minHeight:"100vh",fontFamily:"'Cairo',sans-serif"}}>
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[#103B66] dark:text-blue-400">
-            <Clock className="w-5 h-5" />
-            <span className={`font-bold font-mono text-lg ${timeLeft < 60 ? 'text-red-500 animate-pulse' : ''}`}>
-              {formatTime(timeLeft)}
-            </span>
+      <header style={{..._t,position:"sticky",top:0,zIndex:10,background:T.headerBg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:`1px solid ${T.border}`}}>
+        <div style={{maxWidth:"900px",margin:"0 auto",padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+            <div style={_iw(T.iconBgA,T.iconBorderA,"36px","10px")}>
+              <Clock style={{color:T.iconA,width:"18px",height:"18px"}} strokeWidth={2} />
+            </div>
+            <span style={{fontWeight:700,fontFamily:"monospace",fontSize:"1.1rem",color:timeLeft<60?T.red:T.textPrimary,...(timeLeft<60?{animation:"pulse 1s infinite"}:{})}}>{formatTime(timeLeft)}</span>
           </div>
-          <div className="text-center">
-            <h1 className="font-bold text-gray-800 dark:text-white">{quizData.title}</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{quizData.subtitle || quizData.lessonTitle}</p>
+          <div style={{textAlign:"center"}}>
+            <h1 style={{fontWeight:700,color:T.textPrimary,fontSize:"0.95rem"}}>{quizData.title}</h1>
+            <p style={{fontSize:"0.7rem",color:T.textDim}}>{quizData.subtitle || quizData.lessonTitle}</p>
           </div>
-          <button onClick={handleFinishQuiz} disabled={submitting} className="text-gray-400 hover:text-red-500 disabled:opacity-50 transition">
-            <span className="text-sm font-bold">{submitting ? '...' : t('finish_quiz')}</span>
+          <button onClick={handleFinishQuiz} disabled={submitting} style={{..._t,background:"transparent",border:"none",color:T.textMuted,cursor:"pointer",fontWeight:700,fontSize:"0.82rem",opacity:submitting?0.5:1}} onMouseEnter={e=>{e.currentTarget.style.color=T.red}} onMouseLeave={e=>{e.currentTarget.style.color=T.textMuted}}>
+            {submitting ? '...' : t('finish_quiz')}
           </button>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
+      <main style={{maxWidth:"800px",margin:"0 auto",padding:"32px 24px"}}>
+        {/* Progress */}
+        <div style={{marginBottom:"32px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:"0.82rem",color:T.textMuted,marginBottom:"8px"}}>
             <span>{t('quiz_question')} {currentQuestion + 1} {t('of')} {questions.length}</span>
             <span>{Math.round(((currentQuestion + 1) / questions.length) * 100)}%</span>
           </div>
-          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#103B66] transition-all duration-500"
-              style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
-            ></div>
+          <div style={{height:"3px",background:T.trackBg,borderRadius:"4px",overflow:"hidden"}}>
+            <div style={{height:"100%",background:T.accent,transition:"width 0.5s ease",width:`${((currentQuestion+1)/questions.length)*100}%`,borderRadius:"4px"}} />
           </div>
         </div>
 
         {/* Question Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 md:p-8">
-          <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white mb-8 leading-relaxed">
+        <div style={{..._t,..._c(T),padding:"32px"}}>
+          <h2 style={{..._t,fontSize:"1.25rem",fontWeight:700,color:T.textPrimary,marginBottom:"32px",lineHeight:1.7}}>
             {questions[currentQuestion].question}
           </h2>
 
-          <div className="space-y-4">
-            {questions[currentQuestion].options.map((option, index) => (
-              <button
-                key={index}
-                onClick={() => handleOptionSelect(index)}
-                className={`w-full text-right p-4 rounded-xl border-2 transition-all flex items-center justify-between group
-                                ${selectedAnswer === index
-                    ? 'border-[#103B66] bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-100 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-              >
-                <span className={`font-bold ${
-                  selectedAnswer === index ? 'text-[#103B66] dark:text-blue-300' : 'text-gray-600 dark:text-gray-300'
-                }`}>
-                  {option}
-                </span>
-
-                {/* Radio Circle */}
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center
-                                ${selectedAnswer === index ? 'border-[#103B66]' : 'border-gray-300'}`}>
-                  {selectedAnswer === index && <div className="w-3 h-3 bg-[#103B66] rounded-full"></div>}
-                </div>
-              </button>
-            ))}
+          <div style={{display:"flex",flexDirection:"column",gap:"14px"}}>
+            {questions[currentQuestion].options.map((option, index) => {
+              const isSel = selectedAnswer === index;
+              return (
+                <button
+                  key={index}
+                  onClick={() => handleOptionSelect(index)}
+                  style={{..._t,width:"100%",textAlign:"right",padding:"16px 20px",borderRadius:"12px",border:`1px solid ${isSel?T.borderAccent:T.border}`,background:isSel?T.accentDim:"transparent",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
+                  onMouseEnter={e=>{if(!isSel){e.currentTarget.style.borderColor=T.borderAccent;e.currentTarget.style.background=isDark?"rgba(255,255,255,0.03)":"#F8FAFC"}}}
+                  onMouseLeave={e=>{if(!isSel){e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background="transparent"}}}
+                >
+                  <span style={{fontWeight:700,color:isSel?T.accent:T.textMuted,fontSize:"0.9rem"}}>{option}</span>
+                  <div style={{..._t,width:"22px",height:"22px",borderRadius:"50%",border:`2px solid ${isSel?T.accent:T.textDim}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    {isSel && <div style={{width:"12px",height:"12px",borderRadius:"50%",background:T.accent}} />}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Footer Actions */}
-        <div className="mt-8 flex justify-between items-center">
+        <div style={{marginTop:"32px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <button
             onClick={() => {
               if (currentQuestion > 0) {
@@ -565,7 +516,7 @@ const Quiz = () => {
               }
             }}
             disabled={currentQuestion === 0}
-            className="text-gray-500 hover:text-[#103B66] disabled:opacity-50 font-bold px-4 py-2"
+            style={{..._t,background:"transparent",border:`1px solid ${T.border}`,borderRadius:"12px",padding:"10px 20px",color:T.textMuted,fontWeight:700,cursor:currentQuestion===0?"not-allowed":"pointer",opacity:currentQuestion===0?0.4:1,fontSize:"0.85rem"}}
           >
             {t('back')}
           </button>
@@ -579,10 +530,11 @@ const Quiz = () => {
               }
             }}
             disabled={selectedAnswer === null || submitting}
-            className="bg-[#103B66] hover:bg-[#0c2d4d] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:shadow-none transition flex items-center gap-2">
+            style={{..._t,background:T.accent,color:"#FFF",padding:"10px 32px",borderRadius:"12px",fontWeight:700,border:"none",cursor:(selectedAnswer===null||submitting)?"not-allowed":"pointer",opacity:(selectedAnswer===null||submitting)?0.5:1,display:"flex",alignItems:"center",gap:"8px",fontSize:"0.9rem"}}
+          >
             {submitting
-              ? <><Loader2 className="w-5 h-5 animate-spin" /> جاري الإرسال...</>
-              : <>{currentQuestion === questions.length - 1 ? t('finish_quiz') : t('next_question')}<ArrowRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} /></>}
+              ? <><Loader2 style={{width:"20px",height:"20px"}} className="animate-spin" /> جاري الإرسال...</>
+              : <>{currentQuestion === questions.length - 1 ? t('finish_quiz') : t('next_question')}<ArrowRight style={{width:"20px",height:"20px",...(lang==='en'?{transform:"rotate(180deg)"}:{})}} /></>}
           </button>
         </div>
       </main>

@@ -1,26 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
-import { Brain, BookOpen, AlertTriangle, TrendingUp, PlayCircle, ChevronLeft, Loader2, RefreshCcw } from "lucide-react";
+import { Brain, BookOpen, AlertTriangle, TrendingUp, ChevronLeft, RefreshCcw, Home } from "lucide-react";
 import { useLanguage } from '../context/LanguageContext';
-import { SUBJECT_ICONS } from '../utils/subjectMapping';
+import { useTheme } from '../context/ThemeContext';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
 
+const transition = {
+  transition: "background 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease",
+};
 
-/**
- * @typedef {Object} DashboardData
- * @property {string} studentName - اسم الطالب
- * @property {number} upcomingExams - عدد الامتحانات القادمة
- * @property {string[]} weaknesses - قائمة نقاط الضعف
- * @property {Object} stats - الإحصائيات
- * @property {number} stats.completedLessons
- * @property {number} stats.improvementRate
- * @property {number} stats.studyHours
- * @property {Array} subjects - قائمة المواد
- */
+/* Icon container helper — using Theme tokens directly */
+const iconWrap = (bg, borderColor, size = "48px", radius = "8px") => ({
+  ...transition,
+  width: size, height: size, borderRadius: radius,
+  background: bg,
+  border: `1px solid ${borderColor}`,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  flexShrink: 0,
+});
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { t, lang } = useLanguage();
+  const { C, glass } = useTheme();
 
   // 1. State Management
   const [data, setData] = useState(null);
@@ -33,51 +37,9 @@ const Dashboard = () => {
       setLoading(true);
       setError(null);
 
-      const [dashboardRes, subjectsRes] = await Promise.all([
-        api.get('/student/dashboard'),
-        api.get('/subjects')
-      ]);
+      const dashboardRes = await api.get('/student/dashboard');
       const payload = dashboardRes.data?.data ?? dashboardRes.data ?? {};
-      const student = payload.student ?? {};
-      // lesson_attempts is a plain array per the new endpoint contract (no Laravel pagination wrapper)
-      const lessonAttempts = Array.isArray(payload.lesson_attempts) ? payload.lesson_attempts : [];
-
-      // Calculate average score from attempts with non-null scores
-      const completedQuizzes = lessonAttempts.filter(a => a.score !== null && a.score !== undefined);
-      const avgScore = completedQuizzes.length > 0
-        ? completedQuizzes.reduce((sum, a) => sum + Number(a.score), 0) / completedQuizzes.length
-        : 0;
-      
-      const rawSubjects = subjectsRes.data?.subjects ?? subjectsRes.data?.data ?? subjectsRes.data ?? [];
-      const fetchedSubjects = Array.isArray(rawSubjects) ? rawSubjects : Object.values(rawSubjects);
-
-      const mappedSubjects = fetchedSubjects.map((subj) => {
-        const subjectCode = subj.code ?? subj.subject_code ?? '';
-        return {
-          id: subj.id ?? Math.random(),
-          name: subj.name ?? subj.title ?? subj.subject_name ?? 'مادة',
-          code: subjectCode,
-          icon: SUBJECT_ICONS[subjectCode] ?? '📚',
-          progress: subj.progress ?? 0,
-          completed: subj.completed ?? 0,
-          lessons: subj.lessons ?? 0,
-        };
-      });
-
-      const dashboardData = {
-        studentName: student.student_name || 'طالب',
-        upcomingExams: 0,
-        weaknesses: [],
-        stats: {
-          completedLessons: Number(payload.lesson_attempts_completed_count ?? 0) || 0,
-          improvementRate: `${Math.round(avgScore * 100)}%`,
-          // TODO: wait for backend
-          studyHours: 0,
-        },
-        subjects: mappedSubjects,
-      };
-
-      setData(dashboardData);
+      setData(payload);
 
     } catch (err) {
       console.error("Error:", err);
@@ -92,12 +54,52 @@ const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  // --- Loading State UI ---
+  // --- Loading State UI (Premium Skeleton Pulse Grid) ---
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-[#103B66] dark:text-blue-400 transition-colors">
-        <Loader2 className="w-12 h-12 animate-spin mb-4" />
-        <p className="text-lg font-bold">{t('loading_dashboard')}</p>
+      <div
+        dir={lang === 'ar' ? 'rtl' : 'ltr'}
+        style={{
+          ...transition,
+          background: C.bg,
+          minHeight: "100vh",
+          fontFamily: "'Cairo', sans-serif",
+        }}
+      >
+        <main style={{ maxWidth: "1280px", margin: "0 auto", padding: "32px 24px" }}>
+          
+          {/* Welcome skeleton */}
+          <div style={{ marginBottom: "32px" }}>
+            <SkeletonLoader type="text" width="200px" height="32px" className="mb-2" />
+            <SkeletonLoader type="text" width="150px" height="20px" />
+          </div>
+
+          {/* AI Weakness alert skeleton (Conditional height based on average size) */}
+          <div style={{ marginBottom: "32px" }}>
+            <SkeletonLoader type="card" height="140px" />
+          </div>
+
+          {/* Stats skeleton - 3 cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px", marginBottom: "32px" }}>
+            <SkeletonLoader type="card" height="120px" />
+            <SkeletonLoader type="card" height="120px" />
+            <SkeletonLoader type="card" height="120px" />
+          </div>
+
+          {/* Subjects title skeleton */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
+            <SkeletonLoader type="avatar" width="36px" height="36px" />
+            <SkeletonLoader type="text" width="120px" height="28px" />
+          </div>
+
+          {/* Subjects grid skeleton */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "20px", paddingBottom: "48px" }}>
+            <SkeletonLoader type="card" height="160px" />
+            <SkeletonLoader type="card" height="160px" />
+            <SkeletonLoader type="card" height="160px" />
+          </div>
+
+        </main>
       </div>
     );
   }
@@ -105,21 +107,62 @@ const Dashboard = () => {
   // --- Error State UI ---
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 font-['Cairo'] transition-colors" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <div className="bg-red-50 dark:bg-red-900/20 p-8 rounded-2xl text-center border border-red-200 dark:border-red-800 max-w-md">
-          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-red-700 dark:text-red-400 mb-2">{t('error_title')}</h3>
-          <p className="text-gray-600 dark:text-gray-300 mb-6">{error}</p>
+      <div
+        dir={lang === 'ar' ? 'rtl' : 'ltr'}
+        style={{
+          ...transition,
+          background: C.bg,
+          minHeight: "100vh",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          fontFamily: "'Cairo', sans-serif",
+        }}
+      >
+        <div
+          style={{
+            ...transition,
+            ...glass(),
+            border: `1px solid ${C.borderRed}`,
+            padding: "40px",
+            textAlign: "center",
+            maxWidth: "420px",
+            width: "100%",
+          }}
+        >
+          <div style={{...iconWrap(C.redDim, C.redBorder, "56px", "16px"), margin: "0 auto"}}>
+            <AlertTriangle style={{ color: C.redIcon, width: "28px", height: "28px" }} />
+          </div>
+          <h3 style={{ ...transition, color: C.textPrimary, fontWeight: 700, fontSize: "1.2rem", margin: "20px 0 8px" }}>
+            {t('error_title')}
+          </h3>
+          <p style={{ ...transition, color: C.textMuted, fontSize: "0.9rem", marginBottom: "24px" }}>
+            {error}
+          </p>
           <button
             onClick={fetchDashboardData}
-            className="flex items-center justify-center gap-2 bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors w-full font-bold"
+            style={{
+              ...transition,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              width: "100%", padding: "12px 24px", borderRadius: "12px",
+              fontSize: "0.9rem", fontWeight: 700,
+              background: C.accent, color: "#FFFFFF", border: "none", cursor: "pointer",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; }}
+            onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
           >
-            <RefreshCcw className="w-4 h-4" />
+            <RefreshCcw style={{ width: "16px", height: "16px" }} />
             {t('retry')}
           </button>
           <button
             onClick={() => navigate('/')}
-            className="mt-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-sm underline transition-colors"
+            style={{
+              ...transition,
+              marginTop: "16px", background: "transparent", border: "none",
+              color: C.textDim, fontSize: "0.82rem", cursor: "pointer",
+              textDecoration: "underline",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = C.textMuted; }}
+            onMouseLeave={e => { e.currentTarget.style.color = C.textDim; }}
           >
             {t('back_to_home')}
           </button>
@@ -129,46 +172,99 @@ const Dashboard = () => {
   }
 
   // --- Success State UI ---
-  // لو مفيش داتا جت (لسه)، نرجع null عشان الصفحة متضربش
   if (!data) return null;
 
+  /* Stat card config — Bento Box approach */
+  const lessonAttempts = Array.isArray(data.lesson_attempts) ? data.lesson_attempts : [];
+  const statCards = [
+    {
+      label: t('completed_lessons'),
+      value: Number(data.lesson_attempts_completed_count ?? 0),
+      Icon: BookOpen,
+      iconColor: C.iconA,
+      iconBg: C.iconBgA,
+      iconBorder: C.iconBorderA,
+    },
+    {
+      label: t('improvement_rate'),
+      value: '0%',
+      Icon: TrendingUp,
+      iconColor: C.green,
+      iconBg: C.greenDim,
+      iconBorder: C.greenBorder,
+    },
+    {
+      label: t('study_hours'),
+      value: 0,
+      Icon: Home,
+      iconColor: C.violetIcon || C.purple,
+      iconBg: C.violetDim || C.purpleDim,
+      iconBorder: C.violetBorder || C.purpleBorder,
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo'] transition-colors" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div
+      dir={lang === 'ar' ? 'rtl' : 'ltr'}
+      style={{
+        ...transition,
+        background: C.bg,
+        minHeight: "100vh",
+        fontFamily: "'Cairo', sans-serif",
+      }}
+    >
+      <main style={{ maxWidth: "1280px", margin: "0 auto", padding: "32px 24px" }}>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-        {/* Welcome Section */}
-        <div className="mb-8 animate-fade-in-down">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 transition-colors">
-            {t('welcome_prefix')} {data.studentName} 👋
+        {/* ══════════ Welcome Section ══════════ */}
+        <div style={{ marginBottom: "32px" }}>
+          <h2 style={{ ...transition, color: C.textPrimary, fontSize: "1.8rem", fontWeight: 800, marginBottom: "8px" }}>
+            {t('welcome_prefix')} {data.student?.student_name || 'طالب'} 👋
           </h2>
-          <p className="text-gray-600 dark:text-gray-300 transition-colors">
+          <p style={{ ...transition, color: C.textMuted, fontSize: "0.95rem" }}>
             {lang === 'ar'
-              ? `لديك ${data.upcomingExams} ${t('upcoming_tasks_suffix')}`
-              : `You have ${data.upcomingExams} ${t('upcoming_tasks_suffix')}`}
+              ? 'أحدث بياناتك تظهر هنا مباشرة من الخادم.'
+              : 'Your latest data appears here directly from the server.'}
           </p>
         </div>
 
-        {/* AI Weakness Alert */}
+        {/* ══════════ AI Weakness Alert ══════════ */}
         {data.weaknesses && data.weaknesses.length > 0 && (
-          <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 mb-8 shadow-sm transition-colors">
-            <div className="flex items-start gap-4">
-              <div className="bg-red-100 dark:bg-red-900/50 p-3 rounded-2xl shrink-0 transition-colors">
-                <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+          <div
+            style={{
+              ...transition,
+              ...glass(),
+              border: `1px solid ${C.borderRed}`,
+              padding: "28px",
+              marginBottom: "32px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
+              <div style={iconWrap(C.redDim, C.redBorder, "48px", "8px")}>
+                <AlertTriangle style={{ color: C.redIcon, width: "24px", height: "24px" }} />
               </div>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-red-900 dark:text-red-300 mb-2 transition-colors">
+              <div style={{ flex: 1 }}>
+                <h3 style={{ ...transition, color: C.textPrimary, fontWeight: 700, fontSize: "1.1rem", marginBottom: "8px" }}>
                   {t('weakness_title')}
                 </h3>
-                <p className="text-gray-700 dark:text-gray-300 mb-4 leading-relaxed transition-colors">
+                <p style={{ ...transition, color: C.textMuted, fontSize: "0.875rem", lineHeight: 1.7, marginBottom: "16px" }}>
                   {t('weaknesses_in')}
                 </p>
 
-                <div className="flex flex-wrap gap-2 mb-4">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
                   {data.weaknesses
-                    .filter((weakness) => weakness?.id != null)
+                    ?.filter((weakness) => weakness?.id != null)
                     .map((weakness) => (
-                      <span key={weakness.id} className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 px-3 py-1 rounded-full text-sm font-medium shadow-sm transition-colors">
+                      <span
+                        key={weakness.id}
+                        style={{
+                          ...transition,
+                          padding: "4px 14px", borderRadius: "999px",
+                          fontSize: "0.78rem", fontWeight: 600,
+                          background: C.redDim,
+                          color: C.redIcon,
+                          border: `1px solid ${C.redBorder}`,
+                        }}
+                      >
                         {weakness.label || weakness.name}
                       </span>
                     ))}
@@ -176,9 +272,17 @@ const Dashboard = () => {
 
                 <button
                   onClick={() => navigate('/remediation')}
-                  className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 text-white px-6 py-2 rounded-lg font-bold shadow-md transition-colors flex items-center gap-2"
+                  style={{
+                    ...transition,
+                    display: "flex", alignItems: "center", gap: "8px",
+                    padding: "10px 24px", borderRadius: "12px",
+                    fontSize: "0.875rem", fontWeight: 700,
+                    background: C.accent, color: "#FFFFFF", border: "none", cursor: "pointer",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
                 >
-                  <Brain className="w-4 h-4" />
+                  <Brain style={{ width: "16px", height: "16px" }} />
                   {t('view_remediation')}
                 </button>
               </div>
@@ -186,115 +290,155 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border-t-4 border-t-[#103B66] dark:border-t-blue-500 transition-colors">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 transition-colors">{t('completed_lessons')}</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-white transition-colors">{data.stats.completedLessons}</p>
-              </div>
-              <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full transition-colors">
-                <BookOpen className="w-6 h-6 text-[#103B66]" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border-t-4 border-t-green-500 transition-colors">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 transition-colors">{t('improvement_rate')}</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-white transition-colors">+{data.stats.improvementRate}%</p>
-              </div>
-              <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full transition-colors">
-                <TrendingUp className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border-t-4 border-t-purple-500 transition-colors">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1 transition-colors">{t('study_hours')}</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-white transition-colors">{data.stats.studyHours}</p>
-              </div>
-              <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-full transition-colors">
-                <PlayCircle className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Analytics CTA */}
-        <div
-          onClick={() => navigate('/progress')}
-          className="bg-gradient-to-l from-[#103B66] to-[#1a5498] dark:from-blue-700 dark:to-blue-900 rounded-2xl p-5 mb-8 flex items-center justify-between cursor-pointer hover:opacity-95 transition shadow-lg"
-        >
-          <div className="flex items-center gap-4">
-            <div className="bg-white/20 p-3 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <p className="text-white font-bold text-base">{t('progress_banner_title')}</p>
-              <p className="text-blue-200 text-sm">{t('progress_banner_desc')}</p>
-            </div>
-          </div>
-          <div className="bg-white/10 hover:bg-white/20 transition p-2 rounded-lg flex-shrink-0">
-            <ChevronLeft className="w-5 h-5 text-white" />
-          </div>
-        </div>
-
-        {/* Subjects Grid */}
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2 transition-colors">
-          <BookOpen className="w-6 h-6 text-[#103B66] dark:text-blue-400" />
-          {t('subjects_title')}
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
-          {data.subjects.map((subject) => (
+        {/* ══════════ Stats — Bento Box Grid ══════════ */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "24px", marginBottom: "32px" }}>
+          {statCards.map((s, i) => (
             <div
-              key={subject.id}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all cursor-pointer group"
-              onClick={() => navigate(`/subject/${subject.id}`)}
+              key={i}
+              style={{ ...transition, ...glass(), padding: "24px" }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = "translateY(-3px)";
+                e.currentTarget.style.boxShadow = C.shadowHover || "0 8px 28px rgba(0,0,0,0.15)";
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = C.shadowCard;
+              }}
             >
-              <div className="flex items-start gap-4">
-                {/* هنا ممكن نستخدم دالة لتعيين الأيقونة واللون بناء على اسم المادة */}
-                <div className={`w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-3xl shadow-md group-hover:scale-110 transition-all`}>
-                  {/* أيقونة افتراضية لو مفيش أيقونة جاية من الباك إند */}
-                  {subject.icon || "📚"}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <p style={{ ...transition, color: C.textMuted, fontSize: "0.875rem", fontWeight: 500, marginBottom: "8px" }}>
+                    {s.label}
+                  </p>
+                  <p style={{ ...transition, color: C.textPrimary, fontSize: "1.875rem", fontWeight: 800, letterSpacing: "-0.025em", lineHeight: 1 }}>
+                    {s.value}
+                  </p>
                 </div>
-
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="text-xl font-bold text-gray-800 dark:text-white transition-colors">{subject.name}</h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 transition-colors">{subject.completed} من {subject.lessons} درس</p>
-                    </div>
-                    <div className="text-center">
-                      <span className={`text-lg font-bold ${subject.progress >= 70 ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'} transition-colors`}>
-                        {subject.progress}%
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden transition-colors">
-                    <div
-                      className={`h-full bg-[#103B66] dark:bg-blue-500 transition-colors`}
-                      style={{ width: `${subject.progress}%` }}
-                    ></div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-gray-50 dark:border-gray-700 flex justify-between items-center transition-colors">
-                    <span className="text-xs text-gray-400 dark:text-gray-500 font-bold transition-colors">الحالة: {subject.progress >= 50 ? "جيد" : "يحتاج تحسين"}</span>
-                    <button className="text-[#103B66] dark:text-blue-400 text-sm font-bold flex items-center hover:underline transition-colors">
-                      المتابعة <ChevronLeft className="w-4 h-4" />
-                    </button>
-                  </div>
+                <div style={iconWrap(s.iconBg, s.iconBorder, "48px", "8px")}>
+                  <s.Icon style={{ color: s.iconColor, width: "24px", height: "24px" }} strokeWidth={2} />
                 </div>
               </div>
             </div>
           ))}
         </div>
+
+        {/* ══════════ Progress Analytics CTA ══════════ */}
+        <div
+          onClick={() => navigate('/progress')}
+          style={{
+            ...transition,
+            ...glass(),
+            borderColor: C.borderAccent,
+            padding: "20px 28px",
+            marginBottom: "32px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            cursor: "pointer",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = C.shadowHover || "0 8px 28px rgba(0,0,0,0.15)";
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = C.shadowCard;
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div style={iconWrap(C.accentDim, C.borderAccent, "48px", "8px")}>
+              <TrendingUp style={{ color: C.accent, width: "24px", height: "24px" }} strokeWidth={2} />
+            </div>
+            <div>
+              <p style={{ ...transition, color: C.textPrimary, fontWeight: 700, fontSize: "0.95rem" }}>
+                {t('progress_banner_title')}
+              </p>
+              <p style={{ ...transition, color: C.textMuted, fontSize: "0.82rem" }}>
+                {t('progress_banner_desc')}
+              </p>
+            </div>
+          </div>
+          <div style={iconWrap(C.accentDim, C.borderAccent, "36px", "10px")}>
+            <ChevronLeft style={{ color: C.accent, width: "18px", height: "18px" }} />
+          </div>
+        </div>
+
+        {/* ══════════ Lesson Attempts ══════════ */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
+          <div style={iconWrap(C.iconBgA, C.iconBorderA, "40px", "8px")}>
+            <BookOpen style={{ color: C.iconA, width: "20px", height: "20px" }} strokeWidth={2} />
+          </div>
+          <h3 style={{ ...transition, color: C.textPrimary, fontSize: "1.3rem", fontWeight: 800 }}>
+            الدروس الأخيرة
+          </h3>
+        </div>
+
+        {lessonAttempts.length > 0 ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "24px", paddingBottom: "48px" }}>
+            {lessonAttempts.map((attempt, index) => (
+              <div
+                key={attempt.id ?? attempt.attempt_id ?? index}
+                style={{ ...transition, ...glass(), padding: "24px", cursor: "pointer" }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                  e.currentTarget.style.boxShadow = C.shadowHover || "0 8px 28px rgba(0,0,0,0.15)";
+                  e.currentTarget.style.borderColor = C.borderAccent;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = C.shadowCard;
+                  e.currentTarget.style.borderColor = C.border;
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
+                  <div style={iconWrap(C.iconBgA, C.iconBorderA, "56px", "8px")}>
+                    <span style={{ fontSize: "1.6rem", lineHeight: 1 }}>📘</span>
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <h4 style={{ ...transition, color: C.textPrimary, fontWeight: 700, fontSize: "1.05rem", marginBottom: "4px" }}>
+                          {attempt.lesson_title ?? '—'}
+                        </h4>
+                        <p style={{ ...transition, color: C.textMuted, fontSize: "0.8rem" }}>
+                          {attempt.attempted_at ?? '—'}
+                        </p>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "10px", color: C.textDim, fontSize: "0.8rem", fontWeight: 700 }}>
+                          <span>{attempt.score ?? 0} / {attempt.total_marks ?? 0}</span>
+                          <span>{attempt.percentage ?? 0}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ ...glass(), padding: "40px", minHeight: "300px", marginBottom: "48px" }}>
+            <EmptyState 
+              icon={BookOpen}
+              title="لا توجد دروس مسجلة بعد"
+              description="لن تظهر هنا إلا الدروس الموجودة في lesson_attempts كما يرسلها الـ API."
+              actionButton={
+                <button
+                  onClick={() => navigate('/')}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "8px",
+                    padding: "12px 24px", borderRadius: "12px",
+                    fontSize: "0.875rem", fontWeight: 700,
+                    background: C.accent, color: "#FFFFFF", border: "none", cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = "0.9"; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
+                >
+                  <Home style={{ width: "18px", height: "18px" }} />
+                  العودة للرئيسية
+                </button>
+              }
+            />
+          </div>
+        )}
 
       </main>
     </div>

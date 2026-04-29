@@ -7,6 +7,8 @@ import {
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from './LangToggle';
 import NotificationBell from './NotificationBell';
+import ErrorBoundary from './ErrorBoundary';
+import Logo from './Logo';
 
 // ── Navigation item definitions ──────────────────────────────────────────────
 
@@ -32,7 +34,7 @@ const NavItem = ({ icon: Icon, label, active, onClick, large }) => (
       ${active
         ? 'bg-[#103B66] dark:bg-blue-600 text-white shadow-sm'
         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-      }`}
+      } focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none`}
   >
     <Icon className={`flex-shrink-0 ${large ? 'w-5 h-5' : 'w-4 h-4'}`} />
     <span className={large ? '' : 'hidden lg:inline whitespace-nowrap'}>{label}</span>
@@ -95,27 +97,18 @@ const Layout = () => {
             {/* Mobile hamburger */}
             <button
               onClick={() => setDrawerOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-gray-500 dark:text-gray-400
-                hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-gray-500 dark:text-gray-400
+                hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
               aria-label="Open menu"
+              aria-haspopup="true"
+              aria-expanded={drawerOpen}
+              aria-controls="mobile-nav-drawer"
             >
               <Menu className="w-5 h-5" />
             </button>
 
             {/* Logo */}
-            <Link
-              to={homeRoute}
-              className="flex items-center gap-2 group"
-            >
-              <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-xl shadow-sm
-                group-hover:shadow-md transition-shadow">
-                <Brain className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-black text-[#103B66] dark:text-blue-400 text-lg
-                tracking-tight hidden sm:block select-none">
-                {t('app_name')}
-              </span>
-            </Link>
+            <Logo className="group" />
           </div>
 
           {/* ── Center: Desktop nav links ── */}
@@ -141,10 +134,10 @@ const Layout = () => {
             <button
               onClick={() => navigate('/profile')}
               title={t('profile')}
-              className="w-9 h-9 rounded-full bg-gradient-to-br from-[#103B66] to-blue-500
+              className="w-11 h-11 rounded-full bg-gradient-to-br from-[#103B66] to-blue-500
                 dark:from-blue-600 dark:to-blue-400 flex items-center justify-center
                 text-white font-black text-sm shadow-sm hover:shadow-md
-                transition-shadow flex-shrink-0 select-none"
+                transition-shadow flex-shrink-0 select-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
             >
               {(user.name || 'U').charAt(0).toUpperCase()}
             </button>
@@ -153,11 +146,11 @@ const Layout = () => {
             <button
               onClick={() => navigate('/settings')}
               title={t('settings')}
-              className={`hidden md:flex p-2 rounded-xl transition-colors
+              className={`hidden md:flex min-w-[44px] min-h-[44px] items-center justify-center rounded-xl transition-colors
                 ${isActive('/settings')
                   ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white'
                   : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
+                } focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none`}
             >
               <Settings className="w-5 h-5" />
             </button>
@@ -166,10 +159,10 @@ const Layout = () => {
             <button
               onClick={handleLogout}
               title={t('logout')}
-              className="hidden md:flex p-2 rounded-xl text-red-500 dark:text-red-400
-                hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              className="hidden md:flex min-w-[44px] min-h-[44px] items-center justify-center rounded-xl text-red-500 dark:text-red-400
+                hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-5 h-5 rtl:-scale-x-100" />
             </button>
           </div>
 
@@ -189,28 +182,25 @@ const Layout = () => {
 
           {/* Drawer panel — slides in from the start side (right for RTL, left for LTR) */}
           <div
-            className={`absolute top-0 ${isRtl ? 'right-0' : 'left-0'} h-full w-72
+            id="mobile-nav-drawer"
+            className={`absolute top-0 start-0 h-full w-72
               bg-white dark:bg-gray-800 shadow-2xl flex flex-col`}
           >
             {/* Drawer header */}
             <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-              <Link to={homeRoute} onClick={closeDrawer} className="flex items-center gap-2 group">
-                <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-lg group-hover:shadow-md transition-shadow">
-                  <Brain className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-black text-[#103B66] dark:text-blue-400 text-lg tracking-tight">
-                  {t('app_name')}
-                </span>
-              </Link>
+              <div onClick={closeDrawer}>
+                <Logo className="group scale-95 origin-left" />
+              </div>
               <button
                 onClick={closeDrawer}
-                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                aria-label={t('close') || 'Close menu'}
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Nav links */}
+            {/* Navigation links */}
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
               {/* Main role-based navigation */}
               {mainNav.map(item => (
@@ -258,9 +248,9 @@ const Layout = () => {
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-bold
-                  text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
               >
-                <LogOut className="w-4 h-4 flex-shrink-0" />
+                <LogOut className="w-4 h-4 flex-shrink-0 rtl:-scale-x-100" />
                 {t('logout')}
               </button>
             </div>
@@ -272,7 +262,9 @@ const Layout = () => {
           PAGE CONTENT (nested route renders here)
       ══════════════════════════════════════════════════════════════ */}
       <main>
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );
@@ -347,8 +339,11 @@ export const PublicLayout = () => {
                 {/* User Avatar Button */}
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center gap-2 p-1 rounded-xl hover:bg-gray-100 
-                    dark:hover:bg-gray-700 transition-colors"
+                  aria-haspopup="true"
+                  aria-expanded={dropdownOpen}
+                  aria-controls="public-user-menu"
+                  className="min-h-[44px] min-w-[44px] flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 
+                    dark:hover:bg-gray-700 transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
                 >
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#103B66] to-blue-500
                     dark:from-blue-600 dark:to-blue-400 flex items-center justify-center
@@ -369,7 +364,7 @@ export const PublicLayout = () => {
                     />
                     
                     {/* Menu */}
-                    <div className={`absolute top-full mt-2 ${isRtl ? 'left-0' : 'right-0'} 
+                    <div id="public-user-menu" className={`absolute top-full mt-2 end-0 
                       w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border 
                       border-gray-200 dark:border-gray-700 py-2 z-20`}>
                       
@@ -388,7 +383,7 @@ export const PublicLayout = () => {
                         <button
                           onClick={() => { navigate(user.role === 'teacher' ? '/teacher-dashboard' : '/dashboard'); setDropdownOpen(false); }}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium
-                            text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                            text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
                         >
                           <LayoutDashboard className="w-4 h-4" />
                           {t('dashboard') || 'لوحة التحكم'}
@@ -397,7 +392,7 @@ export const PublicLayout = () => {
                         <button
                           onClick={() => { navigate('/profile'); setDropdownOpen(false); }}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium
-                            text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                            text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
                         >
                           <User className="w-4 h-4" />
                           {t('profile') || 'الملف الشخصي'}
@@ -406,7 +401,7 @@ export const PublicLayout = () => {
                         <button
                           onClick={() => { navigate('/settings'); setDropdownOpen(false); }}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium
-                            text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                            text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
                         >
                           <Settings className="w-4 h-4" />
                           {t('settings') || 'الإعدادات'}
@@ -418,9 +413,9 @@ export const PublicLayout = () => {
                         <button
                           onClick={handleLogout}
                           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium
-                            text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition"
+                            text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
                         >
-                          <LogOut className="w-4 h-4" />
+                          <LogOut className="w-4 h-4 rtl:-scale-x-100" />
                           {t('logout') || 'تسجيل الخروج'}
                         </button>
                       </div>
@@ -433,9 +428,9 @@ export const PublicLayout = () => {
                 onClick={() => navigate('/login?redirect=' + encodeURIComponent(window.location.pathname))}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold
                   bg-[#103B66] dark:bg-blue-600 text-white hover:bg-[#0c2d4d] 
-                  dark:hover:bg-blue-700 transition-colors shadow-sm"
+                  dark:hover:bg-blue-700 transition-colors shadow-sm focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
               >
-                <LogIn className="w-4 h-4" />
+                <LogIn className="w-4 h-4 rtl:-scale-x-100" />
                 <span className="hidden sm:inline">{t('login')}</span>
               </button>
             )}
@@ -447,7 +442,9 @@ export const PublicLayout = () => {
           PAGE CONTENT (nested route renders here)
       ══════════════════════════════════════════════════════════════ */}
       <main>
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );

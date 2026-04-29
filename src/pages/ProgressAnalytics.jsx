@@ -2,13 +2,19 @@ import { useState, useEffect, useMemo } from 'react';
 import api from '../api/api';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import {
   TrendingUp, ArrowRight, Eye, Brain, Activity, BookOpen, BarChart2, Calendar,
 } from 'lucide-react';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
+
+const transition = { transition: "all 0.25s ease" };
+const iw = (bg, bd, sz = "48px", r = "14px") => ({ ...transition, width: sz, height: sz, borderRadius: r, background: bg, border: `1px solid ${bd}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 });
 
 // ── Static meta ───────────────────────────────────────────────────────────────
 
@@ -22,10 +28,10 @@ const SUBJECTS_META = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const getMasteryBadge = (pct) => {
-  if (pct >= 80) return { dot: '🟢', label: 'قوي',         textCls: 'text-green-700 dark:text-green-400',  bgCls: 'bg-green-100 dark:bg-green-900/30'  };
-  if (pct >= 60) return { dot: '🟡', label: 'متوسط',       textCls: 'text-yellow-700 dark:text-yellow-400', bgCls: 'bg-yellow-100 dark:bg-yellow-900/30' };
-  return           { dot: '🔴', label: 'يحتاج مراجعة', textCls: 'text-red-700 dark:text-red-400',       bgCls: 'bg-red-100 dark:bg-red-900/30'      };
+const getMasteryBadge = (pct, C) => {
+  if (pct >= 80) return { dot: '🟢', label: 'قوي', color: C.green, bg: C.greenDim, border: C.greenBorder };
+  if (pct >= 60) return { dot: '🟡', label: 'متوسط', color: C.yellow, bg: C.yellowDim, border: C.yellowBorder };
+  return { dot: '🔴', label: 'يحتاج مراجعة', color: C.redIcon, bg: C.redDim, border: C.redBorder };
 };
 
 const barColor = (acc) => acc >= 80 ? '#16a34a' : acc >= 60 ? '#d97706' : '#dc2626';
@@ -54,24 +60,18 @@ const Sparkline = ({ quizzes, color }) => {
 };
 
 /** Recharts custom tooltip for score-over-time chart */
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label, C, glass }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    // Safely get the plotted percentage directly from the chart's active value
     const plottedPercentage = payload[0].value || 0;
-
-    // Try to get original score, otherwise calculate it from the percentage (assuming max 5)
-    const maxScore = data.maxScore || 5;
-    const safeRawScore = data.score ?? data.rawScore ?? Math.round((plottedPercentage / 100) * maxScore);
-
-    // Fallback for Subject Name if missing
+    const safeRawScore = data.score ?? 0;
+    const maxScore = data.totalMarks ?? 0;
     const subjectName = data.subjectName || data.subject_name || data.subjectId || 'المادة الحالية';
-
     return (
-      <div className="custom-tooltip" style={{ backgroundColor: '#fff', padding: '10px', border: '1px solid #ccc', borderRadius: '5px', textAlign: 'right', direction: 'rtl' }}>
-        <p style={{ fontWeight: 'bold', marginBottom: '5px', color: '#333' }}>التاريخ: {label || data.displayDate}</p>
-        <p style={{ margin: 0, color: '#666' }}>المادة: {subjectName}</p>
-        <p style={{ margin: 0, color: '#0056b3', fontWeight: 'bold' }}>
+      <div style={{...transition,...glass(),padding:"14px 18px",minWidth:"180px",textAlign:"right",direction:"rtl"}}>
+        <p style={{...transition,fontWeight:700,marginBottom:"6px",color:C.textPrimary,fontSize:"0.82rem"}}>التاريخ: {label || data.displayDate}</p>
+        <p style={{...transition,margin:0,color:C.textMuted,fontSize:"0.78rem"}}>المادة: {subjectName}</p>
+        <p style={{...transition,margin:0,color:C.accent,fontWeight:700,fontSize:"0.82rem",marginTop:"4px"}}>
           الدرجة: {safeRawScore} / {maxScore} ({plottedPercentage}%)
         </p>
       </div>
@@ -81,23 +81,59 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 /** Recharts custom tooltip for bar chart */
-const BarTooltip = ({ active, payload }) => {
+const BarTooltip = ({ active, payload, C, glass }) => {
   if (!active || !payload?.length) return null;
   const { name, accuracy } = payload[0].payload;
-  const badge = getMasteryBadge(accuracy);
+  const badge = getMasteryBadge(accuracy, C);
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg p-3 min-w-[160px]" dir="rtl">
-      <p className="font-bold text-gray-800 dark:text-white text-sm mb-1">{name}</p>
-      <p className={`text-sm font-bold ${badge.textCls}`}>{accuracy}% — {badge.dot} {badge.label}</p>
+    <div style={{...transition,...glass(),padding:"12px",minWidth:"160px",textAlign:"right",direction:"rtl"}}>
+      <p style={{color:C.textPrimary,fontWeight:700,fontSize:"0.85rem",marginBottom:"4px"}}>{name}</p>
+      <p style={{color:badge.color,fontWeight:700,fontSize:"0.8rem"}}>
+        {accuracy}% — {badge.dot} {badge.label}
+      </p>
     </div>
   );
 };
+
+const ProgressAnalyticsLoadingSkeleton = ({ C, lang, transition, glass }) => (
+  <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{...transition,background:C.bg,minHeight:"100vh",fontFamily:"'Cairo',sans-serif"}}>
+    <main style={{maxWidth:"1100px",margin:"0 auto",padding:"32px 24px",display:"flex",flexDirection:"column",gap:"28px"}}>
+      <section>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))",gap:"16px"}}>
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} style={glass({ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' })}>
+              <SkeletonLoader type="card" width="52px" height="52px" />
+              <div style={{display:"flex",flexDirection:"column",gap:"8px",flex:1}}>
+                <SkeletonLoader type="text" width="72%" height="11px" />
+                <SkeletonLoader type="text" width="48%" height="16px" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(340px, 1fr))",gap:"18px"}}>
+          <div style={glass({ padding: '20px' })}>
+            <SkeletonLoader type="text" width="38%" height="14px" className="mb-4" />
+            <SkeletonLoader type="card" height="320px" className="w-full" />
+          </div>
+          <div style={glass({ padding: '20px' })}>
+            <SkeletonLoader type="text" width="44%" height="14px" className="mb-4" />
+            <SkeletonLoader type="card" height="320px" className="w-full" />
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+);
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ProgressAnalytics = () => {
   const navigate = useNavigate();
   const { t, lang } = useLanguage();
+  const { isDarkMode, C, glass } = useTheme();
 
   const [loading, setLoading]               = useState(true);
   const [overallProgress, setOverallProgress] = useState(null); // from overall_progress field
@@ -129,18 +165,16 @@ const ProgressAnalytics = () => {
         const allAttempts = rawAttempts.map((att, idx) => {
           const parsedDate = new Date(att.attempted_at ?? '');
           const createdMs = Number.isNaN(parsedDate.getTime()) ? 0 : parsedDate.getTime();
-          const scoreFraction = (att.score !== null && att.score !== undefined)
-            ? Number(att.score)
-            : null;
-          const percentage = scoreFraction !== null ? Math.round(scoreFraction * 100) : null;
+          const score = att.score !== null && att.score !== undefined ? Number(att.score) : null;
+          const totalMarks = att.total_marks !== null && att.total_marks !== undefined ? Number(att.total_marks) : null;
+          const percentage = att.percentage !== null && att.percentage !== undefined ? Number(att.percentage) : null;
           return {
             attemptId:   idx + 1,
             createdAt:   att.attempted_at ?? '',
             createdMs,
-            score:       scoreFraction,          // raw 0-1 fraction (for < 0.5 weakness check)
-            rawScore:    scoreFraction !== null ? Math.round(scoreFraction * 100) : 0,
-            maxScore:    100,
-            percentage,                          // null for no-score (activity-only) entries
+            score,
+            totalMarks,
+            percentage,
             lessonTitle: att.lesson_title ?? 'درس بدون عنوان',
             subjectName: att.subject_name ?? null,
             subjectId:   att.subject_id  ?? null,
@@ -158,11 +192,11 @@ const ProgressAnalytics = () => {
         setSubjectStats([{
           id:             'all',
           key:            'all-attempts',
-          name:           last?.subjectName ?? 'التقدم العام',
+          name:           rawAttempts[0]?.subject_name ?? 'المادة',
           emoji:          '📊',
           color:          '#103B66',
           attemptsCount:  scoredAsc.length,
-          lastRawScore:   last?.rawScore ?? 0,
+          lastRawScore:   last?.score ?? 0,
           lastPercentage: last?.percentage ?? 0,
           quizzes:        scoredAsc.slice(-5).map(a => ({ date: a.createdAt, score: a.percentage })),
         }]);
@@ -186,11 +220,10 @@ const ProgressAnalytics = () => {
               displayDate: att.createdAt,
               lessonTitle: att.lessonTitle,
               percentage:  att.percentage,
-              rawScore:    att.rawScore,
-              maxScore:    att.maxScore,
-              subjectName: att.subjectName ?? '—',
+              score:       att.score,
+              totalMarks:  att.totalMarks,
+              subjectName: att.subjectName ?? '-',
               subjectId:   att.subjectId ? String(att.subjectId) : '',
-              score:       att.score,   // kept for weakness threshold check (< 0.5)
               createdMs:   att.createdMs,
             };
           });
@@ -229,10 +262,9 @@ const ProgressAnalytics = () => {
 
         return {
           date: dateLabel,
-          score: att.percentage,
           percentage: att.percentage,
-          rawScore: att.rawScore,
-          maxScore: att.maxScore,
+          score: att.score,
+          totalMarks: att.totalMarks,
           displayDate: att.createdAt,
           subjectName: att.subjectName || 'المادة الحالية',
         };
@@ -259,7 +291,9 @@ const ProgressAnalytics = () => {
         const d = new Date(att.createdAt || Date.now());
         const dateStr = d.toISOString().split('T')[0];
         activityMap[dateStr] = (activityMap[dateStr] || 0) + 1;
-      } catch (e) {}
+      } catch {
+        // Ignore malformed date values in activity stream.
+      }
     });
 
     // Generate the last 28 days (4 weeks)
@@ -281,70 +315,61 @@ const ProgressAnalytics = () => {
 
   const barData       = subtopicData;
   const activeTabMeta = subjectStats.find(s => String(s.id) === String(activeTab));
-  const selectedChartMeta = subjectStats.find(s => String(s.id) === String(selectedChartSubject));
+  const _selectedChartMeta = subjectStats.find(s => String(s.id) === String(selectedChartSubject));
+  const latestAttempt = attempts[0] ?? null;
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#103B66]" />
-    </div>
-  );
+  if (loading) return <ProgressAnalyticsLoadingSkeleton C={C} lang={lang} transition={transition} glass={glass} />;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{...transition,background:C.bg,minHeight:"100vh",fontFamily:"'Cairo',sans-serif"}}>
 
-      {/* ════════ HEADER ════════ */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-lg shadow">
-              <Brain className="w-5 h-5 text-white" />
+      {/* Header */}
+      <header style={{...transition,position:"sticky",top:0,zIndex:10,background:isDarkMode?"rgba(11,17,32,0.88)":"rgba(248,250,252,0.90)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{maxWidth:"1100px",margin:"0 auto",padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+            <div style={iw(C.iconBgA,C.iconBorderA,"40px","12px")}>
+              <Brain style={{color:C.iconA,width:"20px",height:"20px"}} strokeWidth={2} />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-[#103B66] dark:text-blue-400">{t('progress_title')}</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('progress_subtitle')}</p>
+              <h1 style={{...transition,color:C.accent,fontSize:"1rem",fontWeight:700}}>{t('progress_title')}</h1>
+              <p style={{...transition,color:C.textDim,fontSize:"0.72rem"}}>{t('progress_subtitle')}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-[#103B66] dark:hover:text-white transition"
-            >
-              <ArrowRight className={`w-4 h-4 ${lang === 'en' ? 'rotate-180' : ''}`} />
-              {t('back_to_dashboard')}
-            </button>
-          </div>
+          <button onClick={() => navigate('/dashboard')} style={{...transition,display:"flex",alignItems:"center",gap:"6px",background:"transparent",border:"none",color:C.textMuted,cursor:"pointer",fontWeight:700,fontSize:"0.82rem"}} onMouseEnter={e=>{e.currentTarget.style.color=C.accent}} onMouseLeave={e=>{e.currentTarget.style.color=C.textMuted}}>
+            <ArrowRight style={{width:"16px",height:"16px",...(lang==='en'?{transform:"rotate(180deg)"}:{})}} />
+            {t('back_to_dashboard')}
+          </button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+      <main style={{maxWidth:"1100px",margin:"0 auto",padding:"32px 24px",display:"flex",flexDirection:"column",gap:"40px"}}>
 
-        {/* ════════ OVERALL PROGRESS HERO CARD ════════ */}
+        {/* Overall Progress Hero */}
         <section>
-          <div className="bg-gradient-to-br from-[#103B66] to-blue-500 dark:from-blue-900 dark:to-blue-700 rounded-2xl p-6 flex items-center justify-between gap-6 shadow-lg">
+          <div style={{...transition,...glass(),borderColor:C.borderAccent,padding:"32px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"24px"}}>
             <div>
-              <p className="text-blue-100 text-sm font-medium mb-1">التقدم العام</p>
-              <p className="text-5xl font-black text-white tracking-tight">
-                {/* Safe: shows 'جاري التحديث...' if field not yet deployed */}
+              <p style={{...transition,color:C.textMuted,fontSize:"0.82rem",fontWeight:600,marginBottom:"6px"}}>{latestAttempt?.subjectName || 'المادة'}</p>
+              <p style={{...transition,color:C.textPrimary,fontSize:"3rem",fontWeight:900,lineHeight:1}}>
                 {overallProgress != null ? `${overallProgress}%` : 'جاري التحديث...'}
               </p>
-              <p className="text-blue-200 text-xs mt-2">
-                {quizResults.length > 0
-                  ? `بناءً على ${quizResults.length} اختبار مكتمل`
+              <p style={{...transition,color:C.textDim,fontSize:"0.75rem",marginTop:"10px"}}>
+                {latestAttempt
+                  ? `${latestAttempt.score ?? 0} من ${latestAttempt.totalMarks ?? 0}`
                   : 'لا توجد اختبارات مكتملة بعد'}
               </p>
             </div>
             {overallProgress != null && (
-              <div dir="ltr" className="flex-shrink-0">
+              <div dir="ltr" style={{flexShrink:0}}>
                 <svg width="80" height="80" viewBox="0 0 44 44">
-                  <circle cx="22" cy="22" r="16" fill="none" strokeWidth="4" stroke="rgba(255,255,255,0.25)" />
+                  <circle cx="22" cy="22" r="16" fill="none" strokeWidth="4" stroke={C.trackBg} />
                   <circle
-                    cx="22" cy="22" r="16" fill="none" strokeWidth="4" stroke="white"
+                    cx="22" cy="22" r="16" fill="none" strokeWidth="4" stroke={C.accent}
                     strokeDasharray={`${((overallProgress / 100) * (2 * Math.PI * 16)).toFixed(2)} ${(2 * Math.PI * 16).toFixed(2)}`}
                     strokeDashoffset={(2 * Math.PI * 16 / 4).toFixed(2)}
                     strokeLinecap="round"
                     style={{ transition: 'stroke-dasharray 0.8s ease' }}
                   />
-                  <text x="22" y="26" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white">
+                  <text x="22" y="26" textAnchor="middle" fontSize="9" fontWeight="bold" fill={C.accent}>
                     {overallProgress}%
                   </text>
                 </svg>
@@ -353,45 +378,50 @@ const ProgressAnalytics = () => {
           </div>
         </section>
 
-        {/* ════════ SECTION 1 — Subject Summary Cards ════════ */}
+        {/* Subject Summary Cards */}
         <section>
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
-            {t('mastery_summary')}
-          </h2>
+          <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"20px"}}>
+            <div style={iw(C.iconBgA,C.iconBorderA,"36px","10px")}>
+              <BookOpen style={{color:C.iconA,width:"18px",height:"18px"}} strokeWidth={2} />
+            </div>
+            <h2 style={{...transition,color:C.textPrimary,fontSize:"1.2rem",fontWeight:800}}>{t('mastery_summary')}</h2>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {subjectStats.map((subject) => {
-              const badge = getMasteryBadge(subject.lastPercentage || 0);
-              const r = 16, C = 2 * Math.PI * r;
-              const arc = ((subject.lastPercentage || 0) / 100) * C;
+          {subjectStats.length === 0 ? (
+            <div style={glass({ padding: '10px' })}>
+              <EmptyState
+                icon={BookOpen}
+                title={'بداية ممتازة لرحلة التقدّم'}
+                description={'لا توجد إحصاءات مواد بعد. ابدأ أول اختبارك وسيظهر ملخص الإتقان هنا تلقائيًا.'}
+              />
+            </div>
+          ) : (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))",gap:"20px"}}>
+              {subjectStats.map((subject) => {
+              const badge = getMasteryBadge(subject.lastPercentage || 0, C);
+              const r = 16, Circ = 2 * Math.PI * r;
+              const arc = ((subject.lastPercentage || 0) / 100) * Circ;
               return (
-                <div key={subject.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 flex flex-col gap-3 hover:shadow-md transition">
-                  {/* Top row */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{subject.emoji}</span>
-                      <span className="font-bold text-gray-800 dark:text-white text-sm">{subject.name}</span>
+                <div key={subject.id} style={{...transition,...glass(),padding:"24px",display:"flex",flexDirection:"column",gap:"12px"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderAccent;e.currentTarget.style.transform="translateY(-3px)"}} onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.transform="translateY(0)"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                      <span style={{fontSize:"1.4rem"}}>{subject.emoji}</span>
+                      <span style={{...transition,fontWeight:700,color:C.textPrimary,fontSize:"0.85rem"}}>{subject.name}</span>
                     </div>
-                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${badge.bgCls} ${badge.textCls}`}>
+                    <span style={{...transition,fontSize:"0.7rem",fontWeight:700,padding:"4px 10px",borderRadius:"999px",background:badge.bg,color:badge.color,border:`1px solid ${badge.border}`}}>
                       {badge.dot} {badge.label}
                     </span>
                   </div>
 
-                  {/* Ring + sparkline */}
-                  <div className="flex items-center justify-between">
-                    {/* Mini progress ring */}
-                    <div dir="ltr" className="flex-shrink-0">
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div dir="ltr" style={{flexShrink:0}}>
                       <svg width="48" height="48" viewBox="0 0 44 44">
-                        <circle
-                          cx="22" cy="22" r={r} fill="none" strokeWidth="4"
-                          className="stroke-gray-200 dark:stroke-gray-700"
-                        />
+                        <circle cx="22" cy="22" r={r} fill="none" strokeWidth="4" stroke={C.trackBg} />
                         <circle
                           cx="22" cy="22" r={r} fill="none" strokeWidth="4"
                           stroke={subject.color}
-                          strokeDasharray={`${arc.toFixed(2)} ${(C - arc).toFixed(2)}`}
-                          strokeDashoffset={(C / 4).toFixed(2)}
+                          strokeDasharray={`${arc.toFixed(2)} ${(Circ - arc).toFixed(2)}`}
+                          strokeDashoffset={(Circ / 4).toFixed(2)}
                           strokeLinecap="round"
                           style={{ transition: 'stroke-dasharray 0.6s ease' }}
                         />
@@ -411,107 +441,128 @@ const ProgressAnalytics = () => {
                   </div>
 
                   {/* Footer stat */}
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                  <p style={{...transition,color:C.textDim,fontSize:"0.75rem"}}>
                     آخر درجة:{' '}
-                    <span className="font-bold text-gray-700 dark:text-gray-300">
-                      {subject.lastRawScore || 0} / 5
+                    <span style={{fontWeight:700,color:C.textMuted}}>
+                      {latestAttempt?.score ?? 0} من {latestAttempt?.totalMarks ?? 0}
                     </span>
-                    {'  ·  '}{subject.attemptsCount || 0} اختبار
                   </p>
                 </div>
               );
-            })}
-          </div>
+              })}
+            </div>
+          )}
         </section>
 
-        {/* ════════ SECTION 2 — Score Over Time (Line Chart) ════════ */}
+        {/* Score Over Time (Area Chart) */}
         <section>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
-              {t('score_over_time_title')}
-            </h2>
-            {/* Subject toggle buttons */}
-            <div className="flex flex-wrap gap-2">
-              {subjectStats.map((sub) => (
-                <button
-                  key={sub.id}
-                  onClick={() => setSelectedChartSubject(sub.id)}
-                  style={String(selectedChartSubject) === String(sub.id) ? { backgroundColor: sub.color, borderColor: sub.color } : {}}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                    String(selectedChartSubject) === String(sub.id)
-                      ? 'text-white shadow-sm'
-                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:border-gray-300'
-                  }`}
-                >
-                  {sub.emoji} {sub.name}
-                </button>
-              ))}
+          <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",justifyContent:"space-between",gap:"12px",marginBottom:"20px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+              <div style={iw(C.iconBgB,C.iconBorderB,"36px","10px")}>
+                <TrendingUp style={{color:C.iconB,width:"18px",height:"18px"}} strokeWidth={2} />
+              </div>
+              <h2 style={{...transition,color:C.textPrimary,fontSize:"1.2rem",fontWeight:800}}>{t('score_over_time_title')}</h2>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:"8px"}}>
+              {subjectStats.map((sub) => {
+                const isActive = String(selectedChartSubject) === String(sub.id);
+                return (
+                  <button
+                    key={sub.id}
+                    onClick={() => setSelectedChartSubject(sub.id)}
+                    style={{...transition,display:"flex",alignItems:"center",gap:"6px",padding:"6px 14px",borderRadius:"999px",fontSize:"0.75rem",fontWeight:700,border:`1px solid ${isActive?C.borderAccent:C.border}`,background:isActive?C.accentDim:"transparent",color:isActive?C.accent:C.textMuted,cursor:"pointer"}}
+                    onMouseEnter={e=>{if(!isActive) e.currentTarget.style.borderColor=C.borderAccent}}
+                    onMouseLeave={e=>{if(!isActive) e.currentTarget.style.borderColor=C.border}}
+                  >
+                    {sub.emoji} {sub.name}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-            <div dir="ltr">
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={lineData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                  <YAxis
-                    domain={[30, 100]}
-                    tick={{ fontSize: 10, fill: '#9ca3af' }}
-                    tickFormatter={v => `${v}%`}
-                    width={38}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Line
-                    type="monotone"
-                    dataKey="score"
-                    stroke={selectedChartMeta?.color || '#103B66'}
-                    strokeWidth={2.5}
-                    dot={{ fill: selectedChartMeta?.color || '#103B66', r: 4, strokeWidth: 0 }}
-                    activeDot={{ r: 6 }}
-                    connectNulls
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+          <div style={{...transition,...glass(),padding:"24px"}}>
+            {lineData.length === 0 ? (
+              <EmptyState
+                icon={TrendingUp}
+                title={'لا توجد بيانات منحنى بعد'}
+                description={'عند إكمال اختبارات أكثر، سنعرض هنا تطور درجاتك بمرور الوقت بشكل واضح.'}
+              />
+            ) : (
+              <div dir="ltr">
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={lineData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={C.accent} stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor={C.accent} stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" stroke={C.gridLine} />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: C.tickColor }} />
+                    <YAxis
+                      domain={[0, 100]}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 10, fill: C.tickColor }}
+                      tickFormatter={v => `${v}%`}
+                      width={38}
+                    />
+                    <Tooltip content={<CustomTooltip C={C} glass={glass} />} cursor={{ stroke: C.borderAccent, strokeWidth: 1, strokeDasharray: '3 3' }} />
+                    <Area
+                      type="monotone"
+                      dataKey="percentage"
+                      stroke={C.accent}
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorScore)"
+                      activeDot={{ r: 6, fill: C.accent, stroke: C.bgPanel, strokeWidth: 2 }}
+                      connectNulls
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         </section>
 
         {/* ════════ SECTION 3 — Subtopic Mastery (Horizontal Bar Chart) ════════ */}
         <section>
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
-            <BarChart2 className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
-            {t('subtopic_analysis_title')}
-          </h2>
-
-          {/* Tab row */}
-          <div className="flex gap-2 flex-wrap mb-5">
-            {subjectStats.map((sub) => (
-              <button
-                key={sub.id}
-                onClick={() => setActiveTab(sub.id)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
-                  String(activeTab) === String(sub.id)
-                    ? 'bg-[#103B66] dark:bg-blue-600 text-white border-transparent shadow-md'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-[#103B66] dark:hover:border-blue-400'
-                }`}
-              >
-                {sub.emoji} {sub.name}
-              </button>
-            ))}
+          <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"20px"}}>
+            <div style={iw(C.iconBgA,C.iconBorderA,"36px","10px")}>
+              <BarChart2 style={{color:C.iconA,width:"18px",height:"18px"}} strokeWidth={2} />
+            </div>
+            <h2 style={{...transition,color:C.textPrimary,fontSize:"1.2rem",fontWeight:800}}>{t('subtopic_analysis_title')}</h2>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-            {/* Subject context label */}
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 font-bold">
+          <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"20px"}}>
+            {subjectStats.map((sub) => {
+              const isActive = String(activeTab) === String(sub.id);
+              return (
+                <button
+                  key={sub.id}
+                  onClick={() => setActiveTab(sub.id)}
+                  style={{...transition,display:"flex",alignItems:"center",gap:"6px",padding:"8px 16px",borderRadius:"12px",fontSize:"0.82rem",fontWeight:700,border:`1px solid ${isActive?"transparent":C.border}`,background:isActive?C.accent:"transparent",color:isActive?"#FFF":C.textMuted,cursor:"pointer"}}
+                  onMouseEnter={e=>{if(!isActive) e.currentTarget.style.borderColor=C.borderAccent}}
+                  onMouseLeave={e=>{if(!isActive) e.currentTarget.style.borderColor=C.border}}
+                >
+                  {sub.emoji} {sub.name}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{...transition,...glass(),padding:"24px"}}>
+            <p style={{...transition,color:C.textDim,fontSize:"0.75rem",fontWeight:700,marginBottom:"16px"}}>
               {activeTabMeta?.emoji} {activeTabMeta?.name} — المواضيع التي تحتاج مراجعة
             </p>
 
             {barData.length === 0 ? (
-              <div className="py-10 text-center text-gray-400 dark:text-gray-500 text-sm">
-                لا توجد مواضيع تحتاج مراجعة في هذه المادة 🎉
-              </div>
+              <EmptyState
+                icon={BarChart2}
+                title={'رائع، لا توجد نقاط ضعف حاليًا'}
+                description={'أداءك ممتاز في هذه المادة. استمر بنفس الوتيرة للحفاظ على هذا المستوى.'}
+              />
             ) : (
               <>
                 <div dir="ltr">
@@ -521,20 +572,24 @@ const ProgressAnalytics = () => {
                       data={barData}
                       margin={{ top: 0, right: 40, left: 10, bottom: 0 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} vertical={false} stroke={C.gridLine} />
                       <XAxis
                         type="number"
                         domain={[0, 100]}
-                        tick={{ fontSize: 10, fill: '#9ca3af' }}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 10, fill: C.tickColor }}
                         tickFormatter={v => `${v}%`}
                       />
                       <YAxis
                         type="category"
                         dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
                         width={155}
-                        tick={{ fontSize: 11, fill: '#6b7280' }}
+                        tick={{ fontSize: 11, fill: C.textMuted }}
                       />
-                      <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+                      <Tooltip content={<BarTooltip C={C} glass={glass} />} cursor={{ fill: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }} />
                       <Bar dataKey="accuracy" radius={[0, 6, 6, 0]} barSize={24}>
                         {barData.map((entry, i) => (
                           <Cell key={i} fill={barColor(entry.accuracy)} />
@@ -544,18 +599,17 @@ const ProgressAnalytics = () => {
                   </ResponsiveContainer>
                 </div>
 
-                {/* Color legend */}
-                <div className="flex flex-wrap gap-5 mt-5 pt-4 border-t dark:border-gray-700 text-xs font-bold justify-center">
-                  <span className="flex items-center gap-1.5 text-red-700 dark:text-red-400">
-                    <span className="w-3 h-3 rounded-sm bg-red-600 inline-block" />
+                <div style={{display:"flex",flexWrap:"wrap",gap:"20px",marginTop:"20px",paddingTop:"16px",borderTop:`1px solid ${C.border}`,fontSize:"0.75rem",fontWeight:700,justifyContent:"center"}}>
+                  <span style={{display:"flex",alignItems:"center",gap:"6px",color:C.redIcon}}>
+                    <span style={{width:"12px",height:"12px",borderRadius:"3px",background:"#dc2626",display:"inline-block"}} />
                     {t('accuracy_below60')}
                   </span>
-                  <span className="flex items-center gap-1.5 text-yellow-700 dark:text-yellow-400">
-                    <span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" />
+                  <span style={{display:"flex",alignItems:"center",gap:"6px",color:C.yellow}}>
+                    <span style={{width:"12px",height:"12px",borderRadius:"3px",background:"#d97706",display:"inline-block"}} />
                     {t('accuracy_60_80')}
                   </span>
-                  <span className="flex items-center gap-1.5 text-green-700 dark:text-green-400">
-                    <span className="w-3 h-3 rounded-sm bg-green-600 inline-block" />
+                  <span style={{display:"flex",alignItems:"center",gap:"6px",color:C.green}}>
+                    <span style={{width:"12px",height:"12px",borderRadius:"3px",background:"#16a34a",display:"inline-block"}} />
                     {t('accuracy_above80')}
                   </span>
                 </div>
@@ -564,130 +618,135 @@ const ProgressAnalytics = () => {
           </div>
         </section>
 
-        {/* ════════ SECTION 4 — Activity Heatmap ════════ */}
         <section>
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
-            {t('activity_title')}
-          </h2>
-
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
-              <div style={{ display: 'flex', gap: '15px', direction: 'rtl', alignItems: 'flex-start' }}>
-                {/* Y-Axis: Weeks (Aligned to 36px rows) */}
-                <div style={{ display: 'grid', gridTemplateRows: 'repeat(4, 36px)', gap: '8px', paddingTop: '28px', color: '#aaa', fontSize: '12px', textAlign: 'left', lineHeight: '36px' }}>
-                  {[activityDays[0], activityDays[7], activityDays[14], activityDays[21]].map((day, i) => (
-                    day && <div key={i} style={{ whiteSpace: 'nowrap' }}>{day.weekLabel}</div>
-                  ))}
-                </div>
-
-                {/* X-Axis & Squares Grid */}
-                <div>
-                  {/* X-Axis: Day Names (Fixed 36px columns to match squares) */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 36px)', gap: '8px', textAlign: 'center', color: '#aaa', fontSize: '11px', marginBottom: '10px', height: '18px' }}>
-                    {activityDays.slice(0, 7).map((d, i) => <div key={i}>{d.dayName}</div>)}
-                  </div>
-
-                  {/* Squares Grid (Fixed 36x36px cells) */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 36px)', gridAutoRows: '36px', gap: '8px' }}>
-                    {activityDays.map((d) => {
-                      // Map count to color index (max index 4)
-                      const colorIndex = Math.min(d.count, 4);
-                      const bgColor = activityColors[colorIndex];
-
-                      return (
-                        <div
-                          key={d.dateStr}
-                          title={`التاريخ: ${d.dateStr} | الاختبارات: ${d.count}`}
-                          style={{ backgroundColor: bgColor, width: '36px', height: '36px', borderRadius: '4px', cursor: 'pointer', transition: 'transform 0.1s' }}
-                          onMouseEnter={(e) => { e.target.style.transform = 'scale(1.1)'; }}
-                          onMouseLeave={(e) => { e.target.style.transform = 'scale(1)'; }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Synced Color Legend */}
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '20px', fontSize: '12px', color: '#aaa', direction: 'rtl' }}>
-                <span>أقل نشاط</span>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  {activityColors.map((color, i) => (
-                    <div key={i} title={`مستوى ${i}`} style={{ width: '16px', height: '16px', backgroundColor: color, borderRadius: '2px' }} />
-                  ))}
-                </div>
-                <span>أعلى نشاط</span>
-              </div>
+          <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"20px"}}>
+            <div style={iw(C.iconBgB,C.iconBorderB,"36px","10px")}>
+              <Calendar style={{color:C.iconB,width:"18px",height:"18px"}} strokeWidth={2} />
             </div>
+            <h2 style={{...transition,color:C.textPrimary,fontSize:"1.2rem",fontWeight:800}}>{t('activity_title')}</h2>
+          </div>
+
+          <div style={{...transition,...glass(),padding:"24px"}}>
+            {activityDays.length === 0 ? (
+              <EmptyState
+                icon={Calendar}
+                title={'لا يوجد نشاط مسجل بعد'}
+                description={'ابدأ بحل الاختبارات وسيظهر هنا تقويم نشاطك اليومي وتقدّمك بشكل مرئي.'}
+              />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '20px' }}>
+                <div style={{ display: 'flex', gap: '15px', direction: 'rtl', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'grid', gridTemplateRows: 'repeat(4, 36px)', gap: '8px', paddingTop: '28px', color: C.textDim, fontSize: '12px', textAlign: 'left', lineHeight: '36px' }}>
+                    {[activityDays[0], activityDays[7], activityDays[14], activityDays[21]].map((day, i) => (
+                      day && <div key={i} style={{ whiteSpace: 'nowrap' }}>{day.weekLabel}</div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 36px)', gap: '8px', textAlign: 'center', color: C.textDim, fontSize: '11px', marginBottom: '10px', height: '18px' }}>
+                      {activityDays.slice(0, 7).map((d, i) => <div key={i}>{d.dayName}</div>)}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 36px)', gridAutoRows: '36px', gap: '8px' }}>
+                      {activityDays.map((d) => {
+                        const colorIndex = Math.min(d.count, 4);
+                        const bgColor = activityColors[colorIndex];
+                        return (
+                          <div
+                            key={d.dateStr}
+                            title={`التاريخ: ${d.dateStr} | الاختبارات: ${d.count}`}
+                            style={{ backgroundColor: bgColor, width: '36px', height: '36px', borderRadius: '6px', cursor: 'pointer', transition: 'transform 0.1s', border: `1px solid ${C.border}` }}
+                            onMouseEnter={(e) => { e.target.style.transform = 'scale(1.1)'; }}
+                            onMouseLeave={(e) => { e.target.style.transform = 'scale(1)'; }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '20px', fontSize: '12px', color: C.textDim, direction: 'rtl' }}>
+                  <span>أقل نشاط</span>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {activityColors.map((color, i) => (
+                      <div key={i} title={`مستوى ${i}`} style={{ width: '16px', height: '16px', backgroundColor: color, borderRadius: '4px', border: `1px solid ${C.border}` }} />
+                    ))}
+                  </div>
+                  <span>أعلى نشاط</span>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
-        {/* ════════ SECTION 5 — Recent Quiz History Table ════════ */}
-        <section className="pb-12">
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
-            {t('recent_quiz_history')}
-          </h2>
+        {/* Recent Quiz History Table */}
+        <section style={{paddingBottom:"48px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"20px"}}>
+            <div style={iw(C.iconBgA,C.iconBorderA,"36px","10px")}>
+              <Activity style={{color:C.iconA,width:"18px",height:"18px"}} strokeWidth={2} />
+            </div>
+            <h2 style={{...transition,color:C.textPrimary,fontSize:"1.2rem",fontWeight:800}}>{t('recent_quiz_history')}</h2>
+          </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px]">
-                <thead className="bg-gray-50 dark:bg-gray-700/60">
+          <div style={{...transition,...glass(),overflow:"hidden"}}>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",minWidth:"700px",borderCollapse:"collapse"}}>
+                <thead style={{background:C.accentDim,borderBottom:`1px solid ${C.border}`}}>
                   <tr>
                     {[t('date_label'), t('subject_label'), t('lessons_tab'), t('avg_score'), t('weak_subtopic'), t('view_report')].map(h => (
                       <th
                         key={h}
-                        className="px-5 py-3.5 text-right text-xs font-bold text-gray-600 dark:text-gray-300 whitespace-nowrap"
+                        style={{padding:"14px 20px",textAlign:"right",fontSize:"0.75rem",fontWeight:700,color:C.textMuted,whiteSpace:"nowrap"}}
                       >
                         {h}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                <tbody style={{...transition}}>
                   {quizResults.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-5 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">
-                        لا توجد اختبارات مسجّلة حتى الآن
+                      <td colSpan={6} style={{padding:"16px"}}>
+                        <EmptyState
+                          icon={Activity}
+                          title={'لا يوجد سجل اختبارات بعد'}
+                          description={'عند إنهاء أول اختبار، ستظهر هنا كل المحاولات الحديثة مع التفاصيل والتقارير.'}
+                        />
                       </td>
                     </tr>
                   ) : quizResults.map((att, i) => {
-                    // score is the raw 0-1 fraction; percentage is pre-computed as Math.round(score*100)
                     const percentage = att.percentage ?? 0;
-                    const scoreLabel = `${Math.round((att.score ?? 0) * 100)}%`;
-                    const badge = getMasteryBadge(percentage);
+                    const scoreLabel = `${percentage}% (${att.score ?? 0} من ${att.totalMarks ?? 0})`;
+                    const badge = getMasteryBadge(percentage, C);
                     return (
-                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
-                        <td className="px-5 py-3.5 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      <tr key={i} style={{borderBottom:`1px solid ${C.border}`,transition:"background 0.2s ease"}} onMouseEnter={e=>{e.currentTarget.style.background=C.bgCard}} onMouseLeave={e=>{e.currentTarget.style.background="transparent"}}>
+                        <td style={{padding:"14px 20px",fontSize:"0.85rem",color:C.textMuted,whiteSpace:"nowrap"}}>
                           {att.date}
                         </td>
-                        <td className="px-5 py-3.5 text-sm font-bold text-gray-800 dark:text-white whitespace-nowrap">
-                          {/* subject_name bound directly; safe fallback if backend hasn't deployed it */}
-                          {att.subjectName ?? 'جاري التحديث...'}
+                        <td style={{padding:"14px 20px",fontSize:"0.85rem",fontWeight:700,color:C.textPrimary,whiteSpace:"nowrap"}}>
+                          {att.subjectName ?? '-'}
                         </td>
-                        <td className="px-5 py-3.5 text-sm text-gray-700 dark:text-gray-300 max-w-[160px] truncate">
+                        <td style={{padding:"14px 20px",fontSize:"0.85rem",color:C.textDim,maxWidth:"160px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                           {att.lessonTitle}
                         </td>
-                        <td className="px-5 py-3.5 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${badge.bgCls} ${badge.textCls}`}>
+                        <td style={{padding:"14px 20px",whiteSpace:"nowrap"}}>
+                          <span style={{display:"inline-flex",alignItems:"center",gap:"4px",fontSize:"0.7rem",fontWeight:700,padding:"4px 10px",borderRadius:"999px",background:badge.bg,color:badge.color,border:`1px solid ${badge.border}`}}>
                             {scoreLabel}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex flex-wrap gap-1.5 max-w-[220px]">
-                            {/* spec: score < 0.5 → show lesson_title as weak topic, else '-' */}
+                        <td style={{padding:"14px 20px"}}>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:"6px",maxWidth:"220px"}}>
                             {att.score < 0.5
                               ? (
-                                  <span className="text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 px-2 py-0.5 rounded-full font-medium">
+                                  <span style={{fontSize:"0.7rem",background:C.redDim,color:C.redIcon,border:`1px solid ${C.redBorder}`,padding:"4px 10px",borderRadius:"999px",fontWeight:700}}>
                                     {att.lessonTitle}
                                   </span>
                                 )
-                              : <span className="text-xs text-green-600 dark:text-green-400 font-bold">—</span>
+                              : <span style={{fontSize:"0.75rem",color:C.green,fontWeight:700}}>—</span>
                             }
                           </div>
                         </td>
-                        <td className="px-5 py-3.5">
+                        <td style={{padding:"14px 20px"}}>
                           <button
                             onClick={() => {
                               const attemptId = att.attemptId ?? att.id;
@@ -701,19 +760,15 @@ const ProgressAnalytics = () => {
                                   lesson_id: att.lessonId,
                                   lessonId: att.lessonId,
                                   teacherId: att.teacherId,
-                                  reportData: {
-                                    subjectName: att.subjectName || 'غير محدد',
-                                    date: att.displayDate || att.date,
-                                    score: rawScore,
-                                    total: maxScore,
-                                    percentage: percentage,
-                                  }
+                                  reportData: att,
                                 },
                               });
                             }}
-                            className="flex items-center gap-1.5 text-xs font-bold text-[#103B66] dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-lg transition whitespace-nowrap"
+                            style={{...transition,display:"flex",alignItems:"center",gap:"6px",fontSize:"0.75rem",fontWeight:700,color:C.accent,background:C.accentDim,border:`1px solid ${C.borderAccent}`,padding:"6px 12px",borderRadius:"8px",cursor:"pointer",whiteSpace:"nowrap"}}
+                            onMouseEnter={e=>{e.currentTarget.style.opacity="0.88"}}
+                            onMouseLeave={e=>{e.currentTarget.style.opacity="1"}}
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <Eye style={{width:"14px",height:"14px"}} />
                             {t('view_report')}
                           </button>
                         </td>

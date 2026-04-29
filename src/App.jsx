@@ -21,8 +21,11 @@ import ProgressAnalytics from './pages/ProgressAnalytics';
 import TeacherAnalytics from './pages/TeacherAnalytics';
 import AdminDashboard from './pages/AdminDashboard';
 import Notifications from './pages/Notifications';
+import VideoDetails from './pages/VideoDetails';
+import QuizDetails from './pages/QuizDetails';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ProtectedLayout, PublicLayout } from './components/Layout';
+import EditQuiz from './pages/EditQuiz';
 
 
 
@@ -54,6 +57,9 @@ function App() {
           <Route path="/admin-dashboard"   element={<AdminDashboard />} />
           <Route path="/notifications"     element={<Notifications />} />
           <Route path="/quiz-results"      element={<QuizResults />} />
+          <Route path="/video-details/:id" element={<VideoDetails />} />
+          <Route path="/quizzes-details/:id" element={<QuizDetails />} />
+          <Route path="/edit-quiz/:id" element={<EditQuiz />} />
           <Route path="/weakness-report"   element={<WeaknessReport />} />
         </Route>
 

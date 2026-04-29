@@ -1,7 +1,74 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowRight, Save, Loader2, AlertTriangle, Trash2 } from 'lucide-react';
+import { ArrowRight, Save, Loader2, AlertTriangle, Trash2, Plus, Check } from 'lucide-react';
 import api from '../api/api';
+import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
+
+/* ════════════════════════════════════════════════════
+   THEME FACTORY
+════════════════════════════════════════════════════ */
+function buildTheme(dark) {
+  return dark
+    ? {
+        bg:           "#0B1120",
+        bgPanel:      "#0D1526",
+        bgCard:       "rgba(255,255,255,0.035)",
+        border:       "rgba(255,255,255,0.08)",
+        borderAccent: "rgba(79,70,229,0.38)",
+        borderRed:    "rgba(239,68,68,0.22)",
+        accent:       "#4F46E5",
+        accentDim:    "rgba(79,70,229,0.14)",
+        iconA:        "#38BDF8",
+        iconBgA:      "rgba(56,189,248,0.10)",
+        iconBorderA:  "rgba(56,189,248,0.22)",
+        textPrimary:  "#F8FAFC",
+        textMuted:    "#94A3B8",
+        textDim:      "#475569",
+        shadowCard:   "0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",
+        redIcon:      "#F87171",
+        redDim:       "rgba(248,113,113,0.10)",
+        redBorder:    "rgba(248,113,113,0.20)",
+        green:        "#34D399",
+        greenDim:     "rgba(52,211,153,0.12)",
+        greenBorder:  "rgba(52,211,153,0.22)",
+      }
+    : {
+        bg:           "#F8FAFC",
+        bgPanel:      "#FFFFFF",
+        bgCard:       "#FFFFFF",
+        border:       "#E2E8F0",
+        borderAccent: "rgba(15,76,129,0.28)",
+        borderRed:    "rgba(239,68,68,0.20)",
+        accent:       "#0F4C81",
+        accentDim:    "rgba(15,76,129,0.08)",
+        iconA:        "#0F4C81",
+        iconBgA:      "rgba(15,76,129,0.08)",
+        iconBorderA:  "rgba(15,76,129,0.18)",
+        textPrimary:  "#0F172A",
+        textMuted:    "#64748B",
+        textDim:      "#94A3B8",
+        shadowCard:   "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",
+        redIcon:      "#EF4444",
+        redDim:       "rgba(239,68,68,0.08)",
+        redBorder:    "rgba(239,68,68,0.18)",
+        green:        "#059669",
+        greenDim:     "rgba(5,150,105,0.08)",
+        greenBorder:  "rgba(5,150,105,0.18)",
+      };
+}
+
+const glass = (T, extra) => ({
+  background:   T.bgCard,
+  border:       `1px solid ${T.border}`,
+  borderRadius: "16px",
+  boxShadow:    T.shadowCard,
+  ...extra,
+});
+
+const transition = {
+  transition: "all 0.25s ease",
+};
 
 const OPTION_KEYS_NUMERIC = ['option_1', 'option_2', 'option_3', 'option_4'];
 const OPTION_KEYS_ALPHA = ['option_a', 'option_b', 'option_c', 'option_d'];
@@ -101,6 +168,10 @@ const normalizeQuestionForEditor = (rawQuestion, index) => {
 const EditQuiz = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { theme } = useTheme();
+  const toast = useToast();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
 
   const [quizTitle, setQuizTitle] = useState('');
   const [questions, setQuestions] = useState([]);
@@ -236,8 +307,37 @@ const EditQuiz = () => {
     setQuestions([...questions, { id: null, question_text: '', options: ['', '', '', ''], correct_answer: 'option_1' }]);
   };
 
+  const focusOptionInput = (questionIndex, optionIndex) => {
+    requestAnimationFrame(() => {
+      const target = document.querySelector(`[data-option-input="${questionIndex}-${optionIndex}"]`);
+      if (target) {
+        target.focus();
+      }
+    });
+  };
+
+  const handleOptionEnter = (event, questionIndex, optionIndex) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+
+    const currentQuestion = questions[questionIndex];
+    const maxOptionIndex = (currentQuestion?.options?.length || 4) - 1;
+
+    if (optionIndex < maxOptionIndex) {
+      focusOptionInput(questionIndex, optionIndex + 1);
+      return;
+    }
+
+    const nextQuestionIndex = questions.length;
+    addQuestion();
+    setTimeout(() => {
+      focusOptionInput(nextQuestionIndex, 0);
+    }, 0);
+  };
+
   const handleSave = async () => {
     setIsSaving(true);
+    let isSaved = false;
     try {
       const payload = {
         title: quizTitle,
@@ -254,6 +354,7 @@ const EditQuiz = () => {
       };
 
       await api.put(`/quizzes/${id}`, payload);
+      isSaved = true;
       alert('تم حفظ التعديلات بنجاح!');
       navigate(-1);
     } catch (err) {
@@ -262,7 +363,26 @@ const EditQuiz = () => {
     } finally {
       setIsSaving(false);
     }
+    return isSaved;
   };
+
+  useEffect(() => {
+    const onGlobalSave = async (event) => {
+      const isSaveShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's';
+      if (!isSaveShortcut) return;
+
+      event.preventDefault();
+      if (isSaving || isDeleting || isLoading) return;
+
+      const saved = await handleSave();
+      if (saved) {
+        toast.success('تم الحفظ بنجاح');
+      }
+    };
+
+    window.addEventListener('keydown', onGlobalSave);
+    return () => window.removeEventListener('keydown', onGlobalSave);
+  }, [isSaving, isDeleting, isLoading, handleSave, toast]);
 
   const handleDelete = async () => {
     if (!id) {
@@ -287,76 +407,115 @@ const EditQuiz = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir="rtl">
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold text-[#103B66] dark:text-blue-400 truncate">
+    <div style={{ ...transition, background: T.bg, minHeight: "100vh", fontFamily: "'Cairo', sans-serif" }} dir="rtl">
+      <header
+        style={{
+          ...transition,
+          position: "sticky", top: 0, zIndex: 20,
+          background: isDark ? "rgba(11,17,32,0.88)" : "rgba(248,250,252,0.90)",
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          borderBottom: `1px solid ${T.border}`,
+        }}
+      >
+        <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h1 style={{ fontSize: "1.1rem", fontWeight: 800, color: T.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {quizTitle || 'تعديل الاختبار'}
             </h1>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <button
               onClick={() => navigate(-1)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold text-gray-600 dark:text-gray-300 hover:text-[#103B66] dark:hover:text-white transition"
+              style={{
+                ...transition,
+                display: "flex", alignItems: "center", gap: "6px",
+                padding: "8px 12px", borderRadius: "8px",
+                background: "transparent", border: "none", cursor: "pointer",
+                color: T.textMuted, fontSize: "0.875rem", fontWeight: 700
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = T.textPrimary}
+              onMouseLeave={e => e.currentTarget.style.color = T.textMuted}
             >
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight style={{ width: "16px", height: "16px" }} />
               عودة
             </button>
+
             <button
               onClick={handleSave}
               disabled={isSaving || isDeleting}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-[#103B66] dark:bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{
+                ...transition,
+                display: "flex", alignItems: "center", gap: "6px",
+                padding: "8px 24px", borderRadius: "8px",
+                background: T.accent, border: "none",
+                color: "#FFFFFF", fontSize: "0.875rem", fontWeight: 700, cursor: (isSaving || isDeleting) ? "not-allowed" : "pointer",
+                opacity: (isSaving || isDeleting) ? 0.6 : 1,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+              }}
+              onMouseEnter={e => { if(!isSaving && !isDeleting) e.currentTarget.style.opacity = "0.9" }}
+              onMouseLeave={e => { if(!isSaving && !isDeleting) e.currentTarget.style.opacity = "1" }}
             >
-              <Save className="w-4 h-4" />
+              {isSaving ? <Loader2 style={{ width: "16px", height: "16px", animation: "spin 1s linear infinite" }} /> : <Save style={{ width: "16px", height: "16px" }} />}
               {isSaving ? 'جاري الحفظ...' : 'حفظ التعديلات'}
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={isDeleting || isSaving}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Trash2 className="w-4 h-4" />
-              {isDeleting ? 'جاري الحذف...' : 'حذف الاختبار'}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-6 space-y-8 pb-32">
+      <main style={{ maxWidth: "800px", margin: "0 auto", padding: "32px 24px 128px", display: "flex", flexDirection: "column", gap: "32px" }}>
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
-            <Loader2 className="w-8 h-8 animate-spin text-[#103B66] dark:text-blue-400 mb-3" />
-            <p className="text-sm font-medium">جارٍ تحميل بيانات الاختبار...</p>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px 0", color: T.textMuted }}>
+            <Loader2 style={{ width: "32px", height: "32px", color: T.accent, animation: "spin 1s linear infinite", marginBottom: "12px" }} />
+            <p style={{ fontSize: "0.875rem", fontWeight: 600 }}>جارٍ تحميل بيانات الاختبار...</p>
           </div>
         ) : error ? (
-          <div className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10 p-4 flex items-center gap-2 text-red-700 dark:text-red-300">
-            <AlertTriangle className="w-5 h-5 shrink-0" />
-            <p className="text-sm font-medium">{error}</p>
+          <div style={{ padding: "16px", borderRadius: "12px", border: `1px solid ${T.redBorder}`, background: T.redDim, display: "flex", alignItems: "center", gap: "8px", color: T.redIcon }}>
+            <AlertTriangle style={{ width: "20px", height: "20px", flexShrink: 0 }} />
+            <p style={{ fontSize: "0.875rem", fontWeight: 600 }}>{error}</p>
           </div>
         ) : (
           <>
-            <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
-              <label className="block text-gray-400 text-sm font-bold mb-2">عنوان الاختبار</label>
+            <div style={{ ...glass(T, { padding: "24px" }) }}>
+              <label style={{ display: "block", color: T.textMuted, fontSize: "0.875rem", fontWeight: 700, marginBottom: "8px" }}>عنوان الاختبار</label>
               <input
                 type="text"
                 value={quizTitle}
                 onChange={(e) => setQuizTitle(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:outline-none focus:border-violet-500"
+                style={{
+                  ...transition,
+                  width: "100%", background: T.bgPanel, border: `1px solid ${T.border}`,
+                  borderRadius: "8px", padding: "14px 16px", color: T.textPrimary,
+                  fontSize: "1rem", fontWeight: 600, outline: "none"
+                }}
+                onFocus={e => e.currentTarget.style.border = `1px solid ${T.borderAccent}`}
+                onBlur={e => e.currentTarget.style.border = `1px solid ${T.border}`}
               />
             </div>
 
-            <div className="space-y-6">
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               {questions.map((q, qIndex) => (
-                <div key={qIndex} className="bg-gray-800 p-6 rounded-xl border border-gray-700 relative">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-violet-400">سؤال {qIndex + 1}</h3>
+                <div key={qIndex} style={{ ...glass(T, { padding: "32px" }), position: "relative" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: T.iconBgA, border: `1px solid ${T.iconBorderA}`, display: "flex", alignItems: "center", justifyContent: "center", color: T.iconA, fontSize: "0.875rem", fontWeight: 800 }}>
+                        {qIndex + 1}
+                      </div>
+                      <h3 style={{ fontSize: "1rem", fontWeight: 800, color: T.textPrimary }}>السؤال</h3>
+                    </div>
                     <button
                       onClick={() => removeQuestion(qIndex)}
-                      className="text-red-400 hover:text-red-300 text-sm"
+                      style={{
+                        ...transition,
+                        display: "flex", alignItems: "center", gap: "4px",
+                        background: "transparent", border: "none", cursor: "pointer",
+                        color: T.textMuted, fontSize: "0.875rem", fontWeight: 700
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = T.redIcon}
+                      onMouseLeave={e => e.currentTarget.style.color = T.textMuted}
                     >
-                      حذف السؤال
+                      <Trash2 style={{ width: "16px", height: "16px" }} />
+                      إزالة
                     </button>
                   </div>
 
@@ -364,27 +523,64 @@ const EditQuiz = () => {
                     value={q.question_text}
                     onChange={(e) => updateQuestionText(qIndex, e.target.value)}
                     placeholder="اكتب صيغة السؤال هنا..."
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white mb-4 h-24 focus:outline-none focus:border-violet-500"
+                    style={{
+                      ...transition,
+                      width: "100%", background: T.bgPanel, border: `1px solid ${T.border}`,
+                      borderRadius: "8px", padding: "16px", color: T.textPrimary,
+                      fontSize: "0.875rem", fontWeight: 600, outline: "none", resize: "vertical", minHeight: "100px",
+                      marginBottom: "24px"
+                    }}
+                    onFocus={e => e.currentTarget.style.border = `1px solid ${T.borderAccent}`}
+                    onBlur={e => e.currentTarget.style.border = `1px solid ${T.border}`}
                   />
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "16px" }}>
                     {[1, 2, 3, 4].map((optNum, oIndex) => {
                       const optionKey = `option_${optNum}`;
+                      const isCorrect = q.correct_answer === optionKey;
                       return (
-                        <div key={optNum} className="flex items-center gap-3 bg-gray-900 p-3 rounded-lg border border-gray-700">
-                          <input
-                            type="radio"
-                            name={`correct_${qIndex}`}
-                            checked={q.correct_answer === optionKey}
-                            onChange={() => updateCorrectAnswer(qIndex, optionKey)}
-                            className="w-5 h-5 accent-violet-500"
-                          />
+                        <div
+                          key={optNum}
+                          onClick={() => updateCorrectAnswer(qIndex, optionKey)}
+                          style={{
+                            ...transition,
+                            display: "flex", alignItems: "center", gap: "12px",
+                            background: isCorrect ? T.greenDim : T.bgPanel,
+                            border: `1px solid ${isCorrect ? T.greenBorder : T.border}`,
+                            borderRadius: "8px", padding: "12px", cursor: "pointer"
+                          }}
+                          onMouseEnter={e => {
+                            if (!isCorrect) e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.02)";
+                          }}
+                          onMouseLeave={e => {
+                            if (!isCorrect) e.currentTarget.style.background = T.bgPanel;
+                          }}
+                        >
+                          <button
+                            type="button"
+                            style={{
+                              ...transition,
+                              width: "24px", height: "24px", borderRadius: "50%", flexShrink: 0,
+                              background: isCorrect ? T.green : "transparent",
+                              border: `2px solid ${isCorrect ? T.green : T.border}`,
+                              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer"
+                            }}
+                          >
+                            {isCorrect && <Check style={{ width: "14px", height: "14px", color: "#FFF" }} />}
+                          </button>
                           <input
                             type="text"
                             value={q.options[oIndex]}
                             onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
+                            onKeyDown={(e) => handleOptionEnter(e, qIndex, oIndex)}
+                            onClick={(e) => e.stopPropagation()}
                             placeholder={`اختيار ${optNum}`}
-                            className="flex-1 bg-transparent border-none text-white focus:outline-none"
+                            data-option-input={`${qIndex}-${oIndex}`}
+                            style={{
+                              flex: 1, background: "transparent", border: "none",
+                              color: isCorrect ? (isDark ? T.green : T.textPrimary) : T.textPrimary,
+                              fontSize: "0.875rem", fontWeight: 600, outline: "none", cursor: "text"
+                            }}
                           />
                         </div>
                       );
@@ -396,10 +592,64 @@ const EditQuiz = () => {
 
             <button
               onClick={addQuestion}
-              className="w-full py-4 border-2 border-dashed border-gray-600 text-gray-400 rounded-xl hover:border-violet-500 hover:text-violet-400 transition font-bold"
+              style={{
+                ...transition,
+                width: "100%", padding: "20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "8px",
+                background: T.bgCard, border: `2px dashed ${T.border}`, borderRadius: "16px", cursor: "pointer",
+                color: T.textMuted
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = T.accentDim;
+                e.currentTarget.style.border = `2px dashed ${T.borderAccent}`;
+                e.currentTarget.style.color = T.accent;
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = T.bgCard;
+                e.currentTarget.style.border = `2px dashed ${T.border}`;
+                e.currentTarget.style.color = T.textMuted;
+              }}
             >
-              + إضافة سؤال جديد
+              <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: T.bgPanel, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", color: "inherit", ...transition }}>
+                <Plus style={{ width: "20px", height: "20px" }} />
+              </div>
+              <span style={{ fontSize: "0.875rem", fontWeight: 700 }}>إضافة سؤال جديد</span>
             </button>
+
+            {/* Danger Zone */}
+            <section style={{ ...glass(T, { padding: "32px", borderColor: "rgba(244, 63, 94, 0.2)" }), marginTop: "32px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: 800, color: T.redIcon }}>منطقة الخطر (Danger Zone)</h2>
+              </div>
+              <p style={{ fontSize: "0.875rem", color: T.textMuted, marginBottom: "24px" }}>
+                الإجراءات هنا لا يمكن التراجع عنها. سيتم حذف هذا الاختبار نهائياً.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting || isSaving}
+                  style={{
+                    ...transition,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "14px", borderRadius: "10px",
+                    background: T.redDim, border: `1px solid ${T.redBorder}`, color: T.redIcon, fontSize: "0.875rem", fontWeight: 700,
+                    cursor: (isDeleting || isSaving) ? "not-allowed" : "pointer",
+                    opacity: (isDeleting || isSaving) ? 0.6 : 1
+                  }}
+                  onMouseEnter={e => {
+                    if (!isDeleting && !isSaving) {
+                      e.currentTarget.style.background = "rgba(244, 63, 94, 0.2)";
+                    }
+                  }}
+                  onMouseLeave={e => {
+                    if (!isDeleting && !isSaving) {
+                      e.currentTarget.style.background = T.redDim;
+                    }
+                  }}
+                >
+                  <Trash2 style={{ width: "18px", height: "18px" }} />
+                  <span>{isDeleting ? 'جاري الحذف...' : 'حذف الاختبار'}</span>
+                </button>
+              </div>
+            </section>
           </>
         )}
       </main>

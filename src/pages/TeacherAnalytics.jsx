@@ -1,78 +1,133 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../api/api';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import {
   Brain, ArrowRight, Video, ClipboardList, TrendingUp, Clock,
-  ChevronDown, AlertTriangle, BarChart2, Eye, Loader2, RefreshCcw, Play, FileText, Edit3,
+  ChevronDown, AlertTriangle, BarChart2, Eye, RefreshCcw, Play, FileText, Edit3,
 } from 'lucide-react';
-// ── Static lookup maps (UI-only, no need to fetch) ────────────────────────────
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
 
-const SUBJECT_COLORS = {
-  Physics:     { bg: 'bg-blue-100 dark:bg-blue-900/40',     text: 'text-blue-700 dark:text-blue-300'     },
-  Chemistry:   { bg: 'bg-green-100 dark:bg-green-900/40',   text: 'text-green-700 dark:text-green-300'   },
-  Mathematics: { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300' },
-  Biology:     { bg: 'bg-amber-100 dark:bg-amber-900/40',   text: 'text-amber-700 dark:text-amber-300'   },
+/* ════════════════════════════════════════════════════
+   DESIGN SYSTEM — Extracted from LandingPage.jsx
+════════════════════════════════════════════════════ */
+function buildTheme(dk){return dk?{bg:"#0B1120",bgPanel:"#0D1526",bgCard:"rgba(255,255,255,0.035)",border:"rgba(255,255,255,0.08)",borderAccent:"rgba(79,70,229,0.38)",accent:"#4F46E5",accentDim:"rgba(79,70,229,0.14)",iconA:"#38BDF8",iconBgA:"rgba(56,189,248,0.10)",iconBorderA:"rgba(56,189,248,0.22)",iconB:"#818CF8",iconBgB:"rgba(129,140,248,0.11)",iconBorderB:"rgba(129,140,248,0.25)",textPrimary:"#F8FAFC",textMuted:"#94A3B8",textDim:"#475569",shadowCard:"0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",trackBg:"rgba(255,255,255,0.06)",green:"#34D399",greenDim:"rgba(52,211,153,0.12)",greenBorder:"rgba(52,211,153,0.22)",red:"#F87171",redDim:"rgba(248,113,113,0.10)",redBorder:"rgba(248,113,113,0.20)",yellow:"#FBBF24",yellowDim:"rgba(251,191,36,0.12)",yellowBorder:"rgba(251,191,36,0.22)",headerBg:"rgba(11,17,32,0.88)"}:{bg:"#F8FAFC",bgPanel:"#FFFFFF",bgCard:"#FFFFFF",border:"#E2E8F0",borderAccent:"rgba(15,76,129,0.28)",accent:"#0F4C81",accentDim:"rgba(15,76,129,0.08)",iconA:"#0F4C81",iconBgA:"rgba(15,76,129,0.08)",iconBorderA:"rgba(15,76,129,0.18)",iconB:"#2563EB",iconBgB:"rgba(37,99,235,0.07)",iconBorderB:"rgba(37,99,235,0.16)",textPrimary:"#0F172A",textMuted:"#64748B",textDim:"#94A3B8",shadowCard:"0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",trackBg:"#E2E8F0",green:"#059669",greenDim:"rgba(5,150,105,0.08)",greenBorder:"rgba(5,150,105,0.18)",red:"#EF4444",redDim:"rgba(239,68,68,0.08)",redBorder:"rgba(239,68,68,0.18)",yellow:"#D97706",yellowDim:"rgba(217,119,6,0.08)",yellowBorder:"rgba(217,119,6,0.18)",headerBg:"rgba(248,250,252,0.90)"};}
+const _c=(T,x)=>({background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:"16px",boxShadow:T.shadowCard,...x});
+const _t={transition:"all 0.25s ease"};
+const _iw=(bg,bd,sz="40px",r="10px")=>({..._t,width:sz,height:sz,borderRadius:r,background:bg,border:`1px solid ${bd}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0});
+const _input = (T) => ({..._t, width: "100%", background: T.bg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "14px 16px", color: T.textPrimary, outline: "none", fontSize: "0.95rem"});
+
+// ── Static lookup maps ────────────────────────────
+const getSubjectStyle = (subject, T) => {
+  const map = {
+    Physics:     { bg: T.iconBgA,   text: T.iconA },
+    Chemistry:   { bg: T.greenDim,  text: T.green },
+    Mathematics: { bg: T.iconBgB,   text: T.iconB },
+    Biology:     { bg: T.yellowDim, text: T.yellow },
+  };
+  return map[subject] || { bg: T.bgCard, text: T.textMuted };
 };
 
-const SUBJECT_NAMES = {
-  Physics: 'الفيزياء', Chemistry: 'الكيمياء',
-  Mathematics: 'الرياضيات', Biology: 'الأحياء',
+const SUBJECT_NAME_KEYS = {
+  Physics: 'subject_physics', Chemistry: 'subject_chemistry',
+  Mathematics: 'subject_math', Biology: 'subject_biology',
+};
+
+const getSubjectLabel = (t, subject) => {
+  const key = SUBJECT_NAME_KEYS[subject];
+  return key ? t(key) : subject;
 };
 
 const SCORE_BUCKETS = ['0–20%', '21–40%', '41–60%', '61–80%', '81–100%'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const distBarColor = (idx) =>
-  ['#dc2626', '#f97316', '#d97706', '#16a34a', '#2563eb'][idx] || '#6b7280';
+const getDistBarColor = (idx, T) =>
+  [T.red, T.yellow, T.iconA, T.green, T.iconB][idx] || T.textMuted;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-const SectionLoader = ({ rows = 3 }) => (
-  <div className="space-y-3 py-4">
+const SectionLoader = ({ rows = 3, T }) => (
+  <div style={{display:"flex",flexDirection:"column",gap:"12px",padding:"16px 0"}}>
     {Array.from({ length: rows }).map((_, i) => (
-      <div key={i} className="h-12 bg-gray-100 dark:bg-gray-700/50 rounded-xl animate-pulse" />
+      <SkeletonLoader key={i} type="card" height="52px" className="w-full" />
     ))}
   </div>
 );
 
-const SectionError = ({ message, onRetry }) => (
-  <div className="py-10 text-center flex flex-col items-center gap-3">
-    <AlertTriangle className="w-8 h-8 text-amber-400" />
-    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{message}</p>
+const TeacherAnalyticsLoadingSkeleton = ({ T, lang, glass }) => (
+  <div style={{..._t,background:T.bg,minHeight:"100vh",fontFamily:"'Cairo',sans-serif"}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <main style={{maxWidth:"1152px",margin:"0 auto",padding:"32px 24px",display:"flex",flexDirection:"column",gap:"28px"}}>
+      <section>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:"16px"}}>
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} style={glass({ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' })}>
+              <SkeletonLoader type="card" width="44px" height="44px" />
+              <div style={{display:"flex",flexDirection:"column",gap:"8px",flex:1}}>
+                <SkeletonLoader type="text" width="62%" height="10px" />
+                <SkeletonLoader type="text" width="40%" height="16px" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(340px, 1fr))",gap:"18px"}}>
+          <div style={glass({ padding: '20px' })}>
+            <SkeletonLoader type="text" width="42%" height="12px" className="mb-4" />
+            <SkeletonLoader type="card" height="320px" className="w-full" />
+          </div>
+          <div style={glass({ padding: '20px' })}>
+            <SkeletonLoader type="text" width="36%" height="12px" className="mb-4" />
+            <SkeletonLoader type="card" height="320px" className="w-full" />
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+);
+
+const SectionError = ({ message, onRetry, T, retryLabel }) => (
+  <div style={{padding:"40px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:"12px",textAlign:"center"}}>
+    <AlertTriangle style={{width:"32px",height:"32px",color:T.yellow}} />
+    <p style={{fontSize:"0.9rem",color:T.textDim,fontWeight:600}}>{message}</p>
     <button
       onClick={onRetry}
-      className="flex items-center gap-1.5 text-sm font-bold text-[#103B66] dark:text-blue-400 hover:underline"
+      style={{..._t,display:"flex",alignItems:"center",gap:"6px",fontSize:"0.9rem",fontWeight:700,color:T.accent,background:"transparent",border:"none",cursor:"pointer"}}
     >
-      <RefreshCcw className="w-4 h-4" />
-      إعادة المحاولة
+      <RefreshCcw style={{width:"16px",height:"16px"}} />
+      {retryLabel}
     </button>
   </div>
 );
 
 // ── Custom Tooltips ───────────────────────────────────────────────────────────
 
-const ViewsTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
+const ViewsTooltip = ({ active, payload, label, T, viewsLabel }) => {
+  if (!active || !payload?.length || !T) return null;
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg p-3 text-sm" dir="rtl">
-      <p className="text-xs text-gray-400 dark:text-gray-500 mb-1 font-bold">{label} فبراير</p>
-      <p className="font-bold text-[#103B66] dark:text-blue-400">{payload[0].value} مشاهدة</p>
+    <div style={{..._c(T),padding:"12px",fontSize:"0.875rem"}} dir="rtl">
+      <p style={{fontSize:"0.75rem",color:T.textMuted,marginBottom:"4px",fontWeight:700}}>{label}</p>
+      <p style={{fontWeight:800,color:T.accent}}>{payload[0].value} {viewsLabel}</p>
     </div>
   );
 };
 
-const DistTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
+const DistTooltip = ({ active, payload, label, T, studentsLabel }) => {
+  if (!active || !payload?.length || !T) return null;
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg p-3 text-sm" dir="rtl">
-      <p className="text-xs text-gray-400 mb-1 font-bold">{label}</p>
-      <p className="font-bold text-gray-800 dark:text-white">{payload[0].value} طالب</p>
+    <div style={{..._c(T),padding:"12px",fontSize:"0.875rem"}} dir="rtl">
+      <p style={{fontSize:"0.75rem",color:T.textMuted,marginBottom:"4px",fontWeight:700}}>{label}</p>
+      <p style={{fontWeight:800,color:T.textPrimary}}>{payload[0].value} {studentsLabel}</p>
     </div>
   );
 };
@@ -81,11 +136,17 @@ const DistTooltip = ({ active, payload, label }) => {
 
 const TeacherAnalytics = () => {
   const navigate = useNavigate();
-  const { t, lang } = useLanguage();
+  const { lang } = useLanguage();
+  const { t } = useTranslation();
+  const { theme, C, glass } = useTheme();
+  const toast = useToast();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
 
   // ── Data state ────────────────────────────────────────────────────────────
   const [videos, setVideos] = useState([]);
   const [quizzes, setQuizzes] = useState([]);
+  const [studentAttempts, setStudentAttempts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   // Live KPI stats from /api/teachers/dashboard (replaces stale localStorage reads)
@@ -95,84 +156,78 @@ const TeacherAnalytics = () => {
   // ── Selected lesson (for drill-down charts) ───────────────────────────────
   const [selectedId, setSelectedId] = useState(null);
 
+  const openVideoDetails = useCallback((videoId) => {
+    if (videoId) {
+      navigate(`/video-details/${videoId}`);
+      return;
+    }
+    toast.error(t('teacher_analytics_error_video_id_unavailable'));
+  }, [navigate, t, toast]);
+
+  const openQuizDetails = useCallback((quizId) => {
+    if (quizId) {
+      navigate(`/quizzes-details/${quizId}`);
+      return;
+    }
+    toast.error(t('teacher_analytics_error_quiz_id_unavailable'));
+  }, [navigate, t, toast]);
+
   const fetchAnalytics = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [videosRes, quizzesRes] = await Promise.all([
-        api.get('/videos'),
-        api.get('/quizzes'),
-      ]);
+      const res = await api.get('/teachers/dashboard');
+      const payload = res.data ?? {};
+      const studentAttempts = Array.isArray(payload.student_attempts) ? payload.student_attempts : [];
+      const quizAttemptsCount = Array.isArray(payload.quiz_attempts_count) ? payload.quiz_attempts_count : [];
 
-      const videosPayload = videosRes.data?.videos ?? {};
-      const quizzesPayload = quizzesRes.data?.quizzes ?? {};
+      setDashboardStats({
+        videos_count: Number(payload.videos_count ?? 0),
+        quizzes_count: Number(payload.quizzes_count ?? 0),
+        average_score: payload.average_score ?? null,
+      });
 
-      const rawVideosData = videosPayload?.data ?? videosRes.data?.data ?? videosPayload ?? [];
-      const rawQuizzesData = quizzesPayload?.data ?? quizzesRes.data?.data ?? quizzesPayload ?? [];
+      setStudentAttempts(studentAttempts);
 
-      const videosList = Array.isArray(rawVideosData)
-        ? rawVideosData
-        : (rawVideosData && typeof rawVideosData === 'object' ? Object.values(rawVideosData) : []);
-      const quizzesList = Array.isArray(rawQuizzesData)
-        ? rawQuizzesData
-        : (rawQuizzesData && typeof rawQuizzesData === 'object' ? Object.values(rawQuizzesData) : []);
-
-      const formattedVideos = videosList.map((video, idx) => {
-        const videoId = video.video_id ?? video.id ?? `vid-${idx + 1}`;
-        const lessonId = video.lesson_id ?? video.lessonId ?? video.lesson?.id ?? null;
-        const lessonTitle = video.lesson_title || '';
-        const videoTitle = video.video_title || '';
-        const resolvedVideoTitle = lessonTitle || videoTitle || video.title || 'درس بدون عنوان';
-
+      const formattedVideos = studentAttempts.map((attempt, idx) => {
+        const lessonTitle = attempt.lesson_title || attempt.video_title || 'درس بدون عنوان';
+        const videoId = attempt.video_id ?? null;
+        const lessonId = attempt.lesson_id ?? null;
         return {
-          id: videoId,
-          selectionKey: `video:${videoId}`,
+          id: videoId ?? lessonId ?? `attempt-${idx + 1}`,
+          videoId,
+          selectionKey: `video:attempt-${idx + 1}`,
           contentType: 'video',
           lessonId,
-          lessonTitle: lessonTitle || resolvedVideoTitle,
-          videoTitle: videoTitle || resolvedVideoTitle,
-          lesson: resolvedVideoTitle,
-          subject: video.subject_name || video.subject || 'Physics',
-          views: Number(video.views_count ?? video.views ?? 0) || 0,
+          lessonTitle,
+          videoTitle: attempt.video_title || lessonTitle,
+          lesson: lessonTitle,
+          subject: payload.teacher?.subject_name || 'Physics',
+          views: null,
           quizAttempts: null,
           avgScore: null,
+          score: attempt.score ?? 0,
+          totalMarks: attempt.total_marks ?? 0,
           topWeakSubtopic: null,
           scoreDistribution: [],
           missedQuestions: [],
         };
       });
 
-      const videosByLessonId = formattedVideos.reduce((acc, video) => {
-        if (video.lessonId == null) return acc;
-        const key = String(video.lessonId);
-        if (!acc.has(key)) {
-          acc.set(key, video.lessonTitle || video.videoTitle || video.lesson || null);
-        }
-        return acc;
-      }, new Map());
-
-      const formattedQuizzes = quizzesList.map((quiz, idx) => {
-        const quizId = quiz.id ?? quiz.quiz_id ?? `quiz-${idx + 1}`;
-        const lessonId = quiz.lesson_id ?? quiz.lessonId ?? quiz.lesson?.id ?? null;
-        const rawTitle = typeof quiz.title === 'string' ? quiz.title.trim() : '';
-        const linkedVideoTitle = lessonId != null ? videosByLessonId.get(String(lessonId)) : null;
-        const resolvedQuizTitle =
-          rawTitle && rawTitle !== 'Untitled Quiz'
-            ? rawTitle
-            : linkedVideoTitle
-              ? `اختبار: ${linkedVideoTitle}`
-              : 'اختبار الدرس';
-
+      const formattedQuizzes = quizAttemptsCount.map((quiz, idx) => {
+        const quizId = quiz.quiz_id ?? null;
+        const lessonId = quiz.lesson_id ?? null;
         return {
-          id: quizId,
-          selectionKey: `quiz:${quizId}`,
+          id: quizId ?? lessonId ?? `quiz-${idx + 1}`,
+          quizId,
+          selectionKey: `quiz:attempt-${idx + 1}`,
           contentType: 'quiz',
-          title: rawTitle || 'Untitled Quiz',
+          title: quiz.title || 'اختبار',
           lessonId,
-          lesson: resolvedQuizTitle,
-          subject: quiz.subject_name || quiz.subject || 'Physics',
+          lesson: quiz.title || 'اختبار',
+          subject: payload.teacher?.subject_name || 'Physics',
           views: null,
-          quizAttempts: Number(quiz.attempts_count ?? quiz.attempts ?? 0) || 0,
+          quizAttempts: Number(quiz.quizzes_attempt_count ?? 0) || 0,
           avgScore: null,
           topWeakSubtopic: null,
           scoreDistribution: [],
@@ -180,22 +235,10 @@ const TeacherAnalytics = () => {
         };
       });
 
-      const uniqueById = (items) => {
-        const seen = new Map();
-        items.forEach((item) => {
-          const key = String(item.id);
-          if (!seen.has(key)) seen.set(key, item);
-        });
-        return Array.from(seen.values());
-      };
+      setVideos(formattedVideos);
+      setQuizzes(formattedQuizzes);
 
-      const uniqueVideos = uniqueById(formattedVideos);
-      const uniqueQuizzes = uniqueById(formattedQuizzes);
-
-      setVideos(uniqueVideos);
-      setQuizzes(uniqueQuizzes);
-
-      const mergedContent = [...uniqueVideos, ...uniqueQuizzes];
+      const mergedContent = [...formattedVideos, ...formattedQuizzes];
       setSelectedId((prev) => {
         if (prev != null && mergedContent.some((item) => String(item.selectionKey) === String(prev))) {
           return prev;
@@ -204,32 +247,19 @@ const TeacherAnalytics = () => {
       });
     } catch (err) {
       console.error('Failed to fetch teacher analytics', err);
-      setError('تعذّر تحميل البيانات.');
+      setError(t('teacher_analytics_error_loading_data'));
       setVideos([]);
       setQuizzes([]);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
   // Fetch live KPI stats from the teacher dashboard endpoint
-  useEffect(() => {
-    api.get('/teachers/dashboard')
-      .then((res) => {
-        const payload = res.data ?? {};
-        setDashboardStats({
-          videos_count: Number(payload.videos_count ?? 0),
-          quizzes_count: Number(payload.quizzes_count ?? 0),
-          average_score: payload.average_score ?? null,
-        });
-      })
-      .catch((err) => console.error('Failed to fetch teacher dashboard KPIs', err));
-  }, []);
-
   // ── Derived values ────────────────────────────────────────────────────────
   const content = [...videos, ...quizzes];
   const selected = content.find(c => String(c.selectionKey) === String(selectedId)) ?? content[0] ?? null;
@@ -251,68 +281,67 @@ const TeacherAnalytics = () => {
   const totalVideosCount   = dashboardStats?.videos_count ?? 0;
   const totalQuizzesCount  = dashboardStats?.quizzes_count ?? 0;
   const averageScoreDisplay =
-    dashboardStats?.average_score != null && Number.isFinite(Number(dashboardStats.average_score))
-      ? `${Math.round(Number(dashboardStats.average_score) * 100)}%`
+    dashboardStats?.average_score != null
+      ? (typeof dashboardStats.average_score === 'string'
+        ? dashboardStats.average_score
+        : `${dashboardStats.average_score}%`)
       : '0%';
 
   if (!dashboardStats) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-[#103B66] dark:text-blue-400 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <Loader2 className="w-12 h-12 animate-spin mb-4" />
-        <p className="text-lg font-bold">{t('loading') || 'جاري التحميل...'}</p>
-      </div>
-    );
+    return <TeacherAnalyticsLoadingSkeleton T={T} lang={lang} glass={glass} />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div style={{..._t,background:T.bg,minHeight:"100vh",fontFamily:"'Cairo',sans-serif"}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
 
       {/* ═══ HEADER ═══ */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-lg shadow">
-              <Brain className="w-5 h-5 text-white" />
+      <header style={{position:"sticky",top:0,zIndex:20,background:T.headerBg,backdropFilter:"blur(12px)",borderBottom:`1px solid ${T.border}`}}>
+        <div style={{maxWidth:"1152px",margin:"0 auto",padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+            <div style={_iw(T.iconBgB,T.iconBorderB,"40px","10px")}>
+              <Brain style={{width:"20px",height:"20px",color:T.iconB}} />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-[#103B66] dark:text-blue-400">{t('content_analytics')}</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('analytics_subtitle')}</p>
+              <h1 style={{fontSize:"1.125rem",fontWeight:800,color:T.textPrimary}}>{t('content_analytics')}</h1>
+              <p style={{fontSize:"0.75rem",color:T.textMuted}}>{t('analytics_subtitle')}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
             <button
               onClick={() => navigate('/teacher-dashboard')}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-[#103B66] dark:hover:text-white transition"
+              style={{..._t,background:"transparent",border:"none",display:"flex",alignItems:"center",gap:"6px",fontSize:"0.875rem",fontWeight:600,color:T.textMuted,cursor:"pointer"}}
+              onMouseEnter={e=>e.currentTarget.style.color=T.textPrimary}
+              onMouseLeave={e=>e.currentTarget.style.color=T.textMuted}
             >
-              <ArrowRight className={`w-4 h-4 ${lang === 'en' ? 'rotate-180' : ''}`} />
+              <ArrowRight style={{width:"16px",height:"16px",transform:lang==='en'?'rotate(180deg)':'none'}} />
               {t('teacher_control')}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+      <main style={{maxWidth:"1152px",margin:"0 auto",padding:"32px 24px",display:"flex",flexDirection:"column",gap:"40px"}}>
 
         {/* ═══ SECTION 1 — KPI Cards ═══ */}
         <section>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))",gap:"16px"}}>
             {[
-              { labelKey: 'total_videos', value: totalVideosCount, icon: Video, border: 'border-t-blue-500', iconBg: 'bg-blue-100 dark:bg-blue-900/40', iconCls: 'text-blue-600 dark:text-blue-400' },
-              { labelKey: 'total_quizzes', label: 'إجمالي الاختبارات', value: totalQuizzesCount, icon: ClipboardList, border: 'border-t-violet-500', iconBg: 'bg-violet-100 dark:bg-violet-900/40', iconCls: 'text-violet-600 dark:text-violet-400' },
-              { labelKey: 'avg_score', value: averageScoreDisplay, icon: TrendingUp, border: 'border-t-green-500', iconBg: 'bg-green-100 dark:bg-green-900/40', iconCls: 'text-green-600 dark:text-green-400' },
-              { labelKey: 'watch_hours', value: dashboardStats?.watch_hours || 0, icon: Clock, border: 'border-t-amber-500', iconBg: 'bg-amber-100 dark:bg-amber-900/40', iconCls: 'text-amber-600 dark:text-amber-400' },
-            ].map(({ labelKey, label, value, icon: Icon, border, iconBg, iconCls }) => (
-              <div key={labelKey} className={`bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border-t-4 ${border}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium leading-snug">{label || t(labelKey)}</p>
-                  <div className={`p-2 rounded-full ${iconBg}`}>
-                    <Icon className={`w-4 h-4 ${iconCls}`} />
+              { labelKey: 'total_videos', value: totalVideosCount, icon: Video, iconBg: T.iconBgB, iconBorder: T.iconBorderB, iconCls: T.iconB },
+              { labelKey: 'total_quizzes', label: 'إجمالي الاختبارات', value: totalQuizzesCount, icon: ClipboardList, iconBg: T.iconBgA, iconBorder: T.iconBorderA, iconCls: T.iconA },
+              { labelKey: 'avg_score', value: averageScoreDisplay, icon: TrendingUp, iconBg: T.greenDim, iconBorder: T.greenBorder, iconCls: T.green },
+              { labelKey: 'watch_hours', value: dashboardStats?.watch_hours || 0, icon: Clock, iconBg: T.yellowDim, iconBorder: T.yellowBorder, iconCls: T.yellow },
+            ].map(({ labelKey, label, value, icon: Icon, iconBg, iconBorder, iconCls }) => (
+              <div key={labelKey} style={{..._c(T),padding:"20px"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"12px"}}>
+                  <p style={{fontSize:"0.8rem",color:T.textMuted,fontWeight:600,lineHeight:1.4}}>{label || t(labelKey)}</p>
+                  <div style={_iw(iconBg,iconBorder,"36px","10px")}>
+                    <Icon style={{width:"18px",height:"18px",color:iconCls}} />
                   </div>
                 </div>
                 {isLoading ? (
-                  <div className="h-9 w-20 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+                  <SkeletonLoader type="text" width="80px" height="30px" />
                 ) : (
-                  <p className="text-3xl font-bold text-gray-800 dark:text-white leading-none">
+                  <p style={{fontSize:"1.875rem",fontWeight:800,color:T.textPrimary,lineHeight:1}}>
                     {value ?? '—'}
                   </p>
                 )}
@@ -323,30 +352,31 @@ const TeacherAnalytics = () => {
 
         {/* ═══ SECTION 2 — Content Performance Table ═══ */}
         <section>
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
-            <BarChart2 className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
+          <h2 style={{fontSize:"1.25rem",fontWeight:800,color:T.textPrimary,marginBottom:"20px",display:"flex",alignItems:"center",gap:"8px"}}>
+            <BarChart2 style={{width:"20px",height:"20px",color:T.accent}} />
             {t('content_performance')}
           </h2>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+          <div style={{..._c(T),overflow:"hidden"}}>
             {isLoading ? (
-              <div className="p-6"><SectionLoader rows={5} /></div>
+              <div style={{padding:"24px"}}><SectionLoader rows={5} T={T} /></div>
             ) : error ? (
-              <div className="p-6"><SectionError message={error} onRetry={fetchAnalytics} /></div>
+              <div style={{padding:"24px"}}><SectionError message={error} onRetry={fetchAnalytics} T={T} retryLabel={t('retry')} /></div>
             ) : (
-              <div className="p-4 space-y-7">
+              <div style={{padding:"24px",display:"flex",flexDirection:"column",gap:"28px"}}>
                 <div>
-                  <h3 className="text-base font-bold text-gray-800 dark:text-white mb-4">فيديوهات المادة</h3>
+                  <h3 style={{fontSize:"1rem",fontWeight:800,color:T.textPrimary,marginBottom:"16px"}}>فيديوهات المادة</h3>
                   {videos.length > 0 ? (
-                    <div className="space-y-4">
+                    <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
                       {videos.map(v => {
-                        const subj = SUBJECT_COLORS[v.subject] ?? { bg: 'bg-gray-100', text: 'text-gray-700' };
+                        const subj = getSubjectStyle(v.subject, T);
                         const isSelected = String(selectedId) === String(v.selectionKey);
-                        let barColor = 'bg-gray-300 dark:bg-gray-600';
+                        const viewsCount = studentAttempts.filter((a) => String(a.video_id ?? a.videoId) === String(v.videoId)).length || 0;
+                        let barColor = T.textDim;
                         if (v.avgScore !== null) {
-                          if (v.avgScore < 50) barColor = 'bg-red-500';
-                          else if (v.avgScore < 75) barColor = 'bg-yellow-500';
-                          else barColor = 'bg-green-500';
+                          if (v.avgScore < 50) barColor = T.red;
+                          else if (v.avgScore < 75) barColor = T.yellow;
+                          else barColor = T.green;
                         }
 
                         return (
@@ -354,189 +384,64 @@ const TeacherAnalytics = () => {
                             key={v.id}
                             role="button"
                             tabIndex={0}
-                            onClick={() => {
-                              if (v.id) navigate(`/video-details/${v.id}`);
-                              else alert('عذراً، معرف الفيديو غير متوفر.');
-                            }}
+                            onClick={() => openVideoDetails(v.videoId ?? v.lessonId)}
                             onKeyDown={(e) => {
                               if (e.target !== e.currentTarget) return;
-                              if (e.key === 'Enter' || e.key === ' ') {
+                              if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
                                 e.preventDefault();
-                                if (v.id) navigate(`/video-details/${v.id}`);
-                                else alert('عذراً، معرف الفيديو غير متوفر.');
+                                openVideoDetails(v.id);
                               }
                             }}
-                            className={`flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-sm'
-                                : 'bg-white dark:bg-gray-800/50 border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'
-                            }`}
+                            style={{..._t,display:"flex",flexDirection:"column",gap:"16px",padding:"16px",borderRadius:"12px",border:`1px solid ${isSelected?T.borderAccent:T.border}`,background:isSelected?T.accentDim:T.bgPanel,cursor:"pointer"}}
+                            onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.borderColor=T.textMuted}}
+                            onMouseLeave={e=>{if(!isSelected)e.currentTarget.style.borderColor=T.border}}
                           >
-                            <div className="flex-1 min-w-0 flex items-center gap-4 mb-4 md:mb-0">
-                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${subj.bg} ${subj.text}`}>
-                                <Play className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <h4 className="font-bold text-gray-800 dark:text-white text-base line-clamp-1">{v.lesson}</h4>
-                                <div className="flex items-center gap-3 mt-1 text-xs">
-                                  <span className={`font-bold px-2 py-0.5 rounded-full ${subj.bg} ${subj.text}`}>
-                                    {SUBJECT_NAMES[v.subject] || v.subject || '—'}
-                                  </span>
-                                  <span className="text-gray-500 dark:text-gray-400 font-medium">
-                                    <Eye className="w-3.5 h-3.5 inline mr-1 text-gray-400" /> {v.views !== null ? v.views.toLocaleString() : '—'} مشاهدة
-                                  </span>
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"16px"}}>
+                              
+                              {/* Left Side */}
+                              <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:"16px"}}>
+                                <div style={_iw(subj.bg,subj.text,"48px","12px")}>
+                                  <Play style={{width:"24px",height:"24px",color:subj.text}} />
                                 </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-6 w-full md:w-auto">
-                              <div className="flex-1 md:w-48">
-                                <div className="flex justify-between text-xs font-bold mb-1.5">
-                                  <span className="text-gray-600 dark:text-gray-300">متوسط الدرجات</span>
-                                  <span className={v.avgScore !== null && v.avgScore < 50 ? 'text-red-500' : 'text-gray-800 dark:text-white'}>
-                                    {v.avgScore !== null ? `${v.avgScore}%` : 'N/A'}
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full ${barColor} transition-all duration-1000`}
-                                    style={{ width: `${v.avgScore || 0}%` }}
-                                  />
+                                <div>
+                                  <h4 style={{fontWeight:800,color:T.textPrimary,fontSize:"1rem",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v.lesson}</h4>
+                                  <div style={{display:"flex",alignItems:"center",gap:"12px",marginTop:"4px",fontSize:"0.75rem"}}>
+                                    <span style={{fontWeight:700,padding:"2px 8px",borderRadius:"12px",background:subj.bg,color:subj.text}}>
+                                      {getSubjectLabel(t, v.subject) || '—'}
+                                    </span>
+                                    <span style={{color:T.textDim,fontWeight:600}}>
+                                      <Eye style={{width:"14px",height:"14px",display:"inline",marginRight:"4px",color:T.textMuted}} /> {viewsCount} مشاهدة
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
 
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedId(v.selectionKey);
-                                }}
-                                className={`shrink-0 flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition ${
-                                  isSelected
-                                    ? 'bg-[#103B66] dark:bg-blue-600 text-white'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                }`}
-                              >
-                                <BarChart2 className="w-4 h-4" />
-                                {isSelected ? t('selected_label') : t('details_label')}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">لا يوجد محتوى متاح حالياً</p>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="text-base font-bold text-gray-800 dark:text-white mb-4">اختبارات المادة</h3>
-                  {quizzes.length > 0 ? (
-                    <div className="space-y-4">
-                      {quizzes.map(q => {
-                        const subj = SUBJECT_COLORS[q.subject] ?? { bg: 'bg-gray-100', text: 'text-gray-700' };
-                        const isSelected = String(selectedId) === String(q.selectionKey);
-                        const rawQuizTitle = typeof q.title === 'string' ? q.title.trim() : '';
-                        const linkedVideo = videos.find(
-                          (video) =>
-                            video.lessonId != null &&
-                            q.lessonId != null &&
-                            String(video.lessonId) === String(q.lessonId)
-                        );
-                        const linkedVideoTitle = linkedVideo?.lessonTitle || linkedVideo?.videoTitle || linkedVideo?.lesson || '';
-                        const resolvedQuizTitle =
-                          rawQuizTitle && rawQuizTitle !== 'Untitled Quiz'
-                            ? rawQuizTitle
-                            : linkedVideoTitle
-                              ? `اختبار: ${linkedVideoTitle}`
-                              : 'اختبار الدرس';
-                        let barColor = 'bg-gray-300 dark:bg-gray-600';
-                        if (q.avgScore !== null) {
-                          if (q.avgScore < 50) barColor = 'bg-red-500';
-                          else if (q.avgScore < 75) barColor = 'bg-yellow-500';
-                          else barColor = 'bg-green-500';
-                        }
-
-                        return (
-                          <div
-                            key={q.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => {
-                              if (q.id) navigate(`/quizzes-details/${q.id}`);
-                              else alert('عذراً، معرف الاختبار غير متوفر.');
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.target !== e.currentTarget) return;
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                if (q.id) navigate(`/quizzes-details/${q.id}`);
-                                else alert('عذراً، معرف الاختبار غير متوفر.');
-                              }
-                            }}
-                            className={`flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-sm'
-                                : 'bg-white dark:bg-gray-800/50 border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'
-                            }`}
-                          >
-                            <div className="flex-1 min-w-0 flex items-center gap-4 mb-4 md:mb-0">
-                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${subj.bg} ${subj.text}`}>
-                                <FileText className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <h4 className="font-bold text-gray-800 dark:text-white text-base line-clamp-1">{resolvedQuizTitle}</h4>
-                                <div className="flex items-center gap-3 mt-1 text-xs">
-                                  <span className={`font-bold px-2 py-0.5 rounded-full ${subj.bg} ${subj.text}`}>
-                                    {SUBJECT_NAMES[q.subject] || q.subject || '—'}
-                                  </span>
-                                  <span className="text-gray-500 dark:text-gray-400 font-medium">
-                                    <ClipboardList className="w-3.5 h-3.5 inline mr-1 text-gray-400" /> {q.quizAttempts !== null ? q.quizAttempts.toLocaleString() : '—'} محاولة
-                                  </span>
+                              {/* Right Side */}
+                              <div style={{display:"flex",alignItems:"center",gap:"24px",width:"100%",maxWidth:"350px",flexWrap:"wrap",minWidth:0}}>
+                                <div style={{flex:1}}>
+                                  <div style={{display:"flex",justifyContent:"space-between",fontSize:"0.75rem",fontWeight:800,marginBottom:"6px"}}>
+                                    <span style={{color:T.textMuted}}>متوسط الدرجات</span>
+                                    <span style={{color:T.textPrimary}}>
+                                      {v.totalMarks ? `${v.score ?? 0} من ${v.totalMarks}` : '—'}
+                                    </span>
+                                  </div>
+                                  <div style={{width:"100%",background:T.bg,borderRadius:"4px",height:"8px",overflow:"hidden"}}>
+                                    <div
+                                      style={{height:"100%",borderRadius:"4px",background:barColor,transition:"width 1s ease",width:`${v.avgScore||0}%`}}
+                                    />
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-6 w-full md:w-auto">
-                              <div className="flex-1 md:w-48">
-                                <div className="flex justify-between text-xs font-bold mb-1.5">
-                                  <span className="text-gray-600 dark:text-gray-300">متوسط الدرجات</span>
-                                  <span className={q.avgScore !== null && q.avgScore < 50 ? 'text-red-500' : 'text-gray-800 dark:text-white'}>
-                                    {q.avgScore !== null ? `${q.avgScore}%` : 'N/A'}
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full ${barColor} transition-all duration-1000`}
-                                    style={{ width: `${q.avgScore || 0}%` }}
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="shrink-0 flex items-center gap-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/edit-quiz/${q.id}`);
-                                  }}
-                                  className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition border border-violet-200 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                  تعديل
-                                </button>
 
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedId(q.selectionKey);
+                                    setSelectedId(v.selectionKey);
                                   }}
-                                  className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition ${
-                                    isSelected
-                                      ? 'bg-[#103B66] dark:bg-blue-600 text-white'
-                                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                  }`}
+                                  style={{..._t,flexShrink:0,display:"flex",alignItems:"center",gap:"6px",fontSize:"0.75rem",fontWeight:700,padding:"8px 16px",borderRadius:"8px",background:isSelected?T.accent:T.bg,color:isSelected?"#FFF":T.textPrimary,border:`1px solid ${isSelected?T.accent:T.border}`}}
+                                  onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.background=T.bgCard}}
+                                  onMouseLeave={e=>{if(!isSelected)e.currentTarget.style.background=T.bg}}
                                 >
-                                  <BarChart2 className="w-4 h-4" />
+                                  <BarChart2 style={{width:"16px",height:"16px"}} />
                                   {isSelected ? t('selected_label') : t('details_label')}
                                 </button>
                               </div>
@@ -546,7 +451,127 @@ const TeacherAnalytics = () => {
                       })}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">لا يوجد محتوى متاح حالياً</p>
+                    <div style={glass({ padding: '8px' })}>
+                      <EmptyState
+                        icon={Video}
+                        title={t('teacher_analytics_no_videos_title')}
+                        description={t('teacher_analytics_no_videos_description')}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h3 style={{fontSize:"1rem",fontWeight:800,color:T.textPrimary,marginBottom:"16px"}}>اختبارات المادة</h3>
+                  {quizzes.length > 0 ? (
+                    <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+                      {quizzes.map(q => {
+                        const subj = getSubjectStyle(q.subject, T);
+                        const isSelected = String(selectedId) === String(q.selectionKey);
+                        const rawQuizTitle = typeof q.title === 'string' ? q.title.trim() : '';
+                        const resolvedQuizTitle = rawQuizTitle || 'اختبار';
+                        const attemptsForQuiz = studentAttempts.filter((a) => String(a.lesson_id ?? a.lessonId) === String(q.lessonId));
+                        const validAttempts = attemptsForQuiz.filter((a) => Number(a.total_marks ?? 0) > 0);
+                        const avgScore = validAttempts.length
+                          ? Math.round(validAttempts.reduce((sum, a) => sum + (Number(a.score ?? 0) / Number(a.total_marks)) * 100, 0) / validAttempts.length)
+                          : 0;
+                        let barColor = T.textDim;
+                        if (avgScore !== null) {
+                          if (avgScore < 50) barColor = T.red;
+                          else if (avgScore < 75) barColor = T.yellow;
+                          else barColor = T.green;
+                        }
+
+                        return (
+                          <div
+                            key={q.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => openQuizDetails(q.quizId ?? q.lessonId)}
+                            onKeyDown={(e) => {
+                              if (e.target !== e.currentTarget) return;
+                              if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                                e.preventDefault();
+                                openQuizDetails(q.id);
+                              }
+                            }}
+                            style={{..._t,display:"flex",flexDirection:"column",gap:"16px",padding:"16px",borderRadius:"12px",border:`1px solid ${isSelected?T.borderAccent:T.border}`,background:isSelected?T.accentDim:T.bgPanel,cursor:"pointer"}}
+                            onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.borderColor=T.textMuted}}
+                            onMouseLeave={e=>{if(!isSelected)e.currentTarget.style.borderColor=T.border}}
+                          >
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"16px"}}>
+                              
+                              <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:"16px"}}>
+                                <div style={_iw(subj.bg,subj.text,"48px","12px")}>
+                                  <FileText style={{width:"24px",height:"24px",color:subj.text}} />
+                                </div>
+                                <div>
+                                  <h4 style={{fontWeight:800,color:T.textPrimary,fontSize:"1rem",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{resolvedQuizTitle}</h4>
+                                  <div style={{display:"flex",alignItems:"center",gap:"12px",marginTop:"4px",fontSize:"0.75rem"}}>
+                                    <span style={{fontWeight:700,padding:"2px 8px",borderRadius:"12px",background:subj.bg,color:subj.text}}>
+                                      {getSubjectLabel(t, q.subject) || '—'}
+                                    </span>
+                                    <span style={{color:T.textDim,fontWeight:600}}>
+                                      <ClipboardList style={{width:"14px",height:"14px",display:"inline",marginRight:"4px",color:T.textMuted}} /> {q.quizAttempts !== null ? q.quizAttempts.toLocaleString() : '—'} محاولة
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div style={{display:"flex",alignItems:"center",gap:"24px",width:"100%",maxWidth:"400px",flexWrap:"wrap",minWidth:0}}>
+                                <div style={{flex:1}}>
+                                  <div style={{display:"flex",justifyContent:"space-between",fontSize:"0.75rem",fontWeight:800,marginBottom:"6px"}}>
+                                    <span style={{color:T.textMuted}}>متوسط الدرجات</span>
+                                    <span style={{color:avgScore < 50 ? T.red : T.textPrimary}}>
+                                      {`${avgScore}%`}
+                                    </span>
+                                  </div>
+                                  <div style={{width:"100%",background:T.bg,borderRadius:"4px",height:"8px",overflow:"hidden"}}>
+                                    <div
+                                      style={{height:"100%",borderRadius:"4px",background:barColor,transition:"width 1s ease",width:`${avgScore}%`}}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:"8px"}}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/edit-quiz/${q.id}`);
+                                    }}
+                                    style={{..._t,flexShrink:0,display:"flex",alignItems:"center",gap:"6px",fontSize:"0.75rem",fontWeight:700,padding:"8px 16px",borderRadius:"8px",border:`1px solid ${T.iconBorderB}`,background:T.iconBgB,color:T.iconB}}
+                                  >
+                                    <Edit3 style={{width:"16px",height:"16px"}} />
+                                    تعديل
+                                  </button>
+
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedId(q.selectionKey);
+                                    }}
+                                    style={{..._t,flexShrink:0,display:"flex",alignItems:"center",gap:"6px",fontSize:"0.75rem",fontWeight:700,padding:"8px 16px",borderRadius:"8px",background:isSelected?T.accent:T.bg,color:isSelected?"#FFF":T.textPrimary,border:`1px solid ${isSelected?T.accent:T.border}`}}
+                                    onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.background=T.bgCard}}
+                                    onMouseLeave={e=>{if(!isSelected)e.currentTarget.style.background=T.bg}}
+                                  >
+                                    <BarChart2 style={{width:"16px",height:"16px"}} />
+                                    {isSelected ? t('selected_label') : t('details_label')}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={glass({ padding: '8px' })}>
+                      <EmptyState
+                        icon={ClipboardList}
+                        title={t('teacher_analytics_no_quizzes_title')}
+                        description={t('teacher_analytics_no_quizzes_description')}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -557,45 +582,47 @@ const TeacherAnalytics = () => {
         {/* ═══ SECTIONS 3 & 4 side-by-side ═══ */}
         <section>
           {/* Lesson selector */}
-          <div className="flex items-center gap-3 mb-5">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2 flex-1">
-              <BarChart2 className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
+          <div style={{display:"flex",alignItems:"center",gap:"12px",marginBottom:"20px"}}>
+            <h2 style={{fontSize:"1.25rem",fontWeight:800,color:T.textPrimary,display:"flex",alignItems:"center",gap:"8px",flex:1}}>
+              <BarChart2 style={{width:"20px",height:"20px",color:T.accent}} />
               {t('selected_lesson_analysis')}
             </h2>
             {!isLoading && content.length > 0 && (
-              <div className="relative">
+              <div style={{position:"relative"}}>
                 <select
                   value={selectedId ?? ''}
                   onChange={e => setSelectedId(e.target.value)}
-                  className="appearance-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl pl-8 pr-4 py-2 text-sm font-bold text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-[#103B66] dark:focus:ring-blue-500 cursor-pointer"
+                  style={{..._input(T),paddingRight:"32px",paddingLeft:"16px",paddingTop:"8px",paddingBottom:"8px",fontWeight:700,cursor:"pointer",appearance:"none"}}
+                  onFocus={e=>{e.target.style.borderColor=T.accent}}
+                  onBlur={e=>{e.target.style.borderColor=T.border}}
                 >
                   {content.map(c => (
-                    <option key={c.selectionKey} value={c.selectionKey}>{c.lesson}</option>
+                    <option key={c.selectionKey} value={c.selectionKey} style={{color:T.textPrimary,background:T.bgPanel}}>{c.lesson}</option>
                   ))}
                 </select>
-                <ChevronDown className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <ChevronDown style={{position:"absolute",left:"12px",top:"50%",transform:"translateY(-50%)",width:"16px",height:"16px",color:T.textMuted,pointerEvents:"none"}} />
               </div>
             )}
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:"24px"}}>
               {[0, 1].map(i => (
-                <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-                  <div className="h-5 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-4" />
-                  <div className="h-[240px] bg-gray-100 dark:bg-gray-700/40 rounded-xl animate-pulse" />
+                <div key={i} style={{..._c(T),padding:"24px"}}>
+                  <div style={{height:"20px",width:"160px",background:T.bg,borderRadius:"4px",marginBottom:"16px"}} className="animate-pulse" />
+                  <div style={{height:"240px",background:T.bg,borderRadius:"12px"}} className="animate-pulse" />
                 </div>
               ))}
             </div>
           ) : error ? (
-            <SectionError message={error} onRetry={fetchAnalytics} />
+            <SectionError message={error} onRetry={fetchAnalytics} T={T} retryLabel={t('retry')} />
           ) : selected ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:"24px"}}>
 
               {/* SECTION 3 — Score Distribution */}
-              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-                <h3 className="font-bold text-gray-800 dark:text-white text-base mb-1">{t('score_distribution')}</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
+              <div style={{..._c(T),padding:"24px"}}>
+                <h3 style={{fontWeight:800,color:T.textPrimary,fontSize:"1rem",marginBottom:"4px"}}>{t('score_distribution')}</h3>
+                <p style={{fontSize:"0.75rem",color:T.textMuted,marginBottom:"20px"}}>
                   {selected.quizAttempts !== null ? selected.quizAttempts : '—'} — {selected.lesson}
                 </p>
                 {distData.length > 0 ? (
@@ -603,65 +630,65 @@ const TeacherAnalytics = () => {
                     <div dir="ltr">
                       <ResponsiveContainer width="100%" height={240}>
                         <BarChart data={distData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                          <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                          <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
-                          <Tooltip content={<DistTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={T.border} />
+                          <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: T.textMuted }} />
+                          <YAxis tick={{ fontSize: 10, fill: T.textMuted }} />
+                          <Tooltip content={(props) => <DistTooltip {...props} T={T} studentsLabel={t('teacher_analytics_students_unit')} />} cursor={{ fill: T.trackBg }} />
                           <Bar dataKey="طلاب" radius={[6, 6, 0, 0]} maxBarSize={52}>
                             {distData.map((_, i) => (
-                              <Cell key={i} fill={distBarColor(i)} />
+                              <Cell key={i} fill={getDistBarColor(i, T)} />
                             ))}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="flex flex-wrap gap-3 mt-3 text-[11px] font-bold justify-center">
+                    <div style={{display:"flex",flexWrap:"wrap",gap:"12px",marginTop:"12px",fontSize:"11px",fontWeight:800,justifyContent:"center"}}>
                       {SCORE_BUCKETS.map((b, i) => (
-                        <span key={b} className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: distBarColor(i) }} />
+                        <span key={b} style={{display:"flex",alignItems:"center",gap:"4px",color:T.textDim}}>
+                          <span style={{width:"10px",height:"10px",borderRadius:"2px",display:"inline-block",background:getDistBarColor(i, T)}} />
                           {b}
                         </span>
                       ))}
                     </div>
                   </>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-[240px] text-gray-400 dark:text-gray-500">
-                    <BarChart2 className="w-10 h-10 mb-2 opacity-50" />
-                    <p className="text-sm font-medium">لا توجد بيانات كافية لعرض توزيع الدرجات</p>
-                  </div>
+                  <EmptyState
+                    icon={BarChart2}
+                    title={t('teacher_analytics_no_distribution_title')}
+                    description={t('teacher_analytics_no_distribution_description')}
+                  />
                 )}
               </div>
 
               {/* SECTION 4 — Most Missed Questions */}
-              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-                <h3 className="font-bold text-gray-800 dark:text-white text-base mb-1">{t('missed_questions')}</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">{selected.lesson}</p>
+              <div style={{..._c(T),padding:"24px"}}>
+                <h3 style={{fontWeight:800,color:T.textPrimary,fontSize:"1rem",marginBottom:"4px"}}>{t('missed_questions')}</h3>
+                <p style={{fontSize:"0.75rem",color:T.textMuted,marginBottom:"20px"}}>{selected.lesson}</p>
                 {selected.missedQuestions && selected.missedQuestions.length > 0 ? (
-                  <div className="space-y-4">
+                  <div style={{display:"flex",flexDirection:"column",gap:"16px"}}>
                     {selected.missedQuestions.map((q, i) => (
-                      <div key={i} className="p-4 rounded-xl border border-red-100 dark:border-red-900/50 bg-red-50/30 dark:bg-red-900/10">
-                        <div className="flex items-start gap-3">
-                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center mt-0.5">
+                      <div key={i} style={{padding:"16px",borderRadius:"12px",border:`1px solid ${T.redBorder}`,background:T.redDim}}>
+                        <div style={{display:"flex",alignItems:"flex-start",gap:"12px"}}>
+                          <span style={{flexShrink:0,width:"24px",height:"24px",borderRadius:"50%",background:T.red,color:"#FFF",fontSize:"0.75rem",fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",marginTop:"2px"}}>
                             {i + 1}
                           </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-gray-800 dark:text-white leading-snug line-clamp-2">
+                          <div style={{flex:1,minWidth:0}}>
+                            <p style={{fontSize:"0.875rem",fontWeight:800,color:T.textPrimary,lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>
                               {q.text}
                             </p>
-                            <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                              <span className="text-red-600 dark:text-red-400 font-bold flex items-center gap-1">
-                                <AlertTriangle className="w-3 h-3" />
-                                نسبة الخطأ: {q.wrongRate}%
+                            <div style={{marginTop:"8px",display:"flex",flexWrap:"wrap",gap:"12px",fontSize:"0.75rem"}}>
+                              <span style={{color:T.red,fontWeight:800,display:"flex",alignItems:"center",gap:"4px"}}>
+                                <AlertTriangle style={{width:"12px",height:"12px"}} />
+                                {t('teacher_analytics_error_rate')}: {q.wrongRate}%
                               </span>
-                              <span className="text-gray-500 dark:text-gray-400">
-                                أكثر إجابة خاطئة:{' '}
-                                <span className="font-bold text-orange-600 dark:text-orange-400">{q.topWrongOption}</span>
+                              <span style={{color:T.textMuted}}>
+                                {t('teacher_analytics_top_wrong_answer')}:{' '}
+                                <span style={{fontWeight:800,color:T.yellow}}>{q.topWrongOption}</span>
                               </span>
                             </div>
-                            <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                            <div style={{marginTop:"8px",width:"100%",background:T.bgCard,borderRadius:"4px",height:"6px",overflow:"hidden"}}>
                               <div
-                                className="h-full rounded-full bg-red-500 transition-all duration-500"
-                                style={{ width: `${q.wrongRate}%` }}
+                                style={{height:"100%",borderRadius:"4px",background:T.red,transition:"all 0.5s ease",width:`${q.wrongRate}%`}}
                               />
                             </div>
                           </div>
@@ -670,10 +697,11 @@ const TeacherAnalytics = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-[240px] text-gray-400 dark:text-gray-500">
-                    <ClipboardList className="w-10 h-10 mb-2 opacity-50" />
-                    <p className="text-sm font-medium">لا توجد أخطاء مسجلة للطلاب حتى الآن</p>
-                  </div>
+                  <EmptyState
+                    icon={ClipboardList}
+                    title={t('teacher_analytics_no_missed_title')}
+                    description={t('teacher_analytics_no_missed_description')}
+                  />
                 )}
               </div>
             </div>
@@ -681,65 +709,65 @@ const TeacherAnalytics = () => {
         </section>
 
         {/* ═══ SECTION 5 — Views Over Time ═══ */}
-        <section className="pb-12">
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
+        <section style={{paddingBottom:"48px"}}>
+          <h2 style={{fontSize:"1.25rem",fontWeight:800,color:T.textPrimary,marginBottom:"20px",display:"flex",alignItems:"center",gap:"8px"}}>
+            <TrendingUp style={{width:"20px",height:"20px",color:T.accent}} />
             {t('views_over_time')}
           </h2>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
+          <div style={{..._c(T),padding:"24px"}}>
             {isLoading ? (
-              <div className="flex flex-col items-center gap-3 py-10">
-                <Loader2 className="w-7 h-7 text-[#103B66] dark:text-blue-400 animate-spin" />
-                <p className="text-sm text-gray-400">جارٍ تحميل بيانات المشاهدات…</p>
+              <div style={{display:"flex",flexDirection:"column",gap:"12px",padding:"8px 0"}}>
+                <SkeletonLoader type="text" width="180px" height="12px" />
+                <SkeletonLoader type="card" height="240px" className="w-full" />
               </div>
             ) : error ? (
-              <SectionError message={error} onRetry={fetchAnalytics} />
+              <SectionError message={error} onRetry={fetchAnalytics} T={T} retryLabel={t('retry')} />
             ) : (
               safeViewsData.length > 0 ? (
                 <>
                   <div dir="ltr">
                     <ResponsiveContainer width="100%" height={260}>
                       <LineChart data={safeViewsData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <CartesianGrid strokeDasharray="3 3" stroke={T.border} vertical={false} />
                         <XAxis
                           dataKey="day"
-                          tick={{ fontSize: 10, fill: '#9ca3af' }}
+                          tick={{ fontSize: 10, fill: T.textMuted }}
                           interval={4}
                         />
-                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} width={32} />
-                        <Tooltip content={<ViewsTooltip />} />
+                        <YAxis tick={{ fontSize: 10, fill: T.textMuted }} width={32} />
+                        <Tooltip content={(props) => <ViewsTooltip {...props} T={T} viewsLabel="مشاهدة" />} />
                         <Line
                           type="monotone"
                           dataKey="مشاهدات"
-                          stroke="#103B66"
+                          stroke={T.accent}
                           strokeWidth={2.5}
                           dot={false}
-                          activeDot={{ r: 5, fill: '#103B66' }}
+                          activeDot={{ r: 5, fill: T.accent }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t dark:border-gray-700">
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3, 1fr)",gap:"16px",marginTop:"20px",paddingTop:"20px",borderTop:`1px solid ${T.border}`}}>
                     {[
-                      { label: 'إجمالي المشاهدات', value: totalViews.toLocaleString() },
-                      { label: 'أعلى يوم',          value: `${peakViews} مشاهدة`       },
-                      { label: 'متوسط يومي',        value: `${avgDailyView} مشاهدة`    },
+                      { label: t('teacher_analytics_total_views'), value: totalViews.toLocaleString() },
+                      { label: t('teacher_analytics_peak_day'), value: `${peakViews} مشاهدة` },
+                      { label: t('teacher_analytics_daily_average'), value: `${avgDailyView} مشاهدة` },
                     ].map(({ label, value }) => (
-                      <div key={label} className="text-center">
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">{label}</p>
-                        <p className="font-bold text-gray-800 dark:text-white text-base">{value}</p>
+                      <div key={label} style={{textAlign:"center"}}>
+                        <p style={{fontSize:"0.75rem",color:T.textMuted,marginBottom:"4px"}}>{label}</p>
+                        <p style={{fontWeight:800,color:T.textPrimary,fontSize:"1rem"}}>{value}</p>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center h-[260px] text-gray-400 dark:text-gray-500">
-                  <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
-                  <p className="text-base font-medium mb-1">لا توجد بيانات مشاهدات متاحة</p>
-                  <p className="text-xs">بمجرد تفاعل الطلاب مع المحتوى، ستظهر الإحصائيات هنا.</p>
-                </div>
+                <EmptyState
+                  icon={TrendingUp}
+                  title={t('teacher_analytics_no_views_title')}
+                  description={t('teacher_analytics_no_views_description')}
+                />
               )
             )}
           </div>

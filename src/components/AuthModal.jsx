@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { X, LogIn, UserPlus, BookOpen, Zap } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import Logo from './Logo';
 
 /**
  * AuthModal — Modal منبثقة تظهر للزوار عند محاولة الدخول لدرس أو كويز
@@ -41,6 +42,7 @@ const AuthModal = ({
   const Icon = isQuiz ? Zap : BookOpen;
   const iconBg = isQuiz ? 'bg-violet-100 dark:bg-violet-900/30' : 'bg-blue-100 dark:bg-blue-900/30';
   const iconColor = isQuiz ? 'text-violet-600 dark:text-violet-400' : 'text-[#103B66] dark:text-blue-400';
+  const modalTitleId = isQuiz ? 'auth-modal-title-quiz' : 'auth-modal-title-lesson';
 
   return (
     <div 
@@ -54,22 +56,29 @@ const AuthModal = ({
       />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={modalTitleId}
+        className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200"
+      >
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 end-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 
-            dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+          aria-label={t('close') || 'إغلاق'}
+          className="absolute top-4 end-4 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 
+            dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Header */}
         <div className="p-6 pb-4 text-center">
+          <Logo className="justify-center mb-6 scale-110" />
           <div className={`w-16 h-16 ${iconBg} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
             <Icon className={`w-8 h-8 ${iconColor}`} />
           </div>
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+          <h2 id={modalTitleId} className="text-xl font-bold text-gray-800 dark:text-white mb-2">
             {isQuiz 
               ? (t('auth_modal_quiz_title') || 'سجّل دخولك لبدء الاختبار')
               : (t('auth_modal_lesson_title') || 'سجّل دخولك لمشاهدة الدرس')
@@ -111,7 +120,7 @@ const AuthModal = ({
             onClick={handleLogin}
             className="w-full flex items-center justify-center gap-2 bg-[#103B66] dark:bg-blue-600 
               text-white font-bold py-3 px-6 rounded-xl hover:bg-[#0c2d4d] dark:hover:bg-blue-700 
-              transition-colors shadow-lg shadow-blue-900/20"
+              transition-colors shadow-lg shadow-blue-900/20 focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
           >
             <LogIn className="w-5 h-5" />
             {t('login') || 'تسجيل الدخول'}
@@ -122,7 +131,7 @@ const AuthModal = ({
             className="w-full flex items-center justify-center gap-2 border-2 border-[#103B66] 
               dark:border-blue-500 text-[#103B66] dark:text-blue-400 font-bold py-3 px-6 rounded-xl 
               hover:bg-[#103B66] hover:text-white dark:hover:bg-blue-600 dark:hover:text-white 
-              transition-colors"
+              transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
           >
             <UserPlus className="w-5 h-5" />
             {t('create_account') || 'إنشاء حساب جديد'}
@@ -133,7 +142,7 @@ const AuthModal = ({
         <div className="px-6 pb-6 text-center">
           <button 
             onClick={onClose}
-            className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
+            className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none rounded-md px-2 py-1"
           >
             {t('continue_browsing') || 'أكمل التصفح بدون تسجيل'}
           </button>

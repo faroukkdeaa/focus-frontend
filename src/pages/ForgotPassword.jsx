@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Brain, Loader2, Mail, ArrowRight } from 'lucide-react';
+import { Loader2, Mail, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
+import Logo from '../components/Logo';
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -36,19 +37,7 @@ const ForgotPassword = () => {
 
       {/* Logo & title */}
       <div className="text-center mb-8">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <h1 className="text-4xl font-bold text-[#103B66]">{t('app_name')}</h1>
-          <svg
-            className="w-10 h-10 text-[#103B66]"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-4A2.5 2.5 0 0 1 9.5 2Z" />
-            <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-4A2.5 2.5 0 0 0 14.5 2Z" />
-          </svg>
-        </div>
+        <Logo className="justify-center mb-6 scale-110" />
         <p className="text-gray-500 text-lg">{t('tagline')}</p>
       </div>
 

@@ -1,40 +1,116 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import api from '../api/api';
 import {
   ArrowRight, AlertTriangle, CheckCircle2, XCircle,
   Brain, BookOpen, RefreshCcw, TrendingUp, Zap, Home, Target,
 } from 'lucide-react';
 
+/* ════════════════════════════════════════════════════
+   THEME FACTORY
+════════════════════════════════════════════════════ */
+function buildTheme(dark) {
+  return dark
+    ? {
+        bg:           "#0B1120",
+        bgPanel:      "#0D1526",
+        bgCard:       "rgba(255,255,255,0.035)",
+        border:       "rgba(255,255,255,0.08)",
+        borderAccent: "rgba(79,70,229,0.38)",
+        borderRed:    "rgba(239,68,68,0.22)",
+        accent:       "#4F46E5",
+        accentDim:    "rgba(79,70,229,0.14)",
+        iconA:        "#38BDF8",
+        iconBgA:      "rgba(56,189,248,0.10)",
+        iconBorderA:  "rgba(56,189,248,0.22)",
+        textPrimary:  "#F8FAFC",
+        textMuted:    "#94A3B8",
+        textDim:      "#475569",
+        shadowCard:   "0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",
+        redIcon:      "#F87171",
+        redDim:       "rgba(248,113,113,0.10)",
+        redBorder:    "rgba(248,113,113,0.20)",
+        green:        "#34D399",
+        greenDim:     "rgba(52,211,153,0.12)",
+        greenBorder:  "rgba(52,211,153,0.22)",
+        orangeIcon:   "#F97316",
+        orangeDim:    "rgba(249,115,22,0.10)",
+        orangeBorder: "rgba(249,115,22,0.20)",
+        violetIcon:   "#A855F7",
+        violetDim:    "rgba(168,85,247,0.10)",
+        violetBorder: "rgba(168,85,247,0.20)"
+      }
+    : {
+        bg:           "#F8FAFC",
+        bgPanel:      "#FFFFFF",
+        bgCard:       "#FFFFFF",
+        border:       "#E2E8F0",
+        borderAccent: "rgba(15,76,129,0.28)",
+        borderRed:    "rgba(239,68,68,0.20)",
+        accent:       "#0F4C81",
+        accentDim:    "rgba(15,76,129,0.08)",
+        iconA:        "#0F4C81",
+        iconBgA:      "rgba(15,76,129,0.08)",
+        iconBorderA:  "rgba(15,76,129,0.18)",
+        textPrimary:  "#0F172A",
+        textMuted:    "#64748B",
+        textDim:      "#94A3B8",
+        shadowCard:   "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",
+        redIcon:      "#EF4444",
+        redDim:       "rgba(239,68,68,0.08)",
+        redBorder:    "rgba(239,68,68,0.18)",
+        green:        "#059669",
+        greenDim:     "rgba(5,150,105,0.08)",
+        greenBorder:  "rgba(5,150,105,0.18)",
+        orangeIcon:   "#D97706",
+        orangeDim:    "rgba(217,119,6,0.08)",
+        orangeBorder: "rgba(217,119,6,0.18)",
+        violetIcon:   "#9333EA",
+        violetDim:    "rgba(147,51,234,0.08)",
+        violetBorder: "rgba(147,51,234,0.18)"
+      };
+}
+
+const glass = (T, extra) => ({
+  background:   T.bgCard,
+  border:       `1px solid ${T.border}`,
+  borderRadius: "16px",
+  boxShadow:    T.shadowCard,
+  ...extra,
+});
+
+const transition = { transition: "all 0.25s ease" };
+
 // ─── Sub-components ─────────────────────────────────────────────────────────
 
-const AccuracyPill = ({ correct, total }) => {
+const AccuracyPill = ({ correct, total, T }) => {
   const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
   if (pct < 60) {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
-        🔴 {pct}% ضعيف
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700, background: T.orangeDim, border: `1px solid ${T.orangeBorder}`, color: T.orangeIcon }}>
+        {pct}% فرص تحسين
       </span>
     );
   }
   if (pct <= 80) {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">
-        🟡 {pct}% متوسط
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700, background: T.violetDim, border: `1px solid ${T.violetBorder}`, color: T.violetIcon }}>
+        {pct}% جيد
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">
-      🟢 {pct}% قوي
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700, background: T.greenDim, border: `1px solid ${T.greenBorder}`, color: T.green }}>
+      {pct}% متقن
     </span>
   );
 };
 
-const SkillTag = ({ skill }) => (
-  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100">
-    <Brain className="w-3 h-3" />
+const SkillTag = ({ skill, T }) => (
+  <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "4px 10px", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 700, background: T.iconBgA, border: `1px solid ${T.iconBorderA}`, color: T.iconA }}>
+    <Brain style={{ width: "12px", height: "12px" }} />
     {skill}
   </span>
 );
@@ -45,8 +121,12 @@ const WeaknessReport = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, lang } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
   const [subtopicsMap, setSubtopicsMap] = useState({});
   const routerState = location.state || {};
+  const fallbackData = routerState?.reportData && typeof routerState.reportData === 'object' ? routerState.reportData : null;
   const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
 
   // Router payload (direct navigation from Quiz)
@@ -122,6 +202,28 @@ const WeaknessReport = () => {
     reportData.subjectName ||
     stateSubjectName ||
     '';
+
+  const summaryScore = Number(
+    fallbackData?.score ??
+    fallbackData?.score ??
+    reportData?.score ??
+    stateScore ??
+    0
+  ) || 0;
+  const summaryTotal = Number(
+    fallbackData?.total_marks ??
+    fallbackData?.totalMarks ??
+    reportData?.total_marks ??
+    reportData?.totalMarks ??
+    stateTotal ??
+    0
+  ) || 0;
+  const summaryPercentage = Number(
+    fallbackData?.percentage ??
+    reportData?.percentage ??
+    (summaryTotal > 0 ? Math.round((summaryScore / summaryTotal) * 100) : 0)
+  ) || 0;
+  const hasSummaryData = Boolean(fallbackData || summaryTotal > 0 || summaryScore > 0);
 
   useEffect(() => {
     if (hasDirectPayload || fallbackPayload) return;
@@ -747,20 +849,15 @@ const WeaknessReport = () => {
   }, [lessonId]);
 
   // Safe fallback calculations to prevent NaN
-  const maxScore = Number(total ?? reportData.total ?? 5) || 5;
-  const correctAnswers = Number(score ?? reportData.score ?? 0) || 0;
-  const wrongAnswers = Math.max(0, maxScore - correctAnswers);
-  const percentage = Number(
-    fallbackPayload?.percentage ??
-    reportData.percentage ??
-    (maxScore > 0 ? Math.round((correctAnswers / maxScore) * 100) : 0)
-  ) || 0;
+  const maxScore = summaryTotal;
+  const correctAnswers = summaryScore;
+  const wrongAnswers = Math.max(0, summaryTotal - summaryScore);
+  const percentage = summaryPercentage;
 
   // ── Compute subtopics ────────────────────────────────────────────────────
   // Priority 1 → explicit `subtopics` array passed in state (pre-computed / from backend)
   // Priority 2 → derive from `questions` + `userAnswers` when questions carry subtopic/skill
   // Priority 3 → null (no subtopic data available for this quiz)
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const subtopics = useMemo(() => {
     // 1. Explicit array from navigation state
     if (runtimeSubtopics.length > 0) {
@@ -949,28 +1046,27 @@ const WeaknessReport = () => {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div
-      className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 font-['Cairo']"
-      dir="rtl"
-    >
-      <div className="max-w-3xl mx-auto space-y-6">
+    <div style={{ ...transition, minHeight: "100vh", background: T.bg, padding: "32px 16px", fontFamily: "'Cairo', sans-serif" }} dir="rtl">
+      <div style={{ maxWidth: "768px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "24px" }}>
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-[#103B66] transition text-sm font-medium"
+            style={{ ...transition, display: "flex", alignItems: "center", gap: "8px", background: "transparent", border: "none", cursor: "pointer", color: T.textMuted, fontSize: "0.875rem", fontWeight: 700 }}
+            onMouseEnter={e => e.currentTarget.style.color = T.textPrimary}
+            onMouseLeave={e => e.currentTarget.style.color = T.textMuted}
           >
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight style={{ width: "16px", height: "16px" }} />
             رجوع
           </button>
 
-          <div className="flex flex-col items-center text-center">
-            <h1 className="text-xl font-bold text-[#103B66] dark:text-white">
-              تقرير الأداء التفصيلي
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+            <h1 style={{ fontSize: "1.25rem", fontWeight: 800, color: T.textPrimary }}>
+              تقرير فرص النمو
             </h1>
             {(subjectName || lesson?.title) && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              <span style={{ fontSize: "0.75rem", color: T.textMuted, marginTop: "4px" }}>
                 {subjectName && <span>{subjectName}</span>}
                 {subjectName && lesson?.title && <span> · </span>}
                 {lesson?.title && <span>{lesson.title}</span>}
@@ -980,173 +1076,105 @@ const WeaknessReport = () => {
 
           <button
             onClick={() => navigate('/dashboard')}
-            className="flex items-center text-gray-400 hover:text-[#103B66] transition"
+            style={{ ...transition, background: "transparent", border: "none", cursor: "pointer", color: T.textMuted }}
+            onMouseEnter={e => e.currentTarget.style.color = T.textPrimary}
+            onMouseLeave={e => e.currentTarget.style.color = T.textMuted}
             title="الرئيسية"
           >
-            <Home className="w-5 h-5" />
+            <Home style={{ width: "20px", height: "20px" }} />
           </button>
         </div>
 
         {/* ── Overall Score Card ──────────────────────────────────────────── */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center relative overflow-hidden">
+        <div style={{ ...glass(T, { padding: "32px", position: "relative", overflow: "hidden", textAlign: "center" }) }}>
           {/* Color bar */}
-          <div
-            className={`absolute top-0 left-0 w-full h-2 ${
-              passed ? 'bg-green-500' : 'bg-red-500'
-            }`}
-          />
+          <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "4px", background: passed ? T.green : T.orangeIcon }} />
 
           {/* Pass / Fail badge */}
-          <div className="flex justify-center mb-5 mt-1">
-            <span
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-bold ${
-                passed
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700'
-              }`}
-            >
-              {passed ? (
-                <CheckCircle2 className="w-4 h-4" />
-              ) : (
-                <XCircle className="w-4 h-4" />
-              )}
-              {passed ? t('passed_label') : t('failed_label')}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px", marginTop: "4px" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 16px", borderRadius: "999px", fontSize: "0.875rem", fontWeight: 800, background: passed ? T.greenDim : T.orangeDim, color: passed ? T.green : T.orangeIcon, border: `1px solid ${passed ? T.greenBorder : T.orangeBorder}` }}>
+              {passed ? <CheckCircle2 style={{ width: "16px", height: "16px" }} /> : <Target style={{ width: "16px", height: "16px" }} />}
+              {passed ? t('passed_label') : "فرص التحسين متاحة"}
             </span>
           </div>
 
           {/* Circular progress */}
-          <div className="w-36 h-36 mx-auto relative mb-6">
-            <svg
-              className="w-full h-full transform -rotate-90"
-              viewBox="0 0 144 144"
-            >
-              <circle
-                cx="72"
-                cy="72"
-                r={radius}
-                stroke="currentColor"
-                strokeWidth="10"
-                fill="transparent"
-                className="text-gray-100 dark:text-gray-700"
-              />
-              <circle
-                cx="72"
-                cy="72"
-                r={radius}
-                stroke="currentColor"
-                strokeWidth="10"
-                fill="transparent"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeOffset}
-                className={passed ? 'text-green-500' : 'text-red-500'}
-                style={{ transition: 'stroke-dashoffset 0.8s ease' }}
-              />
+          <div style={{ width: "144px", height: "144px", margin: "0 auto 24px", position: "relative" }}>
+            <svg style={{ width: "100%", height: "100%", transform: "rotate(-90deg)" }} viewBox="0 0 144 144">
+              <circle cx="72" cy="72" r={radius} stroke={isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"} strokeWidth="6" fill="transparent" />
+              <circle cx="72" cy="72" r={radius} stroke={passed ? T.green : T.orangeIcon} strokeWidth="6" fill="transparent" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeOffset} style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
             </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-3xl font-extrabold text-[#103B66]">
-                {percentage}%
-              </span>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: "2rem", fontWeight: 800, color: T.textPrimary }}>{percentage}%</span>
             </div>
           </div>
 
-          <p className="text-gray-700 dark:text-gray-200 text-base">
-            {t('correct_of_prefix')}{' '}
-            <span className="font-extrabold text-[#103B66] text-lg">{correctAnswers}</span>
-            {' '}{t('correct_of_middle')}{' '}
-            <span className="font-extrabold text-[#103B66] text-lg">{maxScore}</span>
-            {' '}{t('correct_of_suffix')}
+          <p style={{ color: T.textPrimary, fontSize: "1rem", fontWeight: 700 }}>
+            أجبت بشكل صحيح على <span style={{ color: T.accent, fontSize: "1.25rem" }}>{correctAnswers}</span> من أصل <span style={{ color: T.textMuted }}>{maxScore}</span>
           </p>
 
           {/* Stats strip */}
-          <div className="mt-5 grid grid-cols-3 divide-x divide-x-reverse divide-gray-100 dark:divide-gray-700 border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
-            <div className="py-3 px-4 text-center">
-              <p className="text-2xl font-bold text-green-600">{correctAnswers}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('correct_label')}</p>
+          <div style={{ marginTop: "24px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1px", background: T.border, border: `1px solid ${T.border}`, borderRadius: "12px", overflow: "hidden" }}>
+            <div style={{ padding: "12px 16px", textAlign: "center", background: T.bgPanel }}>
+              <p style={{ fontSize: "1.25rem", fontWeight: 800, color: T.green }}>{correctAnswers}</p>
+              <p style={{ fontSize: "0.75rem", fontWeight: 700, color: T.textMuted, marginTop: "2px" }}>إجابات صحيحة</p>
             </div>
-            <div className="py-3 px-4 text-center">
-              <p className="text-2xl font-bold text-red-500">{wrongAnswers}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('wrong_label')}</p>
+            <div style={{ padding: "12px 16px", textAlign: "center", background: T.bgPanel }}>
+              <p style={{ fontSize: "1.25rem", fontWeight: 800, color: T.violetIcon }}>{wrongAnswers}</p>
+              <p style={{ fontSize: "0.75rem", fontWeight: 700, color: T.textMuted, marginTop: "2px" }}>غير صحيحة</p>
             </div>
-            <div className="py-3 px-4 text-center">
-              <p className="text-2xl font-bold text-orange-500">
-                {weakSubtopics.length}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('weak_point_label')}</p>
+            <div style={{ padding: "12px 16px", textAlign: "center", background: T.bgPanel }}>
+              <p style={{ fontSize: "1.25rem", fontWeight: 800, color: T.orangeIcon }}>{weakSubtopics.length}</p>
+              <p style={{ fontSize: "0.75rem", fontWeight: 700, color: T.textMuted, marginTop: "2px" }}>فرص للنمو</p>
             </div>
           </div>
         </div>
 
         {/* ── Subtopic Breakdown ──────────────────────────────────────────── */}
         {subtopics && subtopics.length > 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-[#103B66]" />
-              {t('subtopic_analysis')}
+          <div style={{ ...glass(T, { padding: "24px" }) }}>
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 800, color: T.textPrimary, marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: T.iconBgA, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <TrendingUp style={{ width: "16px", height: "16px", color: T.iconA }} />
+              </div>
+              تحليل المهارات
             </h2>
 
-            <div className="space-y-3">
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {subtopics.map((s, idx) => {
-                const acc =
-                  s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
-                const barColor =
-                  acc < 60
-                    ? 'bg-red-400'
-                    : acc <= 80
-                    ? 'bg-yellow-400'
-                    : 'bg-green-400';
-                const trackColor =
-                  acc < 60
-                    ? 'bg-red-100'
-                    : acc <= 80
-                    ? 'bg-yellow-100'
-                    : 'bg-green-100';
+                const acc = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
+                const barColor = acc < 60 ? T.orangeIcon : acc <= 80 ? T.violetIcon : T.green;
+                const trackColor = acc < 60 ? T.orangeDim : acc <= 80 ? T.violetDim : T.greenDim;
+                const isWeak = acc < 60;
 
                 return (
-                  <div
-                    key={idx}
-                    className={`p-4 rounded-xl border transition-colors ${
-                      acc < 60
-                        ? 'border-red-200 bg-red-50/40 dark:border-red-800 dark:bg-red-900/10'
-                        : 'border-gray-100 bg-gray-50/40 dark:border-gray-700 dark:bg-gray-700/20'
-                    }`}
-                  >
+                  <div key={idx} style={{ padding: "16px", borderRadius: "12px", border: `1px solid ${isWeak ? T.orangeBorder : T.border}`, background: isWeak ? T.orangeDim : T.bgPanel }}>
                     {/* Top row */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2">
-                        <BookOpen className="w-4 h-4 text-[#103B66] shrink-0" />
-                        <span className="font-bold text-gray-800 dark:text-white text-sm">
-                          {s.name}
-                        </span>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "8px", marginBottom: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <BookOpen style={{ width: "16px", height: "16px", color: T.textMuted, flexShrink: 0 }} />
+                        <span style={{ fontWeight: 800, color: T.textPrimary, fontSize: "0.875rem" }}>{s.name}</span>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <SkillTag skill={s.skill} />
-                        <AccuracyPill correct={s.correct} total={s.total} />
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                        <SkillTag skill={s.skill} T={T} />
+                        <AccuracyPill correct={s.correct} total={s.total} T={T} />
                       </div>
                     </div>
 
                     {/* Progress bar */}
-                    <div
-                      className={`h-2 rounded-full ${trackColor} overflow-hidden mb-3`}
-                    >
-                      <div
-                        className={`h-full rounded-full ${barColor} transition-all duration-700`}
-                        style={{ width: `${acc}%` }}
-                      />
+                    <div style={{ height: "4px", borderRadius: "2px", background: trackColor, overflow: "hidden", marginBottom: "12px" }}>
+                      <div style={{ height: "100%", borderRadius: "2px", background: barColor, transition: "width 0.7s ease", width: `${acc}%` }} />
                     </div>
 
                     {/* Correct / Wrong */}
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="flex items-center gap-1.5 text-green-700">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span className="font-bold">{s.correct}</span> {t('correct_label')}
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "0.75rem", fontWeight: 700 }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", color: T.green }}>
+                        <CheckCircle2 style={{ width: "14px", height: "14px" }} />
+                        <span>{s.correct} صحيح</span>
                       </span>
-                      <span className="flex items-center gap-1.5 text-red-600">
-                        <XCircle className="w-3.5 h-3.5" />
-                        <span className="font-bold">{s.wrong}</span> {t('wrong_label')}
-                      </span>
-                      <span className="text-gray-400 dark:text-gray-500 text-xs">
-                        {t('correct_of_middle')} {s.total} {t('quiz_question')}
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", color: T.textMuted }}>
+                        <Target style={{ width: "14px", height: "14px" }} />
+                        <span>{s.wrong} فرصة للتحسين</span>
                       </span>
                     </div>
                   </div>
@@ -1155,33 +1183,44 @@ const WeaknessReport = () => {
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
-            <Target className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-            <div className="space-y-4 w-full">
+          <div style={{ ...glass(T, { padding: "32px", textAlign: "center" }) }}>
+            <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: T.iconBgA, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <Target style={{ width: "24px", height: "24px", color: T.iconA }} />
+            </div>
+            <div style={{ width: "100%" }}>
               {detailedErrors.length > 0 ? (
                 detailedErrors.map((err, idx) => (
-                  <div key={idx} className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl p-5 text-right shadow-sm">
-                    <p className="text-gray-800 dark:text-gray-200 font-semibold mb-4 leading-relaxed">
-                      <span className="text-red-500 font-bold ml-1">أخطأت في:</span>
+                  <div key={idx} style={{ background: T.orangeDim, border: `1px solid ${T.orangeBorder}`, borderRadius: "12px", padding: "20px", textAlign: "right", marginBottom: "12px" }}>
+                    <p style={{ color: T.textPrimary, fontWeight: 700, marginBottom: "16px", lineHeight: 1.6, fontSize: "0.875rem" }}>
+                      <span style={{ color: T.orangeIcon, fontWeight: 800, marginLeft: "4px" }}>فرصة للنمو:</span>
                       {err.question}
                     </p>
-                    <div className="inline-flex items-center gap-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-4 py-2 rounded-lg">
-                      <span className="font-bold text-sm">💡 تحتاج لمراجعة:</span>
-                      <span className="font-bold">{err.subtopic}</span>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: T.bgPanel, border: `1px solid ${T.border}`, color: T.textPrimary, padding: "8px 16px", borderRadius: "8px" }}>
+                      <span style={{ fontWeight: 800, fontSize: "0.75rem", color: T.textMuted }}>💡 راجع:</span>
+                      <span style={{ fontWeight: 800, fontSize: "0.75rem" }}>{err.subtopic}</span>
                     </div>
                   </div>
                 ))
               ) : isLoading ? (
-                <div className="text-center text-gray-500 dark:text-gray-400 font-semibold py-6">
+                <div style={{ textAlign: "center", color: T.textMuted, fontWeight: 700, padding: "24px 0" }}>
                   جارٍ تحميل بيانات المحاولة...
                 </div>
               ) : showNoWeaknessMessage ? (
-                <div className="text-center text-green-600 dark:text-green-400 font-bold py-6">
+                <div style={{ textAlign: "center", color: T.green, fontWeight: 800, padding: "24px 0" }}>
                   🎉 ممتاز! لا توجد نقاط ضعف واضحة.
                 </div>
+              ) : hasSummaryData ? (
+                <div style={{ textAlign: "center", color: T.textMuted, fontWeight: 800, padding: "24px 0", lineHeight: 1.8 }}>
+                  <div style={{ fontSize: "0.95rem", color: T.textPrimary, marginBottom: "6px" }}>
+                    جاري تجهيز التحليلات الذكية للمواضيع الفرعية...
+                  </div>
+                  <div style={{ fontSize: "0.8rem" }}>
+                    تظهر هنا الآن بيانات المحاولة الأساسية فقط حتى يكتمل تحليل المواضيع الفرعية من الخلفية.
+                  </div>
+                </div>
               ) : (
-                <div className="text-center text-amber-600 dark:text-amber-400 font-bold py-6">
-                  {loadError || 'لا تتوفر بيانات كافية لعرض تقرير نقاط الضعف.'}
+                <div style={{ textAlign: "center", color: T.orangeIcon, fontWeight: 800, padding: "24px 0" }}>
+                  {loadError || 'لا تتوفر بيانات كافية لعرض تقرير فرص النمو.'}
                 </div>
               )}
             </div>
@@ -1190,52 +1229,48 @@ const WeaknessReport = () => {
 
         {/* ── Detected Weaknesses ─────────────────────────────────────────── */}
         {weakSubtopics.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-red-100 dark:border-red-900/50 p-6">
-            <h2 className="text-lg font-bold text-red-700 mb-1 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              {t('weakness_detected_title')}
+          <div style={{ ...glass(T, { padding: "24px", border: `1px solid ${T.orangeBorder}` }) }}>
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 800, color: T.orangeIcon, marginBottom: "4px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: T.orangeDim, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Target style={{ width: "16px", height: "16px", color: T.orangeIcon }} />
+              </div>
+              مجالات مقترحة للتحسين
             </h2>
-            <p className="text-sm text-red-500 mb-5">
-              {t('weakness_detected_desc')}{' '}
-              <span className="font-bold">{weakSubtopics.length}</span>{' '}
-              {weakSubtopics.length > 1 ? t('topics_label') : t('topic_label')}{' '}
-              {t('need_review')}
+            <p style={{ fontSize: "0.875rem", color: T.textMuted, marginBottom: "20px" }}>
+              تم تحديد <span style={{ fontWeight: 800, color: T.textPrimary }}>{weakSubtopics.length}</span> {weakSubtopics.length > 1 ? "موضوعات" : "موضوع"} يمكن التركيز عليها لرفع مستواك.
             </p>
 
-            <div className="space-y-3">
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {weakSubtopics.map((s, idx) => {
                 const acc = Math.round((s.correct / s.total) * 100);
                 return (
-                  <div
-                    key={idx}
-                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                        <AlertTriangle className="w-4 h-4 text-red-600" />
+                  <div key={idx} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "16px", background: T.bgPanel, border: `1px solid ${T.border}`, borderRadius: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: T.orangeDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <AlertTriangle style={{ width: "16px", height: "16px", color: T.orangeIcon }} />
                       </div>
                       <div>
-                        <p className="font-bold text-gray-800 dark:text-white text-sm">
-                          {s.name}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <SkillTag skill={s.skill} />
-                          <span className="text-xs text-red-600 font-semibold">
-                            {t('avg_score')} {acc}%
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            ({s.correct}/{s.total} {t('correct_label')})
-                          </span>
+                        <p style={{ fontWeight: 800, color: T.textPrimary, fontSize: "0.875rem" }}>{s.name}</p>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px", flexWrap: "wrap" }}>
+                          <SkillTag skill={s.skill} T={T} />
+                          <span style={{ fontSize: "0.75rem", color: T.orangeIcon, fontWeight: 700 }}>الإتقان الحالي: {acc}%</span>
                         </div>
                       </div>
                     </div>
 
                     <button
                       onClick={() => handleGetRecommendations(s)}
-                      className="flex items-center gap-1.5 px-4 py-2.5 bg-[#103B66] text-white text-sm font-bold rounded-xl hover:bg-[#0c2d4d] active:scale-95 transition-all shrink-0 w-full sm:w-auto justify-center shadow-md shadow-blue-900/15"
+                      style={{
+                        ...transition,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                        padding: "10px 16px", background: "transparent", border: `1px solid ${T.accent}`, borderRadius: "10px",
+                        color: T.accent, fontSize: "0.875rem", fontWeight: 800, cursor: "pointer", width: "100%", flex: "1 1 auto"
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = T.accent; e.currentTarget.style.color = "#FFFFFF"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.accent; }}
                     >
-                      <Zap className="w-4 h-4" />
-                      {t('get_recommendations')}
+                      <Zap style={{ width: "16px", height: "16px" }} />
+                      خطط التطوير
                     </button>
                   </div>
                 );
@@ -1246,33 +1281,46 @@ const WeaknessReport = () => {
 
         {/* ── No Weaknesses — success banner ──────────────────────────────── */}
         {!isLoading && hasValidQuestions && hasAnswerData && subtopics && weakSubtopics.length === 0 && (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-6 text-center">
-            <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
-            <p className="font-bold text-green-700 dark:text-green-400 text-base">
-              {t('no_weakness_title')}
+          <div style={{ ...glass(T, { padding: "24px", border: `1px solid ${T.greenBorder}`, background: T.greenDim, textAlign: "center" }) }}>
+            <div style={{ width: "48px", height: "48px", borderRadius: "50%", background: T.green, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+              <CheckCircle2 style={{ width: "24px", height: "24px", color: "#FFF" }} />
+            </div>
+            <p style={{ fontWeight: 800, color: T.green, fontSize: "1rem", marginBottom: "4px" }}>
+              لا توجد مجالات ضعف جوهرية
             </p>
-            <p className="text-sm text-green-600 mt-1">
-              {t('no_weakness_desc')}
+            <p style={{ fontSize: "0.875rem", color: T.textMuted }}>
+              استمر في الأداء المتميز، أنت على الطريق الصحيح!
             </p>
           </div>
         )}
 
         {/* ── Action Buttons ───────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-8">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", paddingBottom: "32px" }}>
           <button
             onClick={handleTryAgain}
             disabled
-            style={{ opacity: 0.5, cursor: 'not-allowed' }}
-            className="bg-[#103B66] text-white py-4 rounded-xl font-bold hover:bg-[#0c2d4d] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10"
+            style={{
+              ...transition,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              padding: "16px", background: T.accent, border: "none", borderRadius: "12px",
+              color: "#FFF", fontSize: "0.875rem", fontWeight: 800, opacity: 0.5, cursor: 'not-allowed'
+            }}
           >
-            <RefreshCcw className="w-5 h-5" />
+            <RefreshCcw style={{ width: "20px", height: "20px" }} />
             {t('try_again')}
           </button>
           <button
             onClick={handleBackToLesson}
-            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 py-4 rounded-xl font-bold hover:bg-gray-50 dark:hover:bg-gray-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+            style={{
+              ...transition,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              padding: "16px", background: T.bgPanel, border: `1px solid ${T.border}`, borderRadius: "12px",
+              color: T.textPrimary, fontSize: "0.875rem", fontWeight: 800, cursor: "pointer"
+            }}
+            onMouseEnter={e => e.currentTarget.style.border = `1px solid ${T.textMuted}`}
+            onMouseLeave={e => e.currentTarget.style.border = `1px solid ${T.border}`}
           >
-            <ArrowRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
+            <ArrowRight style={{ width: "20px", height: "20px", ...(lang === 'en' ? { transform: "rotate(180deg)" } : {}) }} />
             {t('back_to_lesson')}
           </button>
         </div>

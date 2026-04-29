@@ -38,7 +38,7 @@ export const NotifItem = ({ notif, onRead, compact = false }) => {
           ? 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
           : 'bg-blue-50/60 dark:bg-blue-900/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/30'
         }
-        ${compact ? '' : 'rounded-xl'}
+        ${compact ? '' : 'rounded-xl'} focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none
       `}
     >
       {/* Type icon */}
@@ -107,7 +107,10 @@ const NotificationBell = () => {
       <button
         onClick={() => setOpen(v => !v)}
         aria-label={t('notifications')}
-        className={`relative p-2 rounded-lg transition-colors
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-controls="notifications-menu"
+        className={`relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none
           ${open
             ? 'bg-blue-50 dark:bg-blue-900/30 text-[#103B66] dark:text-blue-400'
             : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -132,7 +135,7 @@ const NotificationBell = () => {
 
       {/* Dropdown */}
       {open && (
-        <div className={`absolute top-full mt-2 w-80 bg-white dark:bg-gray-800
+        <div id="notifications-menu" className={`absolute top-full mt-2 w-80 bg-white dark:bg-gray-800
           rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700
           z-50 overflow-hidden
           ${isRtl ? 'right-0' : 'left-0'}
@@ -156,7 +159,7 @@ const NotificationBell = () => {
               <button
                 onClick={markAllAsRead}
                 className="flex items-center gap-1 text-[11px] font-bold text-[#103B66] dark:text-blue-400
-                  hover:underline transition"
+                  hover:underline transition focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none rounded-md px-1.5 py-1"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 {t('mark_all_read')}
@@ -188,7 +191,7 @@ const NotificationBell = () => {
             <button
               onClick={() => { setOpen(false); navigate('/notifications'); }}
               className="w-full flex items-center justify-center gap-2 py-3 text-sm font-bold
-                text-[#103B66] dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition"
+                text-[#103B66] dark:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
             >
               {t('view_all_activity')}
               <ArrowLeft className={`w-4 h-4 ${isRtl ? '' : 'rotate-180'}`} />

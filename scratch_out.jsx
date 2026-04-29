@@ -1,11 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useLanguage } from "../context/LanguageContext";
-import LangToggle from "../components/LangToggle";
-import { publicApi } from "../api/api";
-import { motion } from "framer-motion";
-import { useTheme } from "../context/ThemeContext";
-import Logo from "../components/Logo";
+import { useState } from "react";
 import {
   Brain,
   TrendingUp,
@@ -31,12 +24,93 @@ import {
   Lightbulb,
 } from "lucide-react";
 
-const LOGIN_PATH = "/login";
-const DASHBOARD_PATH = "/dashboard";
+
 
 /* ════════════════════════════════════════════════════
-   THEME TOKENS IMPORTED FROM CONTEXT
+   THEME FACTORY
+   Returns a token object based on the current mode.
 ════════════════════════════════════════════════════ */
+function buildTheme(dark) {
+  return dark
+    ? {
+        // ── Surfaces ──────────────────────────────
+        bg:           "#0B1120",
+        bgPanel:      "#0D1526",
+        bgCard:       "rgba(255,255,255,0.035)",
+        bgCardHover:  "rgba(255,255,255,0.060)",
+        // ── Borders ───────────────────────────────
+        border:       "rgba(255,255,255,0.08)",
+        borderAccent: "rgba(79,70,229,0.38)",
+        borderAlt:    "rgba(14,165,233,0.28)",
+        borderRed:    "rgba(239,68,68,0.22)",
+        // ── Accents ───────────────────────────────
+        accent:       "#4F46E5",   // Indigo
+        accentAlt:    "#0EA5E9",   // Sky blue
+        accentDim:    "rgba(79,70,229,0.14)",
+        accentAltDim: "rgba(14,165,233,0.12)",
+        // ── Icon Design System (high-contrast on dark) ──
+        iconA:        "#38BDF8",                    // Bright sky-blue — crisp on dark
+        iconB:        "#818CF8",                    // Bright periwinkle — crisp on dark
+        iconBgA:      "rgba(56,189,248,0.10)",      // Subtle sky tint
+        iconBgB:      "rgba(129,140,248,0.11)",     // Subtle indigo tint
+        iconBgAHover: "rgba(56,189,248,0.17)",
+        iconBgBHover: "rgba(129,140,248,0.18)",
+        iconBorderA:  "rgba(56,189,248,0.22)",      // Crisp sky border
+        iconBorderB:  "rgba(129,140,248,0.25)",     // Crisp indigo border
+        // ── Text ──────────────────────────────────
+        textPrimary:  "#F8FAFC",
+        textMuted:    "#94A3B8",
+        textDim:      "#475569",
+        // ── Elevation ─────────────────────────────
+        shadowCard:   "0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",
+        shadowHover:  "0 8px 28px rgba(0,0,0,0.55)",
+        // ── CTA strip ─────────────────────────────
+        ctaBg:        "#0E1A35",
+        footerBg:     "#070C18",
+      }
+    : {
+        // ── Surfaces ──────────────────────────────
+        bg:           "#F8FAFC",
+        bgPanel:      "#FFFFFF",
+        bgCard:       "#FFFFFF",
+        bgCardHover:  "#F1F5F9",
+        // ── Borders ───────────────────────────────
+        border:       "#E2E8F0",
+        borderAccent: "rgba(15,76,129,0.28)",
+        borderAlt:    "rgba(37,99,235,0.22)",
+        borderRed:    "rgba(239,68,68,0.20)",
+        // ── Accents ───────────────────────────────
+        accent:       "#0F4C81",
+        accentAlt:    "#2563EB",
+        accentDim:    "rgba(15,76,129,0.08)",
+        accentAltDim: "rgba(37,99,235,0.07)",
+        // ── Icon Design System (clean on light) ───
+        iconA:        "#0F4C81",                    // Deep brand blue
+        iconB:        "#2563EB",                    // Vibrant blue
+        iconBgA:      "rgba(15,76,129,0.08)",
+        iconBgB:      "rgba(37,99,235,0.07)",
+        iconBgAHover: "rgba(15,76,129,0.14)",
+        iconBgBHover: "rgba(37,99,235,0.13)",
+        iconBorderA:  "rgba(15,76,129,0.18)",
+        iconBorderB:  "rgba(37,99,235,0.16)",
+        // ── Text ──────────────────────────────────
+        textPrimary:  "#0F172A",
+        textMuted:    "#64748B",
+        textDim:      "#94A3B8",
+        // ── Elevation ─────────────────────────────
+        shadowCard:   "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",
+        shadowHover:  "0 8px 28px rgba(0,0,0,0.10)",
+        // ── CTA strip ─────────────────────────────
+        ctaBg:        "#EFF6FF",
+        footerBg:     "#F1F5F9",
+      };
+}
+
+
+
+/* ════════════════════════════════════════════════════
+   SHARED CARD STYLE HELPER
+═══════════════��════════════════════════════════════ */
 const card = (T, extra) => ({
   background:   T.bgCard,
   border:       `1px solid ${T.border}`,
@@ -45,11 +119,22 @@ const card = (T, extra) => ({
   ...extra,
 });
 
+/* ════════════════════════════════════════════════════
+   TRANSITION WRAPPER
+════════════════════════════════════════════════════ */
 const transition = {
   transition: "background 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease",
 };
 
-function NavHeader({ T, isDarkMode, setIsDarkMode, onNavigate, handleSmartNav, isLoggedIn, t }) {
+/* ════════════════════════════════════════════════════
+   1 — HEADER
+════════════════════════════════════════════════════ */
+function NavHeader({
+  T,
+  isDarkMode,
+  setIsDarkMode,
+  onNavigate,
+}) {
   return (
     <header
       style={{
@@ -64,16 +149,31 @@ function NavHeader({ T, isDarkMode, setIsDarkMode, onNavigate, handleSmartNav, i
       }}
     >
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
+
         {/* Logo */}
-          <Logo className="scale-95 origin-left" />
+        <div className="flex items-center gap-3">
+          <div
+            style={{
+              ...transition,
+              width: "40px", height: "40px", borderRadius: "10px",
+              background:  T.iconBgA,
+              border:      `1px solid ${T.iconBorderA}`,
+              display:     "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <Brain style={{ color: T.iconA, width: "20px", height: "20px" }} strokeWidth={2} />
+          </div>
+          <span style={{ ...transition, color: T.iconA, fontSize: "1.4rem", fontWeight: 800, letterSpacing: "0.16em" }}>
+            FOCUS
+          </span>
+        </div>
 
         {/* Right side controls */}
         <div className="flex items-center gap-3">
-          <LangToggle />
 
           {/* ── Theme toggle ── */}
           <button
-            onClick={setIsDarkMode} // Now directly calls the global toggleTheme
+            onClick={() => setIsDarkMode(!isDarkMode)}
             title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
             style={{
               ...transition,
@@ -89,12 +189,12 @@ function NavHeader({ T, isDarkMode, setIsDarkMode, onNavigate, handleSmartNav, i
               color:        T.textMuted,
             }}
             onMouseEnter={e => {
-              const el = e.currentTarget;
+              const el = e.currentTarget ;
               el.style.borderColor = T.borderAccent;
               el.style.color       = T.accent;
             }}
             onMouseLeave={e => {
-              const el = e.currentTarget;
+              const el = e.currentTarget ;
               el.style.borderColor = T.border;
               el.style.color       = T.textMuted;
             }}
@@ -105,86 +205,66 @@ function NavHeader({ T, isDarkMode, setIsDarkMode, onNavigate, handleSmartNav, i
             }
           </button>
 
-          {isLoggedIn ? (
-            <button
-              onClick={() => handleSmartNav('/login')}
-              style={{
-                ...transition,
-                padding:      "9px 20px",
-                borderRadius: "10px",
-                fontSize:     "0.875rem",
-                fontWeight:   700,
-                background:   T.accent,
-                color:        "#FFFFFF",
-                border:       "none",
-                cursor:       "pointer",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; }}
-              onMouseLeave={e => { e.currentTarget.style.opacity = "1"; }}
-            >
-              {t('go_to_dashboard') || "لوحة التحكم"}
-            </button>
-          ) : (
-            <>
-              {/* Login */}
-              <button
-                onClick={() => onNavigate("login")}
-                style={{
-                  ...transition,
-                  padding:      "9px 20px",
-                  borderRadius: "10px",
-                  fontSize:     "0.875rem",
-                  color:        T.textMuted,
-                  background:   "transparent",
-                  border:       `1px solid ${T.border}`,
-                  cursor:       "pointer",
-                }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget;
-                  el.style.color       = T.textPrimary;
-                  el.style.borderColor = T.borderAccent;
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget;
-                  el.style.color       = T.textMuted;
-                  el.style.borderColor = T.border;
-                }}
-              >
-                تسجيل الدخول
-              </button>
+          {/* Login */}
+          <button
+            onClick={() => onNavigate("auth")}
+            style={{
+              ...transition,
+              padding:      "9px 20px",
+              borderRadius: "10px",
+              fontSize:     "0.875rem",
+              color:        T.textMuted,
+              background:   "transparent",
+              border:       `1px solid ${T.border}`,
+              cursor:       "pointer",
+            }}
+            onMouseEnter={e => {
+              const el = e.currentTarget ;
+              el.style.color       = T.textPrimary;
+              el.style.borderColor = T.borderAccent;
+            }}
+            onMouseLeave={e => {
+              const el = e.currentTarget ;
+              el.style.color       = T.textMuted;
+              el.style.borderColor = T.border;
+            }}
+          >
+            تسجيل الدخول
+          </button>
 
-              {/* Sign up */}
-              <button
-                onClick={() => onNavigate("signup")}
-                style={{
-                  ...transition,
-                  padding:      "9px 20px",
-                  borderRadius: "10px",
-                  fontSize:     "0.875rem",
-                  fontWeight:   700,
-                  background:   T.accent,
-                  color:        "#FFFFFF",
-                  border:       "none",
-                  cursor:       "pointer",
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.opacity = "0.88";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.opacity = "1";
-                }}
-              >
-                حساب جديد
-              </button>
-            </>
-          )}
+          {/* Sign up — solid accent */}
+          <button
+            onClick={() => onNavigate("auth")}
+            style={{
+              ...transition,
+              padding:      "9px 20px",
+              borderRadius: "10px",
+              fontSize:     "0.875rem",
+              fontWeight:   700,
+              background:   T.accent,
+              color:        "#FFFFFF",
+              border:       "none",
+              cursor:       "pointer",
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget ).style.opacity = "0.88";
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget ).style.opacity = "1";
+            }}
+          >
+            حساب جديد
+          </button>
         </div>
       </div>
     </header>
   );
 }
 
-function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
+/* ════════════════════════════════════════════════════
+   2 — HERO
+════════════════════════════════════════════════════ */
+function HeroSection({ T, onNavigate }) {
   return (
     <section
       style={{
@@ -196,6 +276,7 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
         overflow:     "hidden",
       }}
     >
+      {/* Subtle structural dot grid */}
       <div
         style={{
           position:         "absolute", inset: 0, pointerEvents: "none",
@@ -205,16 +286,10 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
       />
 
       <div className="relative max-w-7xl mx-auto px-6 lg:px-10 text-center">
-        <motion.div 
-          className="max-w-3xl mx-auto"
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          transition={{ duration: 0.6, ease: "easeOut" }}
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
+        <div className="max-w-3xl mx-auto">
+
+          {/* Badge */}
+          <div
             style={{
               ...transition,
               display:        "inline-flex",
@@ -231,12 +306,10 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
             <span style={{ color: T.accent, fontSize: "0.8rem" }}>
               منصة تعليمية مدعومة بالذكاء الاصطناعي
             </span>
-          </motion.div>
+          </div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
+          {/* H1 */}
+          <h1
             style={{
               ...transition,
               color:        T.textPrimary,
@@ -249,12 +322,10 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
             منصتك الذكية للتميز في
             <br />
             <span style={{ color: T.accent }}>الثانوية العامة</span>
-          </motion.h1>
+          </h1>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
+          {/* Sub */}
+          <p
             style={{
               ...transition,
               color:        T.textMuted,
@@ -266,16 +337,12 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
             نظام ذكي يحلل نقاط ضعفك تلقائياً ويوجهك للدروس المناسبة
             <br />
             لتحقيق أفضل النتائج في الشعبة العلمية
-          </motion.p>
+          </p>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
-            style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}
-          >
+          {/* CTAs */}
+          <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
             <button
-              onClick={() => handleSmartNav('/signup')}
+              onClick={() => onNavigate("auth")}
               style={{
                 ...transition,
                 display:      "flex", alignItems: "center", gap: "8px",
@@ -289,10 +356,12 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
                 cursor:       "pointer",
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.opacity   = "0.88";
+                (e.currentTarget ).style.opacity   = "0.88";
+                (e.currentTarget ).style.transform = "translateY(-2px)";
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.opacity   = "1";
+                (e.currentTarget ).style.opacity   = "1";
+                (e.currentTarget ).style.transform = "translateY(0)";
               }}
             >
               ابدأ التعلم الآن
@@ -300,7 +369,7 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
             </button>
 
             <button
-              onClick={() => onNavigate("signup")}
+              onClick={() => onNavigate("auth")}
               style={{
                 ...transition,
                 display:      "flex", alignItems: "center", gap: "8px",
@@ -314,44 +383,45 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
                 boxShadow:    T.shadowCard,
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.borderColor = T.borderAccent;
-                e.currentTarget.style.color        = T.accent;
+                (e.currentTarget ).style.borderColor = T.borderAccent;
+                (e.currentTarget ).style.color        = T.accent;
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.borderColor = T.border;
-                e.currentTarget.style.color        = T.textPrimary;
+                (e.currentTarget ).style.borderColor = T.border;
+                (e.currentTarget ).style.color        = T.textPrimary;
               }}
             >
               شاهد كيف يعمل
             </button>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px", marginTop: "72px" }}>
+        {/* ── Feature cards (hero bottom) ── */}
+        <div
+          style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px", marginTop: "72px" }}
+        >
           {[
             { icon: Brain,      iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, title: "كشف نقاط الضعف بالذكاء الاصطناعي", desc: "النظام يحلل إجاباتك ويحدد المواضيع التي تحتاج للتركيز عليها بدقة" },
             { icon: Target,     iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, title: "خطة دراسية شخصية",                  desc: "توجيه ذكي للدروس والتمارين بناءً على مستواك الحالي وأهدافك" },
             { icon: TrendingUp, iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, title: "تتبع التقدم المستمر",                 desc: "متابعة دقيقة لتطورك في كل مادة ومهارة مع تقارير تفصيلية" },
           ].map((f, i) => (
-            <motion.div
+            <div
               key={i}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.5, delay: i * 0.15 }}
-              whileHover={{ y: -4 }}
-              style={{ ...transition, ...glass(), padding: "32px", textAlign: "right" }}
+              style={{ ...transition, ...card(T), padding: "32px", textAlign: "right" }}
               onMouseEnter={e => {
-                const el = e.currentTarget;
+                const el = e.currentTarget ;
+                el.style.transform   = "translateY(-4px)";
                 el.style.boxShadow   = T.shadowHover;
                 el.style.borderColor = T.borderAccent;
               }}
               onMouseLeave={e => {
-                const el = e.currentTarget;
+                const el = e.currentTarget ;
+                el.style.transform   = "translateY(0)";
                 el.style.boxShadow   = T.shadowCard;
                 el.style.borderColor = T.border;
               }}
             >
+              {/* Icon container — Premium Minimalist approach */}
               <div
                 style={{
                   ...transition,
@@ -370,7 +440,7 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
               <p style={{ ...transition, color: T.textMuted, fontSize: "0.875rem", lineHeight: 1.8 }}>
                 {f.desc}
               </p>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -378,20 +448,29 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
   );
 }
 
-function StatsSection({ T, landingData }) {
+/* ════════════════════════════════════════════════════
+   3 — STATS STRIP
+════════════════════════════════════════════════════ */
+function StatsSection({ T }) {
   const stats = [
-    { icon: Users,         iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: `+${landingData?.all_students_count ?? "٢٠٠"}`, label: "طالب مسجّل",   sub: "عبر محافظات مصر" },
-    { icon: GraduationCap, iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, value: `+${landingData?.all_teachers_count ?? "٨٧"}`,   label: "معلم متخصص",  sub: "يستخدمون لوحة التحليل" },
+    { icon: Users,         iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: "+٢٠٠k", label: "طالب مسجّل",   sub: "عبر محافظات مصر" },
+    { icon: GraduationCap, iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, value: "+٨٧",   label: "معلم متخصص",  sub: "يستخدمون لوحة التحليل" },
     { icon: Star,          iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: "٩٨٪",   label: "نسبة الرضا",  sub: "يوصون بالمنصة" },
-    { icon: Zap,           iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, value: `+${landingData?.subjects_count ?? "٤"}`,  label: "درس ومراجعة", sub: "محتوى محدّث باستمرار" },
+    { icon: Zap,           iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, value: "+٢٠٠",  label: "درس ومراجعة", sub: "محتوى محدّث باستمرار" },
   ];
 
   return (
-    <section style={{ ...transition, background: T.bgPanel, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, padding: "56px 0" }}>
+    <section
+      style={{ ...transition, background: T.bgPanel, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, padding: "56px 0" }}
+    >
       <div className="max-w-7xl mx-auto px-6 lg:px-10">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "24px" }}>
           {stats.map((s, i) => (
-            <div key={i} style={{ ...transition, ...card(T), padding: "28px 24px", textAlign: "center" }}>
+            <div
+              key={i}
+              style={{ ...transition, ...card(T), padding: "28px 24px", textAlign: "center" }}
+            >
+              {/* Icon container — crisp, high-contrast */}
               <div
                 style={{
                   ...transition,
@@ -421,23 +500,11 @@ function StatsSection({ T, landingData }) {
   );
 }
 
-function SubjectsSection({ T, subjects, onNavigateSubject }) {
-  const SUBJECT_MAP = {
-    PHYSICS:   { icon: Atom,         eng: "Physics",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
-    CHEMISTRY: { icon: FlaskConical, eng: "Chemistry",   iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, badgeBg: T.accentAltDim, badgeBdr: T.borderAlt,    badgeClr: T.accentAlt, cardBdr: T.borderAlt    },
-    BIOLOGY:   { icon: Microscope,   eng: "Biology",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
-    MATH:      { icon: Calculator,   eng: "Mathematics", iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, badgeBg: T.accentAltDim, badgeBdr: T.borderAlt,    badgeClr: T.accentAlt, cardBdr: T.borderAlt    },
-    DEFAULT:   { icon: BookOpen,     eng: "Subject",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
-  };
-
-  const displayedSubjects = subjects?.length > 0 ? subjects.map(s => {
-      const mapped = SUBJECT_MAP[s.code] || SUBJECT_MAP.DEFAULT;
-      return {
-         ...mapped,
-         name: s.title,
-         id: s.id
-      };
-  }) : [
+/* ════════════════════════════════════════════════════
+   4 — SUBJECTS
+════════════════════════════════════════════════════ */
+function SubjectsSection({ T }) {
+  const subjects = [
     { name: "الفيزياء",   icon: Atom,         eng: "Physics",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
     { name: "الكيمياء",   icon: FlaskConical, eng: "Chemistry",   iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, badgeBg: T.accentAltDim, badgeBdr: T.borderAlt,    badgeClr: T.accentAlt, cardBdr: T.borderAlt    },
     { name: "الأحياء",    icon: Microscope,   eng: "Biology",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
@@ -447,6 +514,8 @@ function SubjectsSection({ T, subjects, onNavigateSubject }) {
   return (
     <section style={{ ...transition, background: T.bg, padding: "90px 0" }}>
       <div className="max-w-7xl mx-auto px-6 lg:px-10">
+
+        {/* Header */}
         <div style={{ marginBottom: "48px" }}>
           <div
             style={{
@@ -467,29 +536,31 @@ function SubjectsSection({ T, subjects, onNavigateSubject }) {
           </p>
         </div>
 
+        {/* Cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px" }}>
-          {displayedSubjects.map((s, i) => (
+          {subjects.map((s, i) => (
             <div
               key={i}
               style={{ ...transition, ...card(T), padding: "28px", cursor: "pointer" }}
-              onClick={() => s.id ? onNavigateSubject(s.id) : null}
               onMouseEnter={e => {
-                const el = e.currentTarget;
+                const el = e.currentTarget ;
                 el.style.transform   = "translateY(-4px)";
                 el.style.boxShadow   = T.shadowHover;
                 el.style.borderColor = s.cardBdr;
-                const iconEl = el.querySelector(".icon-wrap");
+                // Boost icon container opacity on card hover
+                const iconEl = el.querySelector(".icon-wrap")  | null;
                 if (iconEl) { iconEl.style.background = s.iconBg.replace("0.10", "0.17").replace("0.11", "0.18"); }
               }}
               onMouseLeave={e => {
-                const el = e.currentTarget;
+                const el = e.currentTarget ;
                 el.style.transform   = "translateY(0)";
                 el.style.boxShadow   = T.shadowCard;
                 el.style.borderColor = T.border;
-                const iconEl = el.querySelector(".icon-wrap");
+                const iconEl = el.querySelector(".icon-wrap")  | null;
                 if (iconEl) { iconEl.style.background = s.iconBg; }
               }}
             >
+              {/* Icon container — structured, high-contrast */}
               <div
                 className="icon-wrap"
                 style={{
@@ -503,6 +574,8 @@ function SubjectsSection({ T, subjects, onNavigateSubject }) {
               >
                 <s.icon style={{ color: s.iconClr, width: "28px", height: "28px" }} strokeWidth={2} />
               </div>
+
+              {/* Badge */}
               <span
                 style={{
                   ...transition,
@@ -519,10 +592,13 @@ function SubjectsSection({ T, subjects, onNavigateSubject }) {
               >
                 {s.eng}
               </span>
+
               <h3 style={{ ...transition, color: T.textPrimary, fontWeight: 700, fontSize: "1.15rem", marginBottom: "8px" }}>
                 {s.name}
               </h3>
-              <div style={{ ...transition, display: "flex", alignItems: "center", gap: "4px", color: T.textDim, fontSize: "0.8rem", marginTop: "8px" }}>
+              <div
+                style={{ ...transition, display: "flex", alignItems: "center", gap: "4px", color: T.textDim, fontSize: "0.8rem", marginTop: "8px" }}
+              >
                 <span>ابدأ الآن</span>
                 <ChevronRight style={{ width: "14px", height: "14px" }} />
               </div>
@@ -534,6 +610,9 @@ function SubjectsSection({ T, subjects, onNavigateSubject }) {
   );
 }
 
+/* ════════════════════════════════════════════════════
+   5 — HOW IT WORKS
+════════════════════════════════════════════════════ */
 function HowItWorksSection({ T }) {
   const steps = [
     { num: "٢", icon: BookOpen,    title: "أجب على الاختبارات",           desc: "حل اختبارات تشخيصية ذكية مصنّفة حسب الموضوع والمهارة المعرفية.",    iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeClr: T.accent,    badgeBg: T.accentDim,    badgeBdr: T.borderAccent },
@@ -561,17 +640,18 @@ function HowItWorksSection({ T }) {
             أربع خطوات للتميز
           </h2>
         </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "24px" }}>
           {steps.map((s, i) => (
             <div key={i} style={{ textAlign: "center" }}>
+              {/* Icon container — structured circle, high-contrast */}
               <div
                 style={{
                   ...transition,
                   width: "60px", height: "60px", borderRadius: "50%",
                   background:   s.iconBg,
                   border:       `1px solid ${s.iconBdr}`,
-                  display:      "flex", alignItems: "center", justifyItems: "center",
-                  justifyContent: "center",
+                  display:      "flex", alignItems: "center", justifyContent: "center",
                   margin:       "0 auto 18px",
                 }}
               >
@@ -603,6 +683,9 @@ function HowItWorksSection({ T }) {
   );
 }
 
+/* ════════════════════════════════════════════════════
+   6 — COMPARISON
+════════════════════════════════════════════════════ */
 function ComparisonSection({ T }) {
   const trad  = ["طريقة دراسة موحدة لجميع الطلاب", "لا تشخيص لنقاط الضعف الفعلية", "مراجعة المحتوى كله بلا تركيز", "نتائج متأخرة بعد الامتحان فقط", "لا تتكيف مع مستواك الشخصي"];
   const focus = ["تحليل ذكي يكشف ضعفك بدقة الوسوم", "خطة دراسية مخصصة لكل طالب", "تركيز فوري على ما تحتاجه فعلاً", "تغذية راجعة فورية بعد كل سؤال", "نظام يتطور مع تطور مستواك"];
@@ -618,7 +701,9 @@ function ComparisonSection({ T }) {
             مقارنة واضحة بين الطريقة التقليدية ومنظومة FOCUS الذكية
           </p>
         </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px" }}>
+          {/* Traditional */}
           <div
             style={{
               ...transition,
@@ -643,6 +728,8 @@ function ComparisonSection({ T }) {
               ))}
             </ul>
           </div>
+
+          {/* FOCUS */}
           <div
             style={{
               ...transition,
@@ -673,9 +760,12 @@ function ComparisonSection({ T }) {
   );
 }
 
+/* ════════════════════════════════════════════════════
+   7 — TESTIMONIALS
+════════════════════════════════════════════════════ */
 function TestimonialsSection({ T }) {
   const testimonials = [
-    { quote: "FOCUS غيّرت طريقة مذاكرتي كلياً. درجتي في الفيزياء اتحسنت ٢٥ درجة في شهرين بسبب التركيز على نقاط الضعف الفعلية.", name: "يوسف محمد",     role: "طالب ثانوية عامة · القاهرة",      avatar: "ي", accent: T.accent,    dim: T.accentDim,    brd: T.borderAccent },
+    { quote: "FOCUS غيّرت طريقة مذاكرتي كلياً. درجتي في الفيزياء اتحسنت ٢٥ درجة في شهرين بسبب التركيز على نقاط الضعف الفعلية.", name: "يوسف ��حمد",     role: "طالب ثانوية عامة · القاهرة",      avatar: "ي", accent: T.accent,    dim: T.accentDim,    brd: T.borderAccent },
     { quote: "كمعلمة، لوحة التحليل وفّرت عليّ ساعات. بشوف مين الطلاب اللي محتاجين مساعدة في أي موضوع بالظبط.",                name: "أ. سارة إبراهيم", role: "معلمة كيمياء · الجيزة",            avatar: "س", accent: T.accentAlt, dim: T.accentAltDim, brd: T.borderAlt    },
     { quote: "كنت خايفة من الرياضيات، بس FOCUS بيّن لي بالظبط المواضيع اللي عندي فيها ضعف وكيف أصلحها.",                        name: "نور أحمد",         role: "طالبة ثانوية عامة · الإسكندرية",   avatar: "ن", accent: T.accent,    dim: T.accentDim,    brd: T.borderAccent },
   ];
@@ -699,19 +789,20 @@ function TestimonialsSection({ T }) {
             يقولون عن FOCUS
           </h2>
         </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" }}>
           {testimonials.map((t, i) => (
             <div
               key={i}
               style={{ ...transition, ...card(T), padding: "28px", display: "flex", flexDirection: "column", gap: "18px" }}
               onMouseEnter={e => {
-                const el = e.currentTarget;
+                const el = e.currentTarget ;
                 el.style.transform   = "translateY(-3px)";
                 el.style.boxShadow   = T.shadowHover;
                 el.style.borderColor = t.brd;
               }}
               onMouseLeave={e => {
-                const el = e.currentTarget;
+                const el = e.currentTarget ;
                 el.style.transform   = "translateY(0)";
                 el.style.boxShadow   = T.shadowCard;
                 el.style.borderColor = T.border;
@@ -752,7 +843,10 @@ function TestimonialsSection({ T }) {
   );
 }
 
-function CTASection({ T, onNavigate, handleSmartNav }) {
+/* ════════════════════════════════════════════════════
+   8 — CTA + FOOTER
+════════════════════════════════════════════════════ */
+function CTASection({ T, onNavigate }) {
   return (
     <>
       <section
@@ -765,6 +859,7 @@ function CTASection({ T, onNavigate, handleSmartNav }) {
         }}
       >
         <div className="max-w-3xl mx-auto px-6">
+          {/* CTA icon — large, high-contrast */}
           <div
             style={{
               ...transition,
@@ -777,18 +872,21 @@ function CTASection({ T, onNavigate, handleSmartNav }) {
           >
             <GraduationCap style={{ color: T.iconA, width: "36px", height: "36px" }} strokeWidth={2} />
           </div>
+
           <h2 style={{ ...transition, color: T.textPrimary, fontSize: "clamp(2rem, 5vw, 3rem)", fontWeight: 800, lineHeight: 1.2, marginBottom: "18px" }}>
             ابدأ رحلتك نحو{" "}
             <span style={{ color: T.accent }}>التميز الأكاديمي</span>
           </h2>
+
           <p style={{ ...transition, color: T.textMuted, fontSize: "1.05rem", marginBottom: "40px", lineHeight: 1.8 }}>
             انضم لآلاف الطلاب الذين حققوا نتائج متميزة مع FOCUS
             <br />
             ابدأ مجاناً اليوم، ولا تحتاج بطاقة ائتمانية
           </p>
+
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "16px" }}>
             <button
-              onClick={() => handleSmartNav('/signup')}
+              onClick={() => onNavigate("auth")}
               style={{
                 ...transition,
                 display: "flex", alignItems: "center", gap: "8px",
@@ -797,19 +895,19 @@ function CTASection({ T, onNavigate, handleSmartNav }) {
                 background: T.accent, color: "#FFFFFF", border: "none", cursor: "pointer",
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.opacity   = "0.88";
-                e.currentTarget.style.transform = "translateY(-2px)";
+                (e.currentTarget ).style.opacity   = "0.88";
+                (e.currentTarget ).style.transform = "translateY(-2px)";
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.opacity   = "1";
-                e.currentTarget.style.transform = "translateY(0)";
+                (e.currentTarget ).style.opacity   = "1";
+                (e.currentTarget ).style.transform = "translateY(0)";
               }}
             >
               سجل الآن مجاناً
               <ArrowLeft style={{ width: "16px", height: "16px" }} />
             </button>
             <button
-              onClick={() => onNavigate("login")}
+              onClick={() => onNavigate("auth")}
               style={{
                 ...transition,
                 padding: "14px 40px", borderRadius: "12px",
@@ -819,17 +917,18 @@ function CTASection({ T, onNavigate, handleSmartNav }) {
                 boxShadow: T.shadowCard,
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.borderColor = T.borderAccent;
-                e.currentTarget.style.color        = T.accent;
+                (e.currentTarget ).style.borderColor = T.borderAccent;
+                (e.currentTarget ).style.color        = T.accent;
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.borderColor = T.border;
-                e.currentTarget.style.color        = T.textPrimary;
+                (e.currentTarget ).style.borderColor = T.border;
+                (e.currentTarget ).style.color        = T.textPrimary;
               }}
             >
               تسجيل الدخول
             </button>
           </div>
+
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "24px", marginTop: "36px" }}>
             {["بدون بطاقة ائتمانية", "تجربة مجانية", "إلغاء في أي وقت"].map((label, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -843,7 +942,19 @@ function CTASection({ T, onNavigate, handleSmartNav }) {
 
       <footer style={{ ...transition, background: T.footerBg, borderTop: `1px solid ${T.border}`, padding: "28px 24px" }}>
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Logo className="scale-75 origin-left" />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div
+              style={{
+                ...transition,
+                width: "28px", height: "28px", borderRadius: "8px",
+                background: T.accentDim, border: `1px solid ${T.borderAccent}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <Brain style={{ color: T.accent, width: "14px", height: "14px" }} strokeWidth={1.5} />
+            </div>
+            <span style={{ ...transition, color: T.accent, fontWeight: 700, letterSpacing: "0.14em" }}>FOCUS</span>
+          </div>
           <p style={{ ...transition, color: T.textDim, fontSize: "0.78rem" }}>
             © ٢٠٢٦ FOCUS. جميع الحقوق محفوظة.
           </p>
@@ -852,8 +963,8 @@ function CTASection({ T, onNavigate, handleSmartNav }) {
               <span
                 key={i}
                 style={{ ...transition, color: T.textDim, fontSize: "0.78rem", cursor: "pointer" }}
-                onMouseEnter={e => e.currentTarget.style.color = T.textMuted}
-                onMouseLeave={e => e.currentTarget.style.color = T.textDim}
+                onMouseEnter={e => (e.currentTarget ).style.color = T.textMuted}
+                onMouseLeave={e => (e.currentTarget ).style.color = T.textDim}
               >
                 {link}
               </span>
@@ -865,60 +976,23 @@ function CTASection({ T, onNavigate, handleSmartNav }) {
   );
 }
 
-const LandingPage = () => {
-  const navigate = useNavigate();
-  const { t, lang } = useLanguage();
-  const { C: T, glass, isDarkMode, toggleTheme } = useTheme();
-  
-  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('token'));
-  const [landingData, setLandingData] = useState(null);
-
-  const handleSmartNav = (fallbackRoute) => {
-    if (!isLoggedIn) {
-      navigate(fallbackRoute);
-      return;
-    }
-    try {
-      const userStr = localStorage.getItem('user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        if (user.role === 'teacher' || user.role === 'admin') {
-          navigate('/teacher-dashboard');
-          return;
-        }
-      }
-    } catch (e) {
-      console.error("Error parsing user data:", e);
-    }
-    navigate('/dashboard');
-  };
-
-  useEffect(() => {
-    const fetchLandingData = async () => {
-      try {
-        const { data } = await publicApi.get('/landing_page');
-        const payload = data?.data ?? data ?? {};
-        setLandingData(payload);
-      } catch (err) {
-        console.warn('Failed to fetch landing page data:', err.message);
-        setLandingData(null);
-      }
-    };
-    fetchLandingData();
-  }, []);
+/* ════════════════════════════════════════════════════
+   ROOT
+════════════════════════════════════════════════════ */
+export function LandingPage({ onNavigate }: LandingPageProps) {
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const T = buildTheme(isDarkMode);
 
   return (
-    <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{ ...transition, background: T.bg, minHeight: "100vh", overflowX: "hidden", fontFamily: "'Cairo', sans-serif" }}>
-      <NavHeader        T={T} isDarkMode={isDarkMode} setIsDarkMode={toggleTheme} onNavigate={navigate} handleSmartNav={handleSmartNav} isLoggedIn={isLoggedIn} t={t} />
-      <HeroSection      T={T} glass={glass} onNavigate={navigate} handleSmartNav={handleSmartNav} />
-      <StatsSection     T={T} landingData={landingData} />
-      <SubjectsSection  T={T} subjects={landingData?.subjects} onNavigateSubject={(id) => navigate(`/subject/${id}`)} />
+    <div dir="rtl" style={{ ...transition, background: T.bg, minHeight: "100vh", overflowX: "hidden" }}>
+      <NavHeader        T={T} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} onNavigate={onNavigate} />
+      <HeroSection      T={T} onNavigate={onNavigate} />
+      <StatsSection     T={T} />
+      <SubjectsSection  T={T} />
       <HowItWorksSection T={T} />
       <ComparisonSection T={T} />
       <TestimonialsSection T={T} />
-      <CTASection       T={T} onNavigate={navigate} handleSmartNav={handleSmartNav} />
+      <CTASection       T={T} onNavigate={onNavigate} />
     </div>
   );
 }
-
-export default LandingPage;

@@ -15,6 +15,99 @@ import {
 } from 'lucide-react';
 import api from '../api/api';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+
+/* ════════════════════════════════════════════════════
+   THEME FACTORY
+════════════════════════════════════════════════════ */
+function buildTheme(dark) {
+  return dark
+    ? {
+        bg:           "#0B1120",
+        bgPanel:      "#0D1526",
+        bgCard:       "rgba(255,255,255,0.035)",
+        border:       "rgba(255,255,255,0.08)",
+        borderAccent: "rgba(79,70,229,0.38)",
+        borderRed:    "rgba(239,68,68,0.22)",
+        accent:       "#4F46E5",
+        accentDim:    "rgba(79,70,229,0.14)",
+        iconA:        "#38BDF8",
+        iconBgA:      "rgba(56,189,248,0.10)",
+        iconBorderA:  "rgba(56,189,248,0.22)",
+        iconB:        "#818CF8",
+        iconBgB:      "rgba(129,140,248,0.11)",
+        iconBorderB:  "rgba(129,140,248,0.25)",
+        textPrimary:  "#F8FAFC",
+        textMuted:    "#94A3B8",
+        textDim:      "#475569",
+        shadowCard:   "0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",
+        redIcon:      "#F87171",
+        redDim:       "rgba(248,113,113,0.10)",
+        redBorder:    "rgba(248,113,113,0.20)",
+        green:        "#34D399",
+        greenDim:     "rgba(52,211,153,0.12)",
+        greenBorder:  "rgba(52,211,153,0.22)",
+        warningDim:   "rgba(245,158,11,0.10)",
+        warningBorder:"rgba(245,158,11,0.20)",
+        warningIcon:  "#FBBF24",
+      }
+    : {
+        bg:           "#F8FAFC",
+        bgPanel:      "#FFFFFF",
+        bgCard:       "#FFFFFF",
+        border:       "#E2E8F0",
+        borderAccent: "rgba(15,76,129,0.28)",
+        borderRed:    "rgba(239,68,68,0.20)",
+        accent:       "#0F4C81",
+        accentDim:    "rgba(15,76,129,0.08)",
+        iconA:        "#0F4C81",
+        iconBgA:      "rgba(15,76,129,0.08)",
+        iconBorderA:  "rgba(15,76,129,0.18)",
+        iconB:        "#2563EB",
+        iconBgB:      "rgba(37,99,235,0.07)",
+        iconBorderB:  "rgba(37,99,235,0.16)",
+        textPrimary:  "#0F172A",
+        textMuted:    "#64748B",
+        textDim:      "#94A3B8",
+        shadowCard:   "0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",
+        redIcon:      "#EF4444",
+        redDim:       "rgba(239,68,68,0.08)",
+        redBorder:    "rgba(239,68,68,0.18)",
+        green:        "#059669",
+        greenDim:     "rgba(5,150,105,0.08)",
+        greenBorder:  "rgba(5,150,105,0.18)",
+        warningDim:   "rgba(245,158,11,0.08)",
+        warningBorder:"rgba(245,158,11,0.18)",
+        warningIcon:  "#F59E0B",
+      };
+}
+
+const glass = (T, extra) => ({
+  background:   T.bgCard,
+  border:       `1px solid ${T.border}`,
+  borderRadius: "16px",
+  boxShadow:    T.shadowCard,
+  ...extra,
+});
+
+const transition = {
+  transition: "all 0.25s ease",
+};
+
+const iw = (T, type = 'accent') => {
+  let bg, bd;
+  if (type === 'red') { bg = T.redDim; bd = T.redBorder; }
+  else if (type === 'warning') { bg = T.warningDim; bd = T.warningBorder; }
+  else if (type === 'green') { bg = T.greenDim; bd = T.greenBorder; }
+  else if (type === 'secondary') { bg = T.iconBgB; bd = T.iconBorderB; }
+  else { bg = T.iconBgA; bd = T.iconBorderA; }
+  return {
+    ...transition,
+    width: "42px", height: "42px", borderRadius: "12px",
+    background: bg, border: `1px solid ${bd}`,
+    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
+  };
+};
 
 const extractDataList = (resData) => {
   if (!resData) return [];
@@ -47,15 +140,20 @@ const formatDate = (dateValue, lang) => {
   }
 };
 
-const ErrorState = ({ message, onRetry }) => (
-  <div className="py-10 text-center flex flex-col items-center gap-3">
-    <AlertTriangle className="w-8 h-8 text-amber-400" />
-    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{message}</p>
+const ErrorState = ({ message, onRetry, T }) => (
+  <div style={{ padding: "40px 0", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+    <AlertTriangle style={{ color: T.warningIcon, width: "32px", height: "32px" }} />
+    <p style={{ fontSize: "0.875rem", color: T.textMuted, fontWeight: 600 }}>{message}</p>
     <button
       onClick={onRetry}
-      className="flex items-center gap-1.5 text-sm font-bold text-[#103B66] dark:text-blue-400 hover:underline"
+      style={{
+        ...transition,
+        display: "flex", alignItems: "center", gap: "6px",
+        fontSize: "0.875rem", fontWeight: 700, color: T.accent,
+        background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline"
+      }}
     >
-      <RefreshCcw className="w-4 h-4" />
+      <RefreshCcw style={{ width: "16px", height: "16px" }} />
       إعادة المحاولة
     </button>
   </div>
@@ -65,6 +163,9 @@ const QuizDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { lang } = useLanguage();
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -74,6 +175,7 @@ const QuizDetails = () => {
     avgScore: 0,
     passRate: 0,
   });
+  const [actualQuizId, setActualQuizId] = useState(null);
   const [students, setStudents] = useState([]);
   const [weakPoints, setWeakPoints] = useState([]);
   const [hasQuestionData, setHasQuestionData] = useState(false);
@@ -88,108 +190,58 @@ const QuizDetails = () => {
     setLoading(true);
     setError(null);
     try {
-      let attemptsList = [];
-      let quizPayload = {};
-      let responseData = {};
+      const { data } = await api.get('/teachers/dashboard');
+      const payload = data?.data || data || {};
+      const attempts = Array.isArray(payload.student_attempts) ? payload.student_attempts : [];
+      const quizId = Number(id);
 
-      // 1. Try Primary Teacher Endpoint
-      try {
-        const { data } = await api.get(`/quizzes-details/${id}`);
-        responseData = data?.data || data || {};
-        quizPayload = responseData.quiz || responseData;
+      const currentQuizAttempts = attempts.filter((attempt) => (
+        Number(attempt.lesson_id) === quizId || Number(attempt.quiz_id) === quizId
+      ));
 
-        let primaryAttempts = responseData.student_attempts || responseData.attempts || (Array.isArray(responseData.quiz_attempts_count) ? responseData.quiz_attempts_count : null) || responseData.students || quizPayload.attempts || quizPayload.quiz_attempts || [];
-        if (typeof primaryAttempts === 'object' && primaryAttempts !== null && !Array.isArray(primaryAttempts)) {
-          primaryAttempts = Object.values(primaryAttempts);
-        }
-        if (!Array.isArray(primaryAttempts)) primaryAttempts = [];
-        attemptsList = primaryAttempts;
-      } catch (err) {
-        console.warn('Primary endpoint failed.');
-      }
+      const totalAttemptsCount = currentQuizAttempts.length;
+      const avgRaw = totalAttemptsCount
+        ? currentQuizAttempts.reduce((sum, attempt) => {
+            const total = Number(attempt.total_marks || 0);
+            const score = Number(attempt.score || 0);
+            if (!total) return sum;
+            return sum + (score / total);
+          }, 0) / totalAttemptsCount
+        : 0;
 
-      // 2. Fallback: If no attempts found, hunt in the standard resource endpoint
-      if ((!attemptsList || attemptsList.length === 0) && id) {
-        console.log(`No attempts in primary endpoint. Hunting in /quizzes/${id}`);
-        try {
-          const fallbackRes = await api.get(`/quizzes/${id}`);
-          const fallbackData = fallbackRes.data?.data || fallbackRes.data || {};
-          const fallbackQuiz = fallbackData.quiz || fallbackData;
+      const passedCount = currentQuizAttempts.filter((attempt) => {
+        const total = Number(attempt.total_marks || 0);
+        const score = Number(attempt.score || 0);
+        if (!total) return false;
+        return (score / total) >= 0.5;
+      }).length;
 
-          // Merge missing quiz details if any
-          if (!quizPayload.title && !quizPayload.lesson_name) {
-            quizPayload = fallbackQuiz;
-          }
+      const passRateCalc = totalAttemptsCount > 0 ? Math.round((passedCount / totalAttemptsCount) * 100) : 0;
 
-          let fallbackAttempts = fallbackData.student_attempts || fallbackData.attempts || fallbackData.students || fallbackQuiz.attempts || fallbackQuiz.quiz_attempts || [];
-          if (typeof fallbackAttempts === 'object' && fallbackAttempts !== null && !Array.isArray(fallbackAttempts)) {
-            fallbackAttempts = Object.values(fallbackAttempts);
-          }
-          if (!Array.isArray(fallbackAttempts)) fallbackAttempts = [];
-
-          if (fallbackAttempts.length > 0) {
-            attemptsList = fallbackAttempts;
-          }
-        } catch (fallbackErr) {
-          console.warn('Fallback endpoint also missing attempts.');
-        }
-      }
-
-      // 3. Calculate KPIs safely
-      // Prefer server-provided aggregate fields; fall back to local calculation
-      const totalAttemptsCount =
-        // quiz_attempts_count may be a number OR an array — handle both
-        typeof responseData.quiz_attempts_count === 'number'
-          ? responseData.quiz_attempts_count
-          : Array.isArray(responseData.quiz_attempts_count)
-            ? responseData.quiz_attempts_count.length
-            : Array.isArray(responseData.student_attempts)
-              ? responseData.student_attempts.length
-              : attemptsList.length;
-
-      let totalScorePercent = 0;
-      let passedCount = 0;
-
-      const mappedStudents = attemptsList.map((attempt, index) => {
-        // score is a 0–1 decimal fraction from the API (e.g. 0.8 = 80%)
+      const mappedStudents = currentQuizAttempts.map((attempt, index) => {
         const score = Number(attempt.score ?? 0);
-        const percentage = Math.round(score * 100);
-
-        totalScorePercent += percentage;
-        if (percentage >= 50) passedCount++;
-
+        const totalMarks = Number(attempt.total_marks ?? 0);
+        const percentage = totalMarks ? Math.round((score / totalMarks) * 100) : 0;
         const rawDate = attempt.created_at || attempt.date || attempt.attempted_at || attempt.quiz_date || null;
 
         return {
           id: attempt.id || attempt.attempt_id || `attempt-${index}`,
-          studentName: attempt.student?.name || attempt.user?.name || attempt.student_name || 'طالب غير معروف',
-          score,
+          studentName: attempt.student_name || attempt.student?.name || attempt.user?.name || 'طالب غير معروف',
+          studentEmail: attempt.student_email || attempt.student?.email || attempt.user?.email || '—',
+          scoreText: `${score} من ${totalMarks}`,
           percentage,
           quizDate: rawDate,
-          date: rawDate ? new Date(rawDate).toLocaleDateString('ar-EG') : 'غير محدد',
-          // Display score as a formatted percentage string
-          rawScoreText: `${percentage}%`,
           isPass: percentage >= 50,
         };
       });
 
-      // Bind average_score from API payload; score is a 0–1 fraction so multiply by 100
-      const avgScoreCalc =
-        responseData.average_score != null && Number.isFinite(Number(responseData.average_score))
-          ? Math.round(Number(responseData.average_score) * 100)
-          : attemptsList.length > 0
-            ? Math.round(totalScorePercent / attemptsList.length)
-            : 0;
-
-      const passRateCalc = totalAttemptsCount > 0 ? Math.round((passedCount / totalAttemptsCount) * 100) : 0;
-
-      // 4. Update State
       setQuizInfo({
-        title: quizPayload.lesson_name || quizPayload.title || quizPayload.name || 'تفاصيل الاختبار',
+        title: currentQuizAttempts[0]?.lesson_title || currentQuizAttempts[0]?.quiz_title || 'تفاصيل الاختبار',
         totalAttempts: totalAttemptsCount,
-        avgScore: avgScoreCalc,
+        avgScore: Math.round(avgRaw * 100),
         passRate: passRateCalc,
       });
+      setActualQuizId(currentQuizAttempts[0]?.quiz_id || currentQuizAttempts[0]?.id || null);
 
       setStudents(mappedStudents);
       setWeakPoints([]);
@@ -214,168 +266,189 @@ const QuizDetails = () => {
       label: 'إجمالي الطلاب الذين أدّوا الاختبار',
       value: quizInfo.totalAttempts,
       icon: Users,
-      border: 'border-t-blue-500',
-      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
-      iconColor: 'text-blue-600 dark:text-blue-400',
+      type: 'accent'
     },
     {
       label: 'متوسط الدرجة',
       value: `${quizInfo.avgScore}%`,
       icon: TrendingUp,
-      border: 'border-t-green-500',
-      iconBg: 'bg-green-100 dark:bg-green-900/40',
-      iconColor: 'text-green-600 dark:text-green-400',
+      type: 'secondary'
     },
     {
       label: 'معدل النجاح (≥ 50%)',
       value: `${quizInfo.passRate}%`,
       icon: CheckCircle2,
-      border: 'border-t-violet-500',
-      iconBg: 'bg-violet-100 dark:bg-violet-900/40',
-      iconColor: 'text-violet-600 dark:text-violet-400',
+      type: 'green'
     },
   ];
 
   return (
     <div
-      className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']"
+      style={{ ...transition, background: T.bg, minHeight: "100vh", fontFamily: "'Cairo', sans-serif" }}
       dir={lang === 'ar' ? 'rtl' : 'ltr'}
     >
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+      <header
+        style={{
+          ...transition,
+          position: "sticky", top: 0, zIndex: 20,
+          background: isDark ? "rgba(11,17,32,0.88)" : "rgba(248,250,252,0.90)",
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          borderBottom: `1px solid ${T.border}`,
+        }}
+      >
+        <div style={{ maxWidth: "1152px", margin: "0 auto", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
             <button
               onClick={() => navigate('/teacher-analytics')}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-[#103B66] dark:hover:text-white transition shrink-0"
+              style={{
+                ...transition,
+                display: "flex", alignItems: "center", gap: "6px",
+                background: "transparent", border: "none", cursor: "pointer",
+                color: T.textMuted, fontSize: "0.875rem", fontWeight: 700, flexShrink: 0
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = T.textPrimary}
+              onMouseLeave={e => e.currentTarget.style.color = T.textMuted}
             >
-              <ArrowRight className={`w-4 h-4 ${lang === 'en' ? 'rotate-180' : ''}`} />
+              <ArrowRight style={{ width: "16px", height: "16px", ...(lang === 'en' ? { transform: "rotate(180deg)" } : {}) }} />
               العودة للتحليلات
             </button>
             <button
-              onClick={() => navigate(`/edit-quiz/${id}`)}
-              className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded-lg border border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition shrink-0"
+              onClick={() => actualQuizId && navigate(`/edit-quiz/${actualQuizId}`)}
+              style={{
+                ...transition,
+                display: "flex", alignItems: "center", gap: "6px",
+                padding: "8px 16px", borderRadius: "8px",
+                background: T.iconBgA, border: `1px solid ${T.iconBorderA}`,
+                color: T.iconA, fontSize: "0.875rem", fontWeight: 700, flexShrink: 0, cursor: actualQuizId ? "pointer" : "not-allowed",
+                opacity: actualQuizId ? 1 : 0.6
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = "0.88"}
+              onMouseLeave={e => e.currentTarget.style.opacity = actualQuizId ? "1" : "0.6"}
             >
-              <Edit className="w-4 h-4" />
+              <Edit style={{ width: "16px", height: "16px" }} />
               تعديل الاختبار
             </button>
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-[#103B66] dark:text-blue-400 truncate">
+            <div style={{ minWidth: 0, marginLeft: "12px" }}>
+              <h1 style={{ ...transition, fontSize: "1.1rem", fontWeight: 800, color: T.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {quizInfo.title}
               </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">تحليل أداء الطلاب في الاختبار</p>
+              <p style={{ ...transition, fontSize: "0.75rem", color: T.textMuted }}>تحليل أداء الطلاب في الاختبار</p>
             </div>
           </div>
 
           <button
             type="button"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm font-bold text-gray-600 dark:text-gray-300 bg-gray-100/80 dark:bg-gray-700/70 cursor-default"
+            style={{
+              ...transition,
+              display: "flex", alignItems: "center", gap: "8px",
+              padding: "8px 16px", borderRadius: "8px",
+              background: T.bgPanel, border: `1px solid ${T.border}`,
+              color: T.textMuted, fontSize: "0.875rem", fontWeight: 700, cursor: "default"
+            }}
           >
-            <Download className="w-4 h-4" />
+            <Download style={{ width: "16px", height: "16px" }} />
             تصدير Excel (قريباً)
           </button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <main style={{ maxWidth: "1152px", margin: "0 auto", padding: "32px 24px", display: "flex", flexDirection: "column", gap: "32px" }}>
         {error && !loading ? (
-          <section className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-6">
-            <ErrorState message={error} onRetry={fetchQuizDetails} />
+          <section style={glass(T)}>
+            <ErrorState message={error} onRetry={fetchQuizDetails} T={T} />
           </section>
         ) : (
           <>
             <section>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {kpiCards.map(({ label, value, icon: Icon, border, iconBg, iconColor }) => (
-                  <div key={label} className={`bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border-t-4 ${border}`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{label}</p>
-                      <div className={`p-2 rounded-full ${iconBg}`}>
-                        <Icon className={`w-4 h-4 ${iconColor}`} />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px" }}>
+                {kpiCards.map(({ label, value, icon: Icon, type }) => {
+                  let valColor = T.textPrimary;
+                  if (type === 'green') valColor = T.green;
+                  return (
+                    <div key={label} style={{ ...glass(T), padding: "20px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                        <p style={{ fontSize: "0.8rem", color: T.textMuted, fontWeight: 600 }}>{label}</p>
+                        <div style={iw(T, type)}>
+                          <Icon style={{ width: "20px", height: "20px", color: type === 'green' ? T.green : type === 'secondary' ? T.iconB : T.iconA }} />
+                        </div>
                       </div>
+                      {loading ? (
+                        <div style={{ height: "36px", width: "80px", background: T.bg, borderRadius: "8px" }} className="animate-pulse" />
+                      ) : (
+                        <p style={{ fontSize: "1.875rem", fontWeight: 800, color: valColor, lineHeight: 1 }}>{value}</p>
+                      )}
                     </div>
-                    {loading ? (
-                      <div className="h-9 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
-                    ) : (
-                      <p className="text-3xl font-bold text-gray-800 dark:text-white leading-none">{value}</p>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </section>
 
             <section>
-              <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                <Users className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
+              <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: T.textPrimary, marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+                <Users style={{ width: "20px", height: "20px", color: T.accent }} />
                 أداء الطلاب
               </h2>
 
-              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+              <div style={{ ...glass(T), overflow: "hidden" }}>
                 {loading ? (
-                  <div className="p-4 space-y-3">
+                  <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
                     {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="h-14 rounded-xl bg-gray-100 dark:bg-gray-700/60 animate-pulse" />
+                      <div key={i} style={{ height: "56px", borderRadius: "12px", background: T.bg }} className="animate-pulse" />
                     ))}
                   </div>
-                ) : students.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <Users className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                    <p className="text-sm text-gray-500 dark:text-gray-400">لا توجد محاولات طلاب لهذا الاختبار حتى الآن</p>
-                  </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-[760px] w-full">
-                      <thead className="bg-gray-50 dark:bg-gray-700/60">
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ minWidth: "760px", width: "100%", borderCollapse: "collapse" }}>
+                      <thead style={{ background: T.bgPanel }}>
                         <tr>
-                          <th className="text-right px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-300">الطالب</th>
-                          <th className="text-right px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-300">تاريخ الاختبار</th>
-                          <th className="text-right px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-300">الدرجة الخام</th>
-                          <th className="text-right px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-300">النسبة المئوية</th>
-                          <th className="text-right px-4 py-3 text-xs font-bold text-gray-500 dark:text-gray-300">الحالة</th>
+                          {['الطالب', 'البريد الإلكتروني', 'تاريخ الاختبار', 'الدرجة', 'النسبة المئوية', 'الحالة'].map((th, i) => (
+                            <th key={i} style={{ textAlign: "right", padding: "16px", fontSize: "0.75rem", fontWeight: 800, color: T.textMuted }}>{th}</th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
                         {students.map((student) => (
-                          <tr
-                            key={student.id}
-                            className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50/80 dark:hover:bg-gray-700/30 transition-colors"
-                          >
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <UserCircle2 className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                                <span className="text-sm font-bold text-gray-800 dark:text-white">{student.studentName}</span>
+                          <tr key={student.id} style={{ ...transition, borderTop: `1px solid ${T.border}` }} onMouseEnter={e => e.currentTarget.style.background = T.bgPanel} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                            <td style={{ padding: "16px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <UserCircle2 style={{ width: "20px", height: "20px", color: T.textMuted }} />
+                                <span style={{ fontSize: "0.875rem", fontWeight: 800, color: T.textPrimary }}>{student.studentName}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3">
-                              <span className="inline-flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-300">
-                                <CalendarDays className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                            <td style={{ padding: "16px", fontSize: "0.875rem", fontWeight: 700, color: T.textDim }}>
+                              {student.studentEmail}
+                            </td>
+                            <td style={{ padding: "16px" }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.875rem", color: T.textDim, fontWeight: 600 }}>
+                                <CalendarDays style={{ width: "16px", height: "16px" }} />
                                 {formatDate(student.quizDate, lang)}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm font-bold text-gray-800 dark:text-white">{student.rawScoreText}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <div className="w-20 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <td style={{ padding: "16px", fontSize: "0.875rem", fontWeight: 800, color: T.textPrimary }}>
+                              {student.scoreText}
+                            </td>
+                            <td style={{ padding: "16px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <div style={{ width: "80px", height: "8px", background: T.bg, borderRadius: "999px", overflow: "hidden" }}>
                                   <div
-                                    className={`h-full rounded-full ${
-                                      student.percentage < 50
-                                        ? 'bg-red-500'
-                                        : student.percentage < 75
-                                          ? 'bg-yellow-500'
-                                          : 'bg-green-500'
-                                    }`}
-                                    style={{ width: `${student.percentage}%` }}
+                                    style={{
+                                      height: "100%", borderRadius: "999px",
+                                      background: student.percentage < 50 ? T.redIcon : student.percentage < 75 ? T.warningIcon : T.green,
+                                      width: `${student.percentage}%`
+                                    }}
                                   />
                                 </div>
-                                <span className="text-sm font-bold text-gray-700 dark:text-gray-200">{student.percentage}%</span>
+                                <span style={{ fontSize: "0.875rem", fontWeight: 800, color: T.textPrimary }}>{student.percentage}%</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3">
+                            <td style={{ padding: "16px" }}>
                               <span
-                                className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
-                                  student.isPass
-                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                                }`}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 800,
+                                  background: student.isPass ? T.greenDim : T.redDim,
+                                  color: student.isPass ? T.green : T.redIcon,
+                                  border: `1px solid ${student.isPass ? T.greenBorder : T.redBorder}`
+                                }}
                               >
                                 {student.isPass ? 'ناجح' : 'راسب'}
                               </span>
@@ -390,48 +463,48 @@ const QuizDetails = () => {
             </section>
 
             <section>
-              <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
+              <h2 style={{ fontSize: "1.25rem", fontWeight: 800, color: T.textPrimary, marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+                <ClipboardList style={{ width: "20px", height: "20px", color: T.accent }} />
                 تحليل نقاط الضعف
               </h2>
 
-              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5">
+              <div style={{ ...glass(T), padding: "20px" }}>
                 {loading ? (
-                  <div className="space-y-3">
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="h-16 rounded-xl bg-gray-100 dark:bg-gray-700/60 animate-pulse" />
+                      <div key={i} style={{ height: "64px", borderRadius: "12px", background: T.bg }} className="animate-pulse" />
                     ))}
                   </div>
                 ) : !hasQuestionData ? (
-                  <div className="h-44 flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400">
-                    <AlertTriangle className="w-10 h-10 mb-2 opacity-50" />
-                    <p className="font-bold mb-1">Analysis Coming Soon</p>
-                    <p className="text-sm">سيظهر تحليل الأسئلة الضعيفة بمجرد توفر بيانات تفصيلية للأسئلة.</p>
+                  <div style={{ height: "176px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", color: T.textMuted }}>
+                    <AlertTriangle style={{ width: "40px", height: "40px", marginBottom: "8px", opacity: 0.5 }} />
+                    <p style={{ fontWeight: 800, marginBottom: "4px" }}>Analysis Coming Soon</p>
+                    <p style={{ fontSize: "0.875rem", fontWeight: 600 }}>سيظهر تحليل الأسئلة الضعيفة بمجرد توفر بيانات تفصيلية للأسئلة.</p>
                   </div>
                 ) : weakPoints.length === 0 ? (
-                  <div className="h-44 flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400">
-                    <CheckCircle2 className="w-10 h-10 mb-2 text-green-500/70" />
-                    <p className="font-bold">لا توجد نقاط ضعف تتجاوز 50% حالياً</p>
+                  <div style={{ height: "176px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", color: T.textMuted }}>
+                    <CheckCircle2 style={{ width: "40px", height: "40px", marginBottom: "8px", color: T.green, opacity: 0.7 }} />
+                    <p style={{ fontWeight: 800 }}>لا توجد نقاط ضعف تتجاوز 50% حالياً</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                     {weakPoints.map((point) => (
                       <div
                         key={point.id}
-                        className="p-4 rounded-xl border border-red-100 dark:border-red-900/40 bg-red-50/40 dark:bg-red-900/10"
+                        style={{ padding: "16px", borderRadius: "12px", border: `1px solid ${T.redBorder}`, background: T.redDim }}
                       >
-                        <div className="flex items-center justify-between gap-3 mb-3">
-                          <p className="font-bold text-gray-800 dark:text-white leading-snug">{point.label}</p>
-                          <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
+                          <p style={{ fontWeight: 800, color: T.textPrimary, lineHeight: 1.4 }}>{point.label}</p>
+                          <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 800, background: T.redDim, color: T.redIcon, border: `1px solid ${T.redBorder}` }}>
                             نسبة الفشل: {point.failRate}%
                           </span>
                         </div>
 
-                        <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mb-2">
-                          <div className="h-full bg-red-500 rounded-full" style={{ width: `${point.failRate}%` }} />
+                        <div style={{ width: "100%", height: "8px", background: T.bgCard, borderRadius: "999px", overflow: "hidden", marginBottom: "8px" }}>
+                          <div style={{ height: "100%", background: T.redIcon, borderRadius: "999px", width: `${point.failRate}%` }} />
                         </div>
 
-                        <p className="text-xs text-gray-600 dark:text-gray-300">
+                        <p style={{ fontSize: "0.75rem", color: T.textMuted, fontWeight: 600 }}>
                           {point.failedStudents !== null && point.totalAttempts !== null
                             ? `${point.failedStudents} من ${point.totalAttempts} طلاب أخفقوا في هذا السؤال/الموضوع`
                             : 'مؤشر فشل مرتفع بناءً على بيانات التحليل'}

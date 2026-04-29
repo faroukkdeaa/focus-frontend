@@ -1,148 +1,204 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { publicApi } from '../api/api';
 import {
-  ArrowRight, BookOpen, PlayCircle, Loader2,
+  ArrowRight, BookOpen, PlayCircle,
   ChevronDown, ChevronUp, Clock, AlertTriangle, RefreshCcw,
-  Home, LogIn, User, GraduationCap, ChevronLeft, Users,
+  Home, LogIn, User, GraduationCap, ChevronLeft, Users, Lock,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+import i18n from '../i18n/i18n';
 import { SUBJECT_ICONS } from '../utils/subjectMapping';
 import AuthModal from '../components/AuthModal';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
+
+/* ════════════════════════════════════════════════════
+   DESIGN SYSTEM — Extracted from LandingPage.jsx
+════════════════════════════════════════════════════ */
+function buildTheme(dk){return dk?{bg:"#0B1120",bgCard:"rgba(255,255,255,0.035)",border:"rgba(255,255,255,0.08)",borderAccent:"rgba(79,70,229,0.38)",accent:"#4F46E5",accentDim:"rgba(79,70,229,0.14)",iconA:"#38BDF8",iconBgA:"rgba(56,189,248,0.10)",iconBorderA:"rgba(56,189,248,0.22)",iconB:"#818CF8",iconBgB:"rgba(129,140,248,0.11)",iconBorderB:"rgba(129,140,248,0.25)",textPrimary:"#F8FAFC",textMuted:"#94A3B8",textDim:"#475569",shadowCard:"0 1px 1px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35)",trackBg:"rgba(255,255,255,0.06)",green:"#34D399",greenDim:"rgba(52,211,153,0.12)",greenBorder:"rgba(52,211,153,0.22)",red:"#F87171",redDim:"rgba(248,113,113,0.10)",redBorder:"rgba(248,113,113,0.20)",yellow:"#FBBF24",yellowDim:"rgba(251,191,36,0.12)",yellowBorder:"rgba(251,191,36,0.22)",headerBg:"rgba(11,17,32,0.88)"}:{bg:"#F8FAFC",bgCard:"#FFFFFF",border:"#E2E8F0",borderAccent:"rgba(15,76,129,0.28)",accent:"#0F4C81",accentDim:"rgba(15,76,129,0.08)",iconA:"#0F4C81",iconBgA:"rgba(15,76,129,0.08)",iconBorderA:"rgba(15,76,129,0.18)",iconB:"#2563EB",iconBgB:"rgba(37,99,235,0.07)",iconBorderB:"rgba(37,99,235,0.16)",textPrimary:"#0F172A",textMuted:"#64748B",textDim:"#94A3B8",shadowCard:"0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05)",trackBg:"#E2E8F0",green:"#059669",greenDim:"rgba(5,150,105,0.08)",greenBorder:"rgba(5,150,105,0.18)",red:"#EF4444",redDim:"rgba(239,68,68,0.08)",redBorder:"rgba(239,68,68,0.18)",yellow:"#D97706",yellowDim:"rgba(217,119,6,0.08)",yellowBorder:"rgba(217,119,6,0.18)",headerBg:"rgba(248,250,252,0.90)"};}
+const _c=(T,x)=>({background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:"16px",boxShadow:T.shadowCard,...x});
+const _t={transition:"all 0.25s ease"};
+const _iw=(bg,bd,sz="40px",r="10px")=>({..._t,width:sz,height:sz,borderRadius:r,background:bg,border:`1px solid ${bd}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0});
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-const SectionLoader = ({ rows = 3 }) => (
-  <div className="space-y-3">
+const SectionLoader = ({ rows = 3, T }) => (
+  <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
     {Array.from({ length: rows }).map((_, i) => (
-      <div key={i} className="h-20 bg-gray-100 dark:bg-gray-700/50 rounded-xl animate-pulse" />
+      <SkeletonLoader key={i} type="card" height="68px" className="w-full" />
     ))}
   </div>
 );
 
-const SectionError = ({ message, onRetry }) => (
-  <div className="py-8 flex flex-col items-center gap-3 text-center">
-    <AlertTriangle className="w-7 h-7 text-amber-400" />
-    <p className="text-sm text-gray-500 dark:text-gray-400">{message}</p>
+const SectionError = ({ message, onRetry, T, t }) => (
+  <div style={{padding:"32px",display:"flex",flexDirection:"column",alignItems:"center",gap:"12px",textAlign:"center"}}>
+    <AlertTriangle style={{width:"28px",height:"28px",color:T.yellow}} />
+    <p style={{fontSize:"0.9rem",color:T.textDim}}>{message}</p>
     <button
       onClick={onRetry}
-      className="flex items-center gap-1.5 text-sm font-bold text-[#103B66] dark:text-blue-400 hover:underline"
+      style={{..._t,display:"flex",alignItems:"center",gap:"6px",fontSize:"0.9rem",fontWeight:700,color:T.accent,background:"transparent",border:"none",cursor:"pointer"}}
     >
-      <RefreshCcw className="w-3.5 h-3.5" /> إعادة المحاولة
+      <RefreshCcw style={{width:"14px",height:"14px"}} /> {t('retry')}
     </button>
   </div>
 );
 
 // ── Teacher Card ───────────────────────────────────────────────────────────────
 
-const TeacherCard = ({ teacher, isSelected, onSelect }) => {
+const TeacherCard = ({ teacher, isSelected, onSelect, T, t }) => {
   const colors = [
-    'from-blue-500 to-blue-700',
-    'from-purple-500 to-purple-700',
-    'from-green-500 to-green-700',
-    'from-orange-500 to-orange-700',
-    'from-pink-500 to-pink-700',
-    'from-teal-500 to-teal-700',
+    {bg:T.iconBgA, color:T.iconA},
+    {bg:T.iconBgB, color:T.iconB},
+    {bg:T.greenDim, color:T.green},
+    {bg:T.yellowDim, color:T.yellow},
+    {bg:T.redDim, color:T.red},
+    {bg:T.accentDim, color:T.accent},
   ];
   const colorIndex = (teacher.id || 0) % colors.length;
+  const col = colors[colorIndex];
   
   return (
     <button
       onClick={() => onSelect(teacher)}
-      className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-right w-full
-        ${isSelected 
-          ? 'border-[#103B66] dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md' 
-          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'
-        }`}
+      style={{..._t,display:"flex",alignItems:"center",gap:"16px",padding:"16px",borderRadius:"16px",border:`2px solid ${isSelected ? T.borderAccent : T.border}`,background:isSelected ? T.accentDim : T.bgCard,width:"100%",textAlign:"right",cursor:"pointer"}}
+      onMouseEnter={e=>{if(!isSelected) e.currentTarget.style.borderColor=T.borderAccent;}}
+      onMouseLeave={e=>{if(!isSelected) e.currentTarget.style.borderColor=T.border;}}
     >
-      <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${colors[colorIndex]} flex items-center justify-center text-white font-black text-lg shrink-0 shadow-md`}>
-        {(teacher.name || 'م').charAt(0)}
+      <div style={{width:"56px",height:"56px",borderRadius:"50%",background:col.bg,color:col.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.125rem",fontWeight:900,flexShrink:0}}>
+        {(teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })).charAt(0)}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-bold text-gray-800 dark:text-white text-base truncate">
-          {teacher.name || `مدرس ${teacher.id}`}
+      <div style={{flex:1,minWidth:0}}>
+        <p className="truncate" title={teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })} style={{fontWeight:700,color:T.textPrimary,fontSize:"1rem"}}>
+          {teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })}
         </p>
         {teacher.lessons_count !== undefined && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            📚 {teacher.lessons_count} درس
+          <p style={{fontSize:"0.875rem",color:T.textDim,marginTop:"4px"}}>
+            {t('subject_page_lessons_count', { count: teacher.lessons_count })}
           </p>
         )}
       </div>
-      <ChevronLeft className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${isSelected ? 'rotate-90' : ''}`} />
+      <ChevronLeft style={{..._t,width:"20px",height:"20px",color:T.textDim,flexShrink:0,transform:isSelected?'rotate(90deg)':'none'}} />
     </button>
   );
 };
 
 // ── Unit card (self-contained, collapsible) ───────────────────────────────────
 
-const UnitCard = ({ unit, subjectId, onStartLesson, isLoggedIn }) => {
+const UnitCard = ({ unit, subjectId, onStartLesson, isLoggedIn, T, t }) => {
   const [expanded, setExpanded] = useState(false);
   const totalCount = unit.lessons.length;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700 transition-all">
+    <div style={{..._t,..._c(T),overflow:"hidden",marginBottom:"12px"}}>
       {/* ── Unit header ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}
-        className="w-full flex items-center gap-4 p-4 text-right hover:bg-gray-50 dark:hover:bg-gray-700/40 transition"
+        style={{..._t,width:"100%",display:"flex",alignItems:"center",gap:"16px",padding:"16px",textAlign:"right",background:"transparent",border:"none",cursor:"pointer"}}
+        onMouseEnter={e=>e.currentTarget.style.background=T.bg}
+        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
       >
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black shrink-0 bg-blue-100 dark:bg-blue-900/40 text-[#103B66] dark:text-blue-400">
-          {unit.order}
+        <div style={_iw(T.iconBgA,T.iconBorderA,"36px","12px")}>
+          <span style={{color:T.iconA,fontSize:"0.875rem",fontWeight:900}}>{unit.order}</span>
         </div>
 
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-gray-800 dark:text-white text-sm leading-snug">{unit.title}</p>
-          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 block">{totalCount} درس</span>
+        <div style={{flex:1,minWidth:0}}>
+          <p className="truncate" title={unit.title} style={{fontWeight:700,color:T.textPrimary,fontSize:"0.875rem",lineHeight:1.4}}>{unit.title}</p>
+          <span style={{fontSize:"0.75rem",color:T.textDim,marginTop:"6px",display:"block"}}>{t('subject_page_lessons_count', { count: totalCount })}</span>
         </div>
 
         {expanded
-          ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
-          : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+          ? <ChevronUp style={{width:"16px",height:"16px",color:T.textDim,flexShrink:0}} />
+          : <ChevronDown style={{width:"16px",height:"16px",color:T.textDim,flexShrink:0}} />
         }
       </button>
 
       {/* ── Lesson rows ── */}
       {expanded && (
-        <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-50 dark:divide-gray-700/40">
-          {unit.lessons.map((lesson, idx) => (
+        <div style={{borderTop:`1px solid ${T.border}`,background:T.bg}}>
+          {unit.lessons.map((lesson, idx) => {
+            const isLocked = lesson.is_locked || (!isLoggedIn && idx > 0);
+            const isActive = lesson.is_active || (isLoggedIn && !lesson.completed && idx === 0);
+            return (
             <div
               key={lesson.id ?? idx}
-              className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-700/20 transition"
+              style={{
+                display:"flex",alignItems:"center",gap:"16px",padding:"16px",
+                borderBottom:idx<unit.lessons.length-1?`1px solid ${T.border}`:"none",
+                transition:"all 0.2s ease",
+                opacity: isLocked ? 0.6 : 1,
+                background: isActive ? T.accentDim : "transparent",
+                borderInlineStart: isActive ? `2px solid ${T.accent}` : "2px solid transparent",
+              }}
+              onMouseEnter={e=>{if(!isActive && !isLocked) e.currentTarget.style.background=T.bgCard;}}
+              onMouseLeave={e=>{if(!isActive && !isLocked) e.currentTarget.style.background="transparent";}}
             >
               {/* Title + duration */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold truncate text-gray-800 dark:text-white">{lesson.title}</p>
+              <div style={{flex:1,minWidth:0}}>
+                <p className="truncate" title={lesson.title} style={{fontSize:"0.875rem",fontWeight:700,color: isLocked ? T.textMuted : T.textPrimary}}>{lesson.title}</p>
                 {lesson.duration && (
-                  <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                    <Clock className="w-3 h-3" /> {lesson.duration}
+                  <p style={{fontSize:"0.75rem",color:T.textDim,display:"flex",alignItems:"center",gap:"4px",marginTop:"4px"}}>
+                    <Clock style={{width:"12px",height:"12px"}} /> {lesson.duration}
                   </p>
                 )}
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  onClick={() => onStartLesson(lesson, subjectId)}
-                  className="text-xs px-3 py-1 rounded-lg font-bold transition flex items-center gap-1 bg-[#103B66] text-white hover:bg-[#0c2d4d]"
-                >
-                  {!isLoggedIn && <LogIn className="w-3 h-3" />}
-                  {isLoggedIn ? 'ابدأ' : 'سجّل للبدء'}
-                </button>
+              <div style={{display:"flex",alignItems:"center",gap:"6px",flexShrink:0}}>
+                {isLocked ? (
+                  <div style={{display:"flex",alignItems:"center",gap:"6px",color:T.textMuted,fontSize:"0.75rem",fontWeight:700,padding:"6px 10px"}}>
+                    <Lock style={{width:"14px",height:"14px"}} />
+                    <span>{t('subject_page_locked')}</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onStartLesson(lesson, subjectId)}
+                    style={{..._t,fontSize:"0.75rem",padding:"6px 14px",borderRadius:"8px",fontWeight:700,display:"flex",alignItems:"center",gap:"4px",background: isActive ? T.accent : T.bgCard, color: isActive ? "#FFF" : T.textPrimary, border: isActive ? "none" : `1px solid ${T.border}`,cursor:"pointer",boxShadow:isActive?T.shadowCard:"none"}}
+                    onMouseEnter={e=>{if(isActive)e.currentTarget.style.filter="brightness(1.1)"; else e.currentTarget.style.borderColor=T.accent;}}
+                    onMouseLeave={e=>{if(isActive)e.currentTarget.style.filter="none"; else e.currentTarget.style.borderColor=T.border;}}
+                  >
+                    {!isLoggedIn && <LogIn style={{width:"12px",height:"12px"}} />}
+                    {isLoggedIn ? (isActive ? t('subject_page_continue') : t('subject_page_start')) : t('subject_page_login_to_start')}
+                  </button>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 };
 
+const SubjectPageLoadingSkeleton = ({ lang, T, glass }) => (
+  <div style={{..._t,background:T.bg,minHeight:"100vh",fontFamily:"'Cairo',sans-serif"}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <main style={{maxWidth:"896px",margin:"0 auto",padding:"32px 16px",display:"flex",flexDirection:"column",gap:"18px"}}>
+      <div style={glass({ padding: '24px' })}>
+        <SkeletonLoader type="text" height="30px" width="45%" className="mb-4" />
+        <SkeletonLoader type="text" height="14px" width="80%" className="mb-3" />
+        <SkeletonLoader type="text" height="14px" width="62%" />
+      </div>
+
+      {Array.from({ length: 5 }).map((_, idx) => (
+        <SkeletonLoader key={idx} type="card" height="72px" className="w-full" />
+      ))}
+    </main>
+  </div>
+);
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const SubjectPage = () => {
   const navigate = useNavigate();
   const { subjectId } = useParams();
-  const { t, lang } = useLanguage();
+  const { lang } = useLanguage();
+  const { t } = useTranslation();
+  const { theme, C, glass } = useTheme();
+  const isDark = theme === 'dark';
+  const T = buildTheme(isDark);
 
   // ── State ──
   const [subject,         setSubject]         = useState(null);
@@ -190,7 +246,7 @@ const SubjectPage = () => {
       });
     } catch {
       // Fallback minimal: استخدم الـ ID كاسم
-      setSubject({ id: subjectId, name: `مادة ${subjectId}`, code: 'DEFAULT', icon: '📚' });
+      setSubject({ id: subjectId, name: i18n.t('subject_page_subject_fallback', { id: subjectId }), code: 'DEFAULT', icon: '📚' });
     } finally {
       setLoadingSubject(false);
     }
@@ -214,7 +270,7 @@ const SubjectPage = () => {
 
       const mapped = teachersList.map((teacher) => ({
         id: teacher.teacher_id || teacher.id,
-        name: teacher.teacher_name || teacher.name || `مدرس ${teacher.teacher_id || teacher.id}`,
+        name: teacher.teacher_name || teacher.name || i18n.t('subject_page_teacher_fallback', { id: teacher.teacher_id || teacher.id }),
         image: teacher.image || teacher.avatar || null,
       }));
 
@@ -222,7 +278,7 @@ const SubjectPage = () => {
       setTeachersApiPage(page);
       setTeachersLastPage(lastPage);
     } catch {
-      setErrorTeachers('تعذّر تحميل قائمة المدرسين. تأكد من تشغيل السيرفر.');
+      setErrorTeachers(i18n.t('subject_page_error_teachers'));
     } finally {
       setLoadingTeachers(false);
       setLoadingMoreTeachers(false);
@@ -278,14 +334,14 @@ const SubjectPage = () => {
         
         return {
           ...teacherLesson,
-          _unitTitle: subjectLesson?._unitTitle || teacherLesson.unit_title || teacherLesson.chapter || 'دروس عامة',
+          _unitTitle: subjectLesson?._unitTitle || teacherLesson.unit_title || teacherLesson.chapter || i18n.t('subject_page_general_lessons'),
         };
       });
 
       // Group lessons by unit (chapter)
       const chapterMap = {};
       enrichedLessons.forEach(l => {
-        const key = l._unitTitle || l.unit_title || l.chapter || 'دروس عامة';
+        const key = l._unitTitle || l.unit_title || l.chapter || i18n.t('subject_page_general_lessons');
         if (!chapterMap[key]) {
           chapterMap[key] = {
             id: Object.keys(chapterMap).length + 1,
@@ -296,7 +352,7 @@ const SubjectPage = () => {
         }
         chapterMap[key].lessons.push({
           id: l.id,
-          title: l.title ?? l.name ?? `درس ${l.id}`,
+          title: l.title ?? l.name ?? i18n.t('subject_page_lesson_fallback', { id: l.id }),
           duration: l.duration ?? '--',
           chapter: key,
           description: l.description ?? '',
@@ -304,7 +360,7 @@ const SubjectPage = () => {
       });
       setUnits(Object.values(chapterMap));
     } catch {
-      setErrorLessons('تعذّر تحميل دروس المدرس.');
+      setErrorLessons(i18n.t('subject_page_error_lessons'));
     } finally {
       setLoadingLessons(false);
     }
@@ -389,34 +445,26 @@ const SubjectPage = () => {
 
   // ── Full-page loader ──
   if (loadingSubject && loadingTeachers) {
-    return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-[#103B66] font-['Cairo']"
-        dir={lang === 'ar' ? 'rtl' : 'ltr'}
-      >
-        <Loader2 className="w-12 h-12 animate-spin mb-4" />
-        <p className="text-lg font-bold">{t('loading')}</p>
-      </div>
-    );
+    return <SubjectPageLoadingSkeleton lang={lang} T={T} glass={glass} />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-['Cairo']" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div style={{..._t,background:T.bg,minHeight:"100vh",fontFamily:"'Cairo',sans-serif"}} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
 
       {/* ═══ GUEST BANNER ═══ */}
       {!isLoggedIn && (
-        <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-b border-blue-200 dark:border-blue-700">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
-            <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">
-              👋 {t('guest_banner_text') || 'سجّل دخولك لحفظ تقدمك ومتابعة الدروس'}
+        <div style={{background:T.accentDim,borderBottom:`1px solid ${T.borderAccent}`}}>
+          <div style={{maxWidth:"896px",margin:"0 auto",padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",flexWrap:"wrap"}}>
+            <p style={{fontSize:"0.875rem",color:T.accent,fontWeight:600}}>
+              👋 {t('subject_page_guest_banner')}
             </p>
             <button
               onClick={() => navigate('/login?redirect=' + encodeURIComponent(window.location.pathname))}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold
-                bg-[#103B66] dark:bg-blue-600 text-white hover:bg-[#0c2d4d] 
-                dark:hover:bg-blue-700 transition-colors shadow-sm"
+              style={{..._t,display:"flex",alignItems:"center",gap:"8px",padding:"6px 16px",borderRadius:"8px",fontSize:"0.875rem",fontWeight:700,background:T.accent,color:"#FFF",border:"none",cursor:"pointer"}}
+              onMouseEnter={e=>e.currentTarget.style.filter="brightness(1.1)"}
+              onMouseLeave={e=>e.currentTarget.style.filter="none"}
             >
-              <LogIn className="w-4 h-4" />
+              <LogIn style={{width:"16px",height:"16px"}} />
               {t('login')}
             </button>
           </div>
@@ -424,61 +472,63 @@ const SubjectPage = () => {
       )}
 
       {/* ═══ SUB-HEADER ═══ */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between">
+      <header style={{background:T.headerBg,borderBottom:`1px solid ${T.border}`,backdropFilter:"blur(20px)",position:"sticky",top:0,zIndex:40}}>
+        <div style={{maxWidth:"896px",margin:"0 auto",padding:"16px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <button
               onClick={handleBack}
-              className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-[#103B66] dark:hover:text-white transition font-bold"
+              style={{..._t,display:"flex",alignItems:"center",gap:"8px",color:T.textMuted,fontWeight:700,background:"transparent",border:"none",cursor:"pointer"}}
+              onMouseEnter={e=>e.currentTarget.style.color=T.accent}
+              onMouseLeave={e=>e.currentTarget.style.color=T.textMuted}
             >
-              <ArrowRight className={`w-5 h-5 ${lang === 'en' ? 'rotate-180' : ''}`} />
+              <ArrowRight style={{width:"20px",height:"20px",...(lang==='en'?{transform:"rotate(180deg)"}:{})}} />
               {selectedTeacher 
-                ? (t('back_to_teachers') || 'اختر مدرس آخر')
-                : (isLoggedIn ? t('back_to_dashboard') : (t('back_to_home') || 'الرئيسية'))
+                ? t('subject_page_back_to_teachers')
+                : (isLoggedIn ? t('back_to_dashboard') : t('back_to_home'))
               }
             </button>
-            <div className="flex items-center gap-2">
-              <div className="bg-[#103B66] dark:bg-blue-600 p-2 rounded-lg">
-                <BookOpen className="w-5 h-5 text-white" />
+            <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+              <div style={_iw(T.accentDim,T.borderAccent,"32px","8px")}>
+                <BookOpen style={{width:"16px",height:"16px",color:T.accent}} />
               </div>
-              <h1 className="text-xl font-bold text-[#103B66] dark:text-white">
+              <h1 style={{fontSize:"1.25rem",fontWeight:800,color:T.textPrimary}}>
                 {loadingSubject ? '…' : (subject?.name ?? subjectId)}
               </h1>
             </div>
-            <div className="w-32" />
+            <div style={{width:"128px"}} />
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <main style={{maxWidth:"896px",margin:"0 auto",padding:"32px 16px",display:"flex",flexDirection:"column",gap:"24px"}}>
 
         {/* ═══ SECTION 1 — Subject info card ═══ */}
         {errorSubject ? (
-          <SectionError message={errorSubject} onRetry={fetchSubject} />
+          <SectionError message={errorSubject} onRetry={fetchSubject} T={T} t={t} />
         ) : loadingSubject ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-            <div className="h-7 w-48 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-4" />
-            <div className="h-2.5 w-full bg-gray-100 dark:bg-gray-700/60 rounded-full animate-pulse" />
+          <div style={glass({ padding: '24px' })}>
+            <SkeletonLoader type="text" height="30px" width="42%" className="mb-4" />
+            <SkeletonLoader type="text" height="12px" width="72%" />
           </div>
         ) : subject ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-3">
-                <span className="text-4xl">{subject.icon}</span>
+          <div style={{..._c(T),padding:"24px"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"16px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
+                <span style={{fontSize:"2.5rem"}}>{subject.icon}</span>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-800 dark:text-white">{subject.name}</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <h2 style={{fontSize:"1.5rem",fontWeight:800,color:T.textPrimary}}>{subject.name}</h2>
+                  <p style={{fontSize:"0.875rem",color:T.textDim,marginTop:"4px"}}>
                     {loadingTeachers 
-                      ? 'جاري تحميل المدرسين...'
-                      : `${allTeachers.length} مدرس متاح`
+                      ? t('subject_page_loading_teachers')
+                      : t('subject_page_available_teachers', { count: allTeachers.length })
                     }
                   </p>
                 </div>
               </div>
               {selectedTeacher && totalLessons > 0 && (
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">
-                    {totalLessons} {t('lessons_tab') || 'درس'}
+                <div style={{display:"flex",alignItems:"center",gap:"16px",fontSize:"0.875rem"}}>
+                  <span style={{color:T.textDim}}>
+                    {t('subject_page_lessons_count', { count: totalLessons })}
                   </span>
                 </div>
               )}
@@ -489,36 +539,39 @@ const SubjectPage = () => {
         {/* ═══ SECTION 2 — Teachers List (when no teacher selected) ═══ */}
         {!selectedTeacher && (
           <div>
-            <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
-              {t('choose_teacher') || 'اختر مدرساً لعرض دروسه'}
+            <h3 style={{fontSize:"1.125rem",fontWeight:800,color:T.textPrimary,marginBottom:"16px",display:"flex",alignItems:"center",gap:"8px"}}>
+              <Users style={{width:"20px",height:"20px",color:T.accent}} />
+              {t('subject_page_choose_teacher')}
               {allTeachers.length > 0 && (
-                <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
-                  ({allTeachers.length} مدرس)
+                <span style={{fontSize:"0.875rem",fontWeight:400,color:T.textDim}}>
+                  ({t('subject_page_teachers_count', { count: allTeachers.length })})
                 </span>
               )}
             </h3>
 
             {errorTeachers ? (
-              <SectionError message={errorTeachers} onRetry={fetchTeachers} />
+              <SectionError message={errorTeachers} onRetry={fetchTeachers} T={T} t={t} />
             ) : loadingTeachers ? (
-              <SectionLoader rows={4} />
+              <SectionLoader rows={4} T={T} />
             ) : allTeachers.length === 0 ? (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-10 text-center">
-                <GraduationCap className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500 dark:text-gray-400 font-medium">
-                  {t('no_teachers') || 'لا يوجد مدرسون متاحون لهذه المادة حالياً'}
-                </p>
+              <div style={glass({ padding: '8px' })}>
+                <EmptyState
+                  icon={GraduationCap}
+                  title={t('subject_page_no_teachers_title')}
+                  description={t('subject_page_no_teachers_desc')}
+                />
               </div>
             ) : (
               <>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div style={{display:"grid",gap:"12px",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))"}}>
                   {allTeachers.map(teacher => (
                     <TeacherCard
                       key={teacher.id}
                       teacher={teacher}
                       isSelected={false}
                       onSelect={handleSelectTeacher}
+                      T={T}
+                      t={t}
                     />
                   ))}
                 </div>
@@ -528,11 +581,11 @@ const SubjectPage = () => {
                   <button
                     onClick={() => fetchTeachers(teachersApiPage + 1)}
                     disabled={loadingMoreTeachers}
-                    className="mt-4 w-full py-3 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600
-                      text-gray-600 dark:text-gray-400 font-bold hover:border-[#103B66] hover:text-[#103B66]
-                      dark:hover:border-blue-500 dark:hover:text-blue-400 transition-colors disabled:opacity-50"
+                    style={{..._t,marginTop:"16px",width:"100%",padding:"12px",borderRadius:"12px",border:`2px dashed ${T.border}`,color:T.textMuted,fontWeight:700,background:"transparent",cursor:loadingMoreTeachers?"not-allowed":"pointer",opacity:loadingMoreTeachers?0.5:1}}
+                    onMouseEnter={e=>{if(!loadingMoreTeachers){e.currentTarget.style.borderColor=T.accent;e.currentTarget.style.color=T.accent}}}
+                    onMouseLeave={e=>{if(!loadingMoreTeachers){e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMuted}}}
                   >
-                    {loadingMoreTeachers ? '⏳ جاري التحميل...' : 'عرض المزيد من المدرسين'}
+                    {loadingMoreTeachers ? t('subject_page_loading_more_teachers') : t('subject_page_load_more_teachers')}
                   </button>
                 )}
               </>
@@ -544,46 +597,51 @@ const SubjectPage = () => {
         {selectedTeacher && (
           <div>
             {/* Selected teacher info */}
-            <div className="bg-gradient-to-r from-[#103B66] to-blue-600 dark:from-blue-700 dark:to-blue-500 rounded-xl p-4 mb-6 text-white">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-2xl font-black shrink-0">
+            <div style={{..._c(T),padding:"16px",marginBottom:"24px",background:T.accent,border:"none"}}>
+              <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
+                <div style={{width:"56px",height:"56px",borderRadius:"50%",background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.5rem",fontWeight:900,color:"#FFF",flexShrink:0}}>
                   {selectedTeacher.name.charAt(0)}
                 </div>
-                <div className="flex-1">
-                  <p className="font-bold text-lg">{selectedTeacher.name}</p>
-                  <p className="text-blue-100 text-sm">
+                <div style={{flex:1}}>
+                  <p style={{fontWeight:700,fontSize:"1.125rem",color:"#FFF"}}>{selectedTeacher.name}</p>
+                  <p style={{color:"rgba(255,255,255,0.8)",fontSize:"0.875rem"}}>
                     {loadingLessons 
-                      ? '⏳ جاري تحميل الدروس...'
-                      : `📚 ${totalLessons} درس متاح`
+                      ? t('subject_page_loading_lessons')
+                      : t('subject_page_available_lessons', { count: totalLessons })
                     }
                   </p>
                 </div>
                 <button
                   onClick={() => handleSelectTeacher(selectedTeacher)}
-                  className="px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 transition text-sm font-bold"
+                  style={{..._t,padding:"8px 16px",borderRadius:"8px",background:"rgba(255,255,255,0.2)",color:"#FFF",border:"none",fontWeight:700,fontSize:"0.875rem",cursor:"pointer"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.3)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.2)"}
                 >
-                  تغيير المدرس
+                  {t('subject_page_change_teacher')}
                 </button>
               </div>
             </div>
 
             {/* Lessons */}
-            <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-[#103B66] dark:text-blue-400" />
-              {t('lessons_catalog') || 'كتالوج الدروس'}
+            <h3 style={{fontSize:"1.125rem",fontWeight:800,color:T.textPrimary,marginBottom:"16px",display:"flex",alignItems:"center",gap:"8px"}}>
+              <BookOpen style={{width:"20px",height:"20px",color:T.accent}} />
+              {t('subject_page_lessons_catalog')}
             </h3>
 
             {errorLessons ? (
-              <SectionError message={errorLessons} onRetry={() => fetchTeacherLessons(selectedTeacher.id)} />
+              <SectionError message={errorLessons} onRetry={() => fetchTeacherLessons(selectedTeacher.id)} T={T} t={t} />
             ) : loadingLessons ? (
-              <SectionLoader rows={3} />
+              <SectionLoader rows={5} T={T} />
             ) : units.length === 0 ? (
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-10 text-center">
-                <PlayCircle className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                <p className="text-gray-500 dark:text-gray-400 font-medium">{t('no_lessons') || 'لا توجد دروس متاحة'}</p>
+              <div style={glass({ padding: '8px' })}>
+                <EmptyState
+                  icon={PlayCircle}
+                  title={t('subject_page_no_lessons_title')}
+                  description={t('subject_page_no_lessons_desc')}
+                />
               </div>
             ) : (
-              <div className="space-y-3">
+              <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
                 {units.map(unit => (
                   <UnitCard
                     key={unit.id}
@@ -591,6 +649,8 @@ const SubjectPage = () => {
                     subjectId={subjectId}
                     onStartLesson={handleStartLesson}
                     isLoggedIn={isLoggedIn}
+                    T={T}
+                    t={t}
                   />
                 ))}
               </div>
