@@ -77,10 +77,17 @@ const LessonInterface = () => {
   const [lessons, setLessons] = useState([]);
   const [completedIds, setCompletedIds] = useState(new Set()); // per-user
   const [currentVideo, setCurrentVideo] = useState(null);
+  const [fetchedDuration, setFetchedDuration] = useState(0);
   const [lessonQuizzes, setLessonQuizzes] = useState([]);
+  const [teacherImageError, setTeacherImageError] = useState(false);
+  const [isPlayerActive, setIsPlayerActive] = useState(false);
 
-  // جلب lessonId و subjectId و subjectName و teacherId من location.state
-  // مع fallback من query params لضمان الاستمرارية بعد refresh
+  const [videoDetails, setVideoDetails] = useState({
+    url: null,
+    thumbnail: null,
+    duration: 0
+  });
+
   const queryParams = new URLSearchParams(location.search);
   const queryLessonId = queryParams.get('lessonId');
   const queryTeacherId = queryParams.get('teacherId');
@@ -114,17 +121,83 @@ const LessonInterface = () => {
     if (!url) return null;
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
 
+    const encodePath = (path) => path.split('/').map(encodeURIComponent).join('/');
+    const safeUrl = encodePath(url);
+
     const laravelBaseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://127.0.0.1:8000';
-    if (url.startsWith('/storage/')) return `${laravelBaseUrl}${url}`;
-    if (url.startsWith('storage/')) return `${laravelBaseUrl}/${url}`;
-    if (url.startsWith('/')) return `${laravelBaseUrl}${url}`;
-    return `${laravelBaseUrl}/storage/${url}`;
+    if (safeUrl.startsWith('/storage/')) return `${laravelBaseUrl}${safeUrl}`;
+    if (safeUrl.startsWith('storage/')) return `${laravelBaseUrl}/${safeUrl}`;
+    if (safeUrl.startsWith('/')) return `${laravelBaseUrl}${safeUrl}`;
+    return `${laravelBaseUrl}/storage/${safeUrl}`;
+  };
+
+  const formatSecondsToMMSS = (val) => {
+    if (val == null || val === '--') return val ?? '--';
+    const secs = Number(val);
+    if (!Number.isFinite(secs) || secs <= 0) return '00:00';
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = Math.floor(secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+  const formatDuration = (totalSeconds) => {
+    const secs = Number(totalSeconds);
+    if (!Number.isFinite(secs) || secs <= 0) return '00:00';
+    const hours = Math.floor(secs / 3600);
+    const minutes = Math.floor((secs % 3600) / 60);
+    const seconds = Math.floor(secs % 60);
+    if (hours > 0) {
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
   // ✅ Single source of truth fetch
   // Guard: prevents the view-increment side-effect on the backend from firing
   // twice under React 18 StrictMode double-mount or rapid re-renders.
   const hasTrackedView = useRef(false);
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (!isPlayerActive || !videoRef.current) return;
+    videoRef.current.play?.().catch(() => {});
+  }, [isPlayerActive]);
+
+  // ✅ Fetch STRICTLY from /api/videos/${videoId} for specific fields (url, duration, thumbnail)
+  useEffect(() => {
+    const vId = currentVideo?.video_id ?? currentVideo?.id;
+    if (!vId) return;
+
+    let cancelled = false;
+    const fetchVideoDetails = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        // Fetch explicit video details. api.js baseURL already contains /api
+        const response = await api.get(`/videos/${vId}`, {
+          headers: { Authorization: `Bearer ${token}` } // Ensure Token is explicitly included to avoid 403 Forbidden
+        });
+        
+        if (!cancelled && response.data) {
+          const data = response.data;
+          setVideoDetails({
+            url: data.url || data.video_url || null,
+            thumbnail: data.thumbnail || data.video_thumbnail || null,
+            duration: Number(data.duration) || 0
+          });
+          setFetchedDuration(Number(data.duration) || 0); // Keep existing duration state updated
+          console.log('[LessonInterface] Video details explicitly fetched:', data);
+        }
+      } catch (err) {
+        console.error('[LessonInterface] Failed to fetch explicit video details from /api/videos endpoint:', err);
+      }
+    };
+
+    fetchVideoDetails();
+    return () => { cancelled = true; };
+  }, [currentVideo?.video_id, currentVideo?.id]);
+
+  useEffect(() => {
+    // Old local duration logic is removed as we now fetch it via /api/videos
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,7 +242,8 @@ const LessonInterface = () => {
         // videos is a direct object — NOT an array or paginated response (.data sub-key no longer exists)
         const videosObj = payload.videos ?? {};
         const videoRaw = Object.keys(videosObj).length > 0 ? { ...videosObj } : null;
-        if (videoRaw?.video_url) videoRaw.video_url = ensureAbsoluteUrl(videoRaw.video_url);
+        if (videoRaw?.video_url) videoRaw.video_url = videoRaw.video_url;
+        if (videoRaw?.url) videoRaw.url = videoRaw.url;
 
         // hasQuiz is driven by quizzes_count from the payload
         const hasQuiz = (videosObj.quizzes_count ?? 0) > 0;
@@ -203,13 +277,15 @@ const LessonInterface = () => {
           name: teacherPayload?.teacher_name || stateTeacherName || `مدرس ${teacherIdForRequest}`,
           rating: teacherPayload?.rating ?? null,
           subject: teacherPayload?.subject_name || stateSubjectName || '',
+          teacher_profile_picture: teacherPayload?.teacher_profile_picture ?? teacherPayload?.profile_picture ?? null,
         };
 
         const mappedLesson = {
           id: lessonId,
           // lesson_title lives on the videos object in the new payload
           title: videoRaw?.lesson_title || stateLesson?.title || `الدرس ${lessonId}`,
-          duration: stateLesson?.duration ?? '--',
+          // prefer backend-provided duration (seconds), fallback to stateLesson
+          duration: videoRaw?.duration ?? stateLesson?.duration ?? '--',
           chapter: stateLesson?.chapter ?? '',
           description: stateLesson?.description ?? '',
           completed: doneSet.has(lessonId),
@@ -275,15 +351,45 @@ const LessonInterface = () => {
 
   const routeLessonId = currentLesson?.id ?? lessonId;
   const activeTeacherInfo = teachers.find((t) => String(t.id) === String(activeTeacher));
+  const activeTeacherPictureUrl = activeTeacherInfo?.teacher_profile_picture
+    ? (() => {
+        const picturePath = activeTeacherInfo.teacher_profile_picture;
+        if (picturePath.startsWith('http://') || picturePath.startsWith('https://')) return picturePath;
+        const baseUrl = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace('/api', '');
+        if (picturePath.startsWith('/storage/')) return `${baseUrl}${picturePath}`;
+        if (picturePath.startsWith('storage/')) return `${baseUrl}/${picturePath}`;
+        if (picturePath.startsWith('/')) return `${baseUrl}${picturePath}`;
+        return `${baseUrl}/storage/${picturePath}`;
+      })()
+    : null;
+
+  useEffect(() => {
+    setTeacherImageError(false);
+  }, [activeTeacherInfo?.id, activeTeacherInfo?.teacher_profile_picture]);
 
   // التنقل بين الدروس
   const currentIndex    = lessons.findIndex(l => l.id === currentLesson?.id);
-  const parsedVideoUrl  = currentVideo ? parseVideoUrl(currentVideo.url || currentVideo.video_url) : null;
+  const parsedVideoUrl  = videoDetails.url || currentVideo?.video_url ? parseVideoUrl(videoDetails.url || currentVideo.video_url) : null;
+  const videoPosterUrl = videoDetails.thumbnail || currentVideo?.video_thumbnail || undefined;
+  const rawVideoSrc = videoDetails.url || currentVideo?.video_url || currentVideo?.url || '';
+  const resolvedVideoSrc = rawVideoSrc
+    ? (rawVideoSrc.startsWith('http://') || rawVideoSrc.startsWith('https://')
+        ? rawVideoSrc
+        : `http://127.0.0.1:8000/storage/${rawVideoSrc.replace(/^\/+/, '')}`)
+    : '';
+  const displayDuration = formatDuration(videoDetails.duration || fetchedDuration || 0);
 
   const handlePreviousLesson = () => {
     if (currentIndex > 0) {
       setCurrentLesson(lessons[currentIndex - 1]);
     }
+  };
+  const handleVideoClick = () => {
+    if (!videoRef.current) return;
+    videoRef.current.play?.().catch(() => {});
+  };
+  const handleActivatePlayer = () => {
+    setIsPlayerActive(true);
   };
   const handleNextLesson = () => {
     if (currentIndex < lessons.length - 1) {
@@ -359,6 +465,11 @@ const LessonInterface = () => {
   }
 
   console.log("Current Lesson Attempt Data:", quizData);
+  console.log("DEBUG - RAW VIDEO DATA:", currentVideo);
+  console.log("DEBUG - RESOLVED POSTER URL:", videoPosterUrl);
+  console.log("FINAL VIDEO SRC:", currentVideo?.video_url || currentVideo?.url);
+  console.log("🚨 REAL RENDER DATA:", currentVideo);
+  console.log("📺 FETCHED DURATION VALUE:", fetchedDuration);
 
   return (
     <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{...tr,background:T.bg,minHeight:"100vh",fontFamily:"'Cairo',sans-serif"}}>
@@ -399,9 +510,18 @@ const LessonInterface = () => {
               <div style={{...tr,padding:"20px 24px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:"16px"}}>
                 {activeTeacherInfo ? (
                   <>
-                    <div style={iw(T.iconBgA,T.iconBorderA,"48px","8px")}>
-                      <User style={{color:T.iconA,width:"22px",height:"22px"}} strokeWidth={2} />
-                    </div>
+                    {activeTeacherPictureUrl && !teacherImageError ? (
+                      <img
+                        src={activeTeacherPictureUrl}
+                        alt={activeTeacherInfo?.name || 'مدرس'}
+                        onError={() => setTeacherImageError(true)}
+                        style={{width:"48px",height:"48px",borderRadius:"8px",objectFit:"cover",flexShrink:0}}
+                      />
+                    ) : (
+                      <div style={iw(T.iconBgA,T.iconBorderA,"48px","8px")}>
+                        <User style={{color:T.iconA,width:"22px",height:"22px"}} strokeWidth={2} />
+                      </div>
+                    )}
                     <div style={{flex:1,minWidth:0}}>
                       <p style={{...tr,color:T.textDim,fontSize:"0.75rem",fontWeight:500,marginBottom:"2px"}}>المدرس</p>
                       <h3 style={{...tr,color:T.textPrimary,fontWeight:700,fontSize:"1.05rem",lineHeight:1.3}}>{activeTeacherInfo?.name}</h3>
@@ -459,12 +579,63 @@ const LessonInterface = () => {
 
                 ) : parsedVideoUrl?.type === 'direct' ? (
                   /* ─── MP4 / Direct ─── */
-                  <video
-                    key={currentVideo.video_id}
-                    src={currentVideo.url || currentVideo.video_url}
-                    className="absolute inset-0 w-full h-full"
-                    controls
-                  />
+                  <>
+                    {!isPlayerActive && (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={handleActivatePlayer}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleActivatePlayer(); }}
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "transparent",
+                          backgroundImage: videoPosterUrl
+                            ? `url("${encodeURI(videoPosterUrl)}")`
+                            : "none",
+                          backgroundSize: "cover",
+                          backgroundPosition: "center",
+                          backgroundRepeat: "no-repeat",
+                        }}
+                      >
+                        {videoPosterUrl ? null : (
+                          <span style={{ color: "#E2E8F0", fontSize: "1rem", fontWeight: 700 }}>شاهد الدرس</span>
+                        )}
+                        <div
+                          style={{
+                            width: "84px",
+                            height: "84px",
+                            borderRadius: "50%",
+                            background: "rgba(0,0,0,0.55)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                            border: "1px solid rgba(255,255,255,0.2)",
+                          }}
+                        >
+                          <Play style={{ width: "36px", height: "36px", color: "#FFFFFF", marginLeft: "4px" }} />
+                        </div>
+                      </div>
+                    )}
+                    {isPlayerActive && (
+                      <video
+                        key={currentVideo.video_id}
+                        ref={videoRef}
+                        poster={videoPosterUrl}
+                        className="absolute inset-0 w-full h-full"
+                        controls
+                        onClick={handleVideoClick}
+                        onError={(e) => console.error("Video Load Error:", e.target.error)}
+                      >
+                        <source src={resolvedVideoSrc} type="video/mp4" />
+                      </video>
+                    )}
+                  </>
 
                 ) : parsedVideoUrl?.type === 'generic' ? (
                   /* ─── Generic URL Fallback ─── */
@@ -516,7 +687,7 @@ const LessonInterface = () => {
                         <div className="flex-1 h-1.5 bg-gray-600 rounded-full">
                           <div className="h-full w-0 bg-[#103B66] rounded-full" />
                         </div>
-                        <span className="text-xs font-mono">00:00 / {currentLesson.duration}</span>
+                        <span className="text-xs font-mono">00:00 / {formatSecondsToMMSS(currentLesson.duration)}</span>
                         <button><Volume2 className="w-5 h-5" /></button>
                         <button><Settings className="w-5 h-5" /></button>
                       </div>
@@ -618,7 +789,7 @@ const LessonInterface = () => {
                 <ul style={{listStyle:"none",padding:0,margin:0,display:"flex",flexDirection:"column",gap:"10px"}}>
                   <li style={{display:"flex",alignItems:"center",gap:"8px"}}>
                     <div style={iw(T.greenDim,T.greenBorder,"28px","8px")}><CheckCircle2 style={{color:T.green,width:"14px",height:"14px"}} /></div>
-                    <span style={{...tr,color:T.textMuted,fontSize:"0.85rem"}}>المدة: {currentLesson.duration}</span>
+                          <span style={{...tr,color:T.textMuted,fontSize:"0.85rem"}}>المدة: {displayDuration}</span>
                   </li>
                   <li style={{display:"flex",alignItems:"center",gap:"8px"}}>
                     <div style={iw(T.greenDim,T.greenBorder,"28px","8px")}><CheckCircle2 style={{color:T.green,width:"14px",height:"14px"}} /></div>
@@ -640,6 +811,7 @@ const LessonInterface = () => {
               <div style={{padding:"16px",maxHeight:"500px",overflowY:"auto",display:"flex",flexDirection:"column",gap:"10px"}}>
                 {lessons.map((lesson) => {
                   const isCurrent = lesson.id === currentLesson.id;
+                  const lessonDuration = isCurrent ? (videoDetails.duration || fetchedDuration || currentLesson?.duration || 0) : (lesson.duration || 0);
                   return (
                     <div key={lesson.id} onClick={() => setCurrentLesson(lesson)} style={{...tr,padding:"12px",borderRadius:"12px",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:"12px",background:isCurrent?T.accentDim:lesson.completed?T.greenDim:"transparent",border:`1px solid ${isCurrent?T.borderAccent:lesson.completed?T.greenBorder:T.border}`}} onMouseEnter={e=>{if(!isCurrent&&!lesson.completed) e.currentTarget.style.borderColor=T.borderAccent}} onMouseLeave={e=>{if(!isCurrent&&!lesson.completed) e.currentTarget.style.borderColor=T.border}}>
                       <div style={iw(lesson.completed?T.greenDim:isCurrent?T.accentDim:T.bgCard, lesson.completed?T.greenBorder:isCurrent?T.borderAccent:T.border, "32px","10px")}>
@@ -648,7 +820,7 @@ const LessonInterface = () => {
                       <div style={{flex:1,minWidth:0}}>
                         <h4 style={{...tr,fontWeight:700,fontSize:"0.82rem",color:isCurrent?T.accent:T.textPrimary}}>{lesson.title}</h4>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"4px"}}>
-                          <span style={{...tr,color:T.textDim,fontSize:"0.72rem"}}>{lesson.duration}</span>
+                          <span style={{...tr,color:T.textDim,fontSize:"0.72rem"}}>{formatDuration(lessonDuration)}</span>
                           {isCurrent && <span style={{...tr,background:T.accent,color:"#FFF",fontSize:"0.6rem",padding:"2px 8px",borderRadius:"999px",fontWeight:700}}>جاري المشاهدة</span>}
                         </div>
                       </div>

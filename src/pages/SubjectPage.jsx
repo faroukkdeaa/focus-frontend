@@ -23,6 +23,16 @@ const _c=(T,x)=>({background:T.bgCard,border:`1px solid ${T.border}`,borderRadiu
 const _t={transition:"all 0.25s ease"};
 const _iw=(bg,bd,sz="40px",r="10px")=>({..._t,width:sz,height:sz,borderRadius:r,background:bg,border:`1px solid ${bd}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0});
 
+const getProfilePictureUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const baseUrl = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api').replace('/api', '');
+  if (path.startsWith('/storage/')) return `${baseUrl}${path}`;
+  if (path.startsWith('storage/')) return `${baseUrl}/${path}`;
+  if (path.startsWith('/')) return `${baseUrl}${path}`;
+  return `${baseUrl}/storage/${path}`;
+};
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 const SectionLoader = ({ rows = 3, T }) => (
@@ -49,6 +59,7 @@ const SectionError = ({ message, onRetry, T, t }) => (
 // ── Teacher Card ───────────────────────────────────────────────────────────────
 
 const TeacherCard = ({ teacher, isSelected, onSelect, T, t }) => {
+  const [imgError, setImgError] = useState(false);
   const colors = [
     {bg:T.iconBgA, color:T.iconA},
     {bg:T.iconBgB, color:T.iconB},
@@ -59,6 +70,7 @@ const TeacherCard = ({ teacher, isSelected, onSelect, T, t }) => {
   ];
   const colorIndex = (teacher.id || 0) % colors.length;
   const col = colors[colorIndex];
+  const profilePictureUrl = getProfilePictureUrl(teacher.teacher_profile_picture);
   
   return (
     <button
@@ -67,9 +79,18 @@ const TeacherCard = ({ teacher, isSelected, onSelect, T, t }) => {
       onMouseEnter={e=>{if(!isSelected) e.currentTarget.style.borderColor=T.borderAccent;}}
       onMouseLeave={e=>{if(!isSelected) e.currentTarget.style.borderColor=T.border;}}
     >
-      <div style={{width:"56px",height:"56px",borderRadius:"50%",background:col.bg,color:col.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.125rem",fontWeight:900,flexShrink:0}}>
-        {(teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })).charAt(0)}
-      </div>
+      {profilePictureUrl && !imgError ? (
+        <img
+          src={profilePictureUrl}
+          alt={teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })}
+          onError={() => setImgError(true)}
+          style={{width:"56px",height:"56px",borderRadius:"50%",objectFit:"cover",flexShrink:0}}
+        />
+      ) : (
+        <div style={{width:"56px",height:"56px",borderRadius:"50%",background:col.bg,color:col.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.125rem",fontWeight:900,flexShrink:0}}>
+          {(teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })).charAt(0)}
+        </div>
+      )}
       <div style={{flex:1,minWidth:0}}>
         <p className="truncate" title={teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })} style={{fontWeight:700,color:T.textPrimary,fontSize:"1rem"}}>
           {teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })}
@@ -160,7 +181,7 @@ const UnitCard = ({ unit, subjectId, onStartLesson, isLoggedIn, T, t }) => {
                     onMouseLeave={e=>{if(isActive)e.currentTarget.style.filter="none"; else e.currentTarget.style.borderColor=T.border;}}
                   >
                     {!isLoggedIn && <LogIn style={{width:"12px",height:"12px"}} />}
-                    {isLoggedIn ? (isActive ? t('subject_page_continue') : t('subject_page_start')) : t('subject_page_login_to_start')}
+                    {isLoggedIn ? "ابدأ" : t('subject_page_login_to_start')}
                   </button>
                 )}
               </div>
@@ -214,6 +235,7 @@ const SubjectPage = () => {
   const [errorSubject,    setErrorSubject]    = useState(null);
   const [errorTeachers,   setErrorTeachers]   = useState(null);
   const [errorLessons,    setErrorLessons]    = useState(null);
+  const [selectedTeacherImgError, setSelectedTeacherImgError] = useState(false);
 
   // هل في مدرسين كمان في الـ API؟
   const hasMoreTeachers = teachersApiPage < teachersLastPage;
@@ -271,7 +293,7 @@ const SubjectPage = () => {
       const mapped = teachersList.map((teacher) => ({
         id: teacher.teacher_id || teacher.id,
         name: teacher.teacher_name || teacher.name || i18n.t('subject_page_teacher_fallback', { id: teacher.teacher_id || teacher.id }),
-        image: teacher.image || teacher.avatar || null,
+        teacher_profile_picture: teacher.teacher_profile_picture || teacher.profile_picture || teacher.profilePicture || teacher.image || teacher.avatar || null,
       }));
 
       setAllTeachers(prev => page === 1 ? mapped : [...prev, ...mapped]);
@@ -377,6 +399,10 @@ const SubjectPage = () => {
       fetchTeacherLessons(selectedTeacher.id);
     }
   }, [selectedTeacher, fetchTeacherLessons]);
+
+  useEffect(() => {
+    setSelectedTeacherImgError(false);
+  }, [selectedTeacher?.id, selectedTeacher?.profile_picture]);
 
   // ── Handle teacher selection ──
   const handleSelectTeacher = (teacher) => {
@@ -599,9 +625,18 @@ const SubjectPage = () => {
             {/* Selected teacher info */}
             <div style={{..._c(T),padding:"16px",marginBottom:"24px",background:T.accent,border:"none"}}>
               <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
-                <div style={{width:"56px",height:"56px",borderRadius:"50%",background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.5rem",fontWeight:900,color:"#FFF",flexShrink:0}}>
-                  {selectedTeacher.name.charAt(0)}
-                </div>
+                {getProfilePictureUrl(selectedTeacher.teacher_profile_picture) && !selectedTeacherImgError ? (
+                  <img
+                    src={getProfilePictureUrl(selectedTeacher.teacher_profile_picture)}
+                    alt={selectedTeacher.name}
+                    onError={() => setSelectedTeacherImgError(true)}
+                    style={{width:"56px",height:"56px",borderRadius:"50%",objectFit:"cover",flexShrink:0}}
+                  />
+                ) : (
+                  <div style={{width:"56px",height:"56px",borderRadius:"50%",background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.5rem",fontWeight:900,color:"#FFF",flexShrink:0}}>
+                    {selectedTeacher.name.charAt(0)}
+                  </div>
+                )}
                 <div style={{flex:1}}>
                   <p style={{fontWeight:700,fontSize:"1.125rem",color:"#FFF"}}>{selectedTeacher.name}</p>
                   <p style={{color:"rgba(255,255,255,0.8)",fontSize:"0.875rem"}}>

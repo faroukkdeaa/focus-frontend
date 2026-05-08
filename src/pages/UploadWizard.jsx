@@ -501,7 +501,12 @@ const UploadWizard = () => {
     setLessonId(draftSnapshot.lessonId ?? '');
     setLessonDesc(draftSnapshot.lessonDesc ?? '');
 
-    setThumbPreview(draftSnapshot.thumbPreview ?? '');
+    // NOTE: File objects cannot survive localStorage serialization.
+    // Clear thumbPreview so the UI does NOT show a stale preview with a null File state.
+    // The user will be prompted to re-select the thumbnail via the toast below.
+    setThumbPreview('');
+    setThumbnail(null);
+
     setQuizTitle(draftSnapshot.quizTitle ?? '');
     setQuizTitleManual(Boolean(draftSnapshot.quizTitleManual));
     setQuestions(Array.isArray(draftSnapshot.questions) && draftSnapshot.questions.length > 0 ? draftSnapshot.questions : [mkQuestion()]);
@@ -510,7 +515,7 @@ const UploadWizard = () => {
       setVideoError(`تمت استعادة المسودة. أعد رفع الفيديو: ${draftSnapshot.videoMeta.name}`);
     }
 
-    if (draftSnapshot.thumbnailMeta?.name && !draftSnapshot.thumbPreview) {
+    if (draftSnapshot.thumbnailMeta?.name) {
       setToast({ type: 'info', message: `تمت استعادة المسودة. أعد رفع الصورة المصغّرة: ${draftSnapshot.thumbnailMeta.name}` });
     }
 
@@ -657,7 +662,50 @@ const UploadWizard = () => {
       setVideoFile(null);
       return;
     }
+    // Warn if file may exceed typical PHP upload_max_filesize / post_max_size defaults
+    if (file.size > 10 * 1024 * 1024) {
+      console.warn(
+        `[UploadWizard] Video file is ${(file.size / 1024 / 1024).toFixed(1)}MB. ` +
+        'This may exceed the server PHP upload_max_filesize limit (default 8MB). ' +
+        'Ask your backend admin to increase upload_max_filesize and post_max_size in php.ini.'
+      );
+    }
     setVideoFile(file);
+  };
+
+  const getVideoDurationSeconds = (file) => new Promise((resolve, reject) => {
+    try {
+      const video = document.createElement('video');
+      const objectUrl = URL.createObjectURL(file);
+
+      const cleanup = () => {
+        URL.revokeObjectURL(objectUrl);
+      };
+
+      video.preload = 'metadata';
+      video.src = objectUrl;
+      video.onloadedmetadata = () => {
+        const seconds = Number.isFinite(video.duration) ? Math.round(video.duration) : 0;
+        cleanup();
+        resolve(seconds);
+      };
+      video.onerror = () => {
+        cleanup();
+        reject(new Error('Failed to load video metadata.'));
+      };
+    } catch (err) {
+      reject(err);
+    }
+  });
+
+  const getStoredUser = () => {
+    try {
+      const raw = localStorage.getItem('user');
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
   };
 
   const handleQuizTitleChange = (value) => {
@@ -728,9 +776,17 @@ const UploadWizard = () => {
   // ── Publish ───────────────────────────────────────────────────────────────
 
   const handlePublish = async () => {
+    // Soft size warning — does NOT block. Fix PHP limits on the server instead.
+    if (videoFile && videoFile.size > 10 * 1024 * 1024) {
+      const sizeMB = (videoFile.size / 1024 / 1024).toFixed(1);
+      console.warn(
+        `[UploadWizard] Video is ${sizeMB}MB — ensure PHP upload_max_filesize & post_max_size ` +
+        'are large enough in php.ini (see console guide).'
+      );
+    }
+
     setPublishing(true);
     try {
-      // الاستناد للدرس المختار الموجود فعلياً بدلاً من إنشائه
       const actualLessonName = selectedLessonTitle || 'درس جديد';
       const actualLessonId = selectedLessonObj ? selectedLessonObj.id : lessonId;
 
@@ -741,13 +797,26 @@ const UploadWizard = () => {
       const formData = new FormData();
       formData.append('title', `${actualSubjectName} - ${actualLessonName}`);
       formData.append('lesson_id', actualLessonId);
-      formData.append('file', videoFile);
+      const storedUser = getStoredUser();
+      const teacherId = storedUser?.teacher_id ?? storedUser?.id ?? null;
+      if (teacherId != null && String(teacherId).length > 0) {
+        formData.append('teacher_id', teacherId);
+      }
+      const durationSeconds = await getVideoDurationSeconds(videoFile);
+      formData.append('duration', durationSeconds);
 
-      const videoRes = await api.post('/videos', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const videoFileState = videoFile;
+      console.log('FINAL VIDEO STATE:', videoFileState);
+      if (videoFileState) {
+        formData.append('file', videoFileState);
+      }
+
+      if (thumbnail && thumbnail instanceof File) {
+        formData.append('thumbnail', thumbnail);
+      }
+
+      // Let the browser set Content-Type + boundary automatically (DO NOT set it manually)
+      const videoRes = await api.post('/videos', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       
       const newVideoId = videoRes.data.id;
 
@@ -777,6 +846,16 @@ const UploadWizard = () => {
       setToast({ type: 'success', message: t('publish_success') });
       setTimeout(() => navigate('/teacher-dashboard'), 2800);
     } catch (err) {
+      const resp = err?.response;
+      if (resp?.status === 422) {
+        const validation = resp?.data?.errors || resp?.data || {};
+        // If file-specific validation exists, log the first message for clarity
+        const fileErr = validation?.file;
+        if (fileErr && Array.isArray(fileErr) && fileErr.length > 0) {
+          console.error('Publish file validation error:', fileErr[0]);
+        }
+        console.error('Publish validation errors:', validation);
+      }
       console.error('Publish error:', err);
       setToast({ type: 'error', message: t('publish_error') });
       setPublishing(false);
@@ -1122,12 +1201,12 @@ const UploadWizard = () => {
                   type="file"
                   accept="image/*"
                   style={{display:"none"}}
-                  onChange={e => {
+                  onChange={(e) => {
                     const f = e.target.files[0];
                     if (!f) return;
                     setThumbnail(f);
                     const reader = new FileReader();
-                    reader.onload = ev => setThumbPreview(ev.target.result);
+                    reader.onload = (ev) => setThumbPreview(ev.target.result);
                     reader.readAsDataURL(f);
                   }}
                 />

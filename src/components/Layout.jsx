@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import {
   Brain, Menu, X, LayoutDashboard, TrendingUp, MessageSquare,
-  User, Settings, LogOut, BarChart2, Upload, ShieldCheck, Bell, LogIn, ChevronDown,
+  User, Settings, LogOut, BarChart2, Upload, ShieldCheck, Bell, LogIn, ChevronDown, Search,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from './LangToggle';
@@ -45,6 +45,7 @@ const NavItem = ({ icon: Icon, label, active, onClick, large }) => (
 
 const Layout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const { t, lang } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
@@ -71,6 +72,14 @@ const Layout = () => {
     location.pathname === path || location.pathname.startsWith(path + '/');
 
   const closeDrawer = () => setDrawerOpen(false);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setDrawerOpen(false);
+    }
+  };
 
   // Common utility links shown in the drawer (after the main nav divider)
   const utilityNav = [
@@ -124,6 +133,20 @@ const Layout = () => {
               />
             ))}
           </nav>
+
+          {/* ── Search Bar (Desktop) ── */}
+          <form onSubmit={handleSearch} className="hidden md:flex relative items-center mx-2 flex-1 max-w-xs">
+            <div className="relative w-full">
+              <input
+                type="text"
+                placeholder={t('search') || 'بحث...'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white rounded-xl py-2 px-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-[Cairo]"
+              />
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
+            </div>
+          </form>
 
           {/* ── Right: Action buttons ── */}
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -201,7 +224,20 @@ const Layout = () => {
             </div>
 
             {/* Navigation links */}
-            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">            
+            {/* Mobile Search Bar */}
+            <form onSubmit={handleSearch} className="relative items-center mb-4 block md:hidden">
+              <div className="relative w-full">
+                <input
+                  type="text"
+                  placeholder={t('search') || 'بحث...'}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white rounded-xl py-2.5 px-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-[Cairo]"
+                />
+                <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
+              </div>
+            </form>
               {/* Main role-based navigation */}
               {mainNav.map(item => (
                 <NavItem
@@ -287,6 +323,7 @@ export const PublicLayout = () => {
   const navigate = useNavigate();
   const isRtl = lang === 'ar';
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Check if user is logged in and get user data
   const token = localStorage.getItem('token');
@@ -301,6 +338,13 @@ export const PublicLayout = () => {
     localStorage.removeItem('user');
     setDropdownOpen(false);
     navigate('/');
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
   };
 
   return (
@@ -329,6 +373,20 @@ export const PublicLayout = () => {
               {t('app_name')}
             </span>
           </Link>
+
+          {/* ── Search Bar (Desktop) ── */}
+          <form onSubmit={handleSearch} className="hidden md:flex relative items-center mx-6 flex-1 max-w-md">
+            <div className="relative w-full">
+              <input
+                type="text"
+                placeholder={t('search') || 'بحث...'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white rounded-xl py-2 px-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-[Cairo]"
+              />
+              <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
+            </div>
+          </form>
 
           {/* ── Right: Action buttons ── */}
           <div className="flex items-center gap-2 flex-shrink-0">

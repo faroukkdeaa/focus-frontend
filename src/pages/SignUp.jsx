@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
-import api from '../api/api';
 import { Loader2, GraduationCap, BookOpen } from 'lucide-react';
 import Logo from '../components/Logo';
 import { isValidEmail, isValidPassword, isValidFullName } from '../utils/validation';
@@ -25,20 +24,19 @@ const SignUp = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const T = buildTheme(isDark);
-  const [accountType, setAccountType] = useState('student'); // 'student' or 'teacher'
+  const [accountType, setAccountType] = useState('student');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [subjects, setSubjects] = useState([]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [profilePicture, setProfilePicture] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // جلب المواد من الـ API عند اختيار تسجيل المدرس
   useEffect(() => {
     if (accountType === 'teacher' && subjects.length === 0) {
-      // استخدام axios بدون headers أو token
       axios({
         method: 'get',
         url: 'http://localhost:8000/api/subjects',
@@ -48,10 +46,7 @@ const SignUp = () => {
         }
       })
         .then(res => {
-          console.log('Subjects API response:', res.data);
-          // الـ API بيرجع paginated response: { data: [...], current_page, total }
           const subjectsData = res.data.data || res.data;
-          console.log('Extracted subjects:', subjectsData);
           setSubjects(Array.isArray(subjectsData) ? subjectsData : []);
         })
         .catch(err => {
@@ -90,36 +85,33 @@ const SignUp = () => {
     setLoading(true);
     try {
       const isStudent = accountType === 'student';
-      
-      // بناء الـ payload حسب نوع الحساب
-      const payload = {
-        name: fullName,
-        email,
-        password,
-        password_confirmation: confirmPassword,
-      };
 
-      // إضافة الحقول حسب نوع الحساب
+      const formData = new FormData();
+      formData.append('name', fullName);
+      formData.append('email', email);
+      formData.append('password', password);
+      formData.append('password_confirmation', confirmPassword);
+
       if (isStudent) {
-        payload.student = true;
+        formData.append('student', '1');
       } else {
-        payload.teacher = true;
-        payload.subject_id = subjectId;
+        formData.append('teacher', '1');
+        formData.append('subject_id', subjectId);
       }
 
-      console.log('=== SignUp Request ===');
-      console.log('Payload:', JSON.stringify(payload, null, 2));
+      if (profilePicture instanceof File) {
+        formData.append('profile_picture', profilePicture);
+      }
 
-      const response = await api.post('/register', payload);
+      const response = await axios.post(
+        'http://127.0.0.1:8000/api/register',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
 
-      console.log('=== SignUp Response ===');
-      console.log('Response data:', JSON.stringify(response.data, null, 2));
-
-      // الـ response ممكن يكون { data: {...}, token } أو { user: {...}, token }
-      const user  = response.data.data ?? response.data.user;
+      const user = response.data.data ?? response.data.user;
       const token = response.data.token;
 
-      // تطبيع المفاتيح زي اللي في Login
       const normalizedUser = {
         id:           String(user.user_id ?? user.id),
         student_id:   user.student_id   ?? null,
@@ -134,17 +126,15 @@ const SignUp = () => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(normalizedUser));
 
-      // التحقق من وجود مسار عودة محفوظ (من AuthModal)
       const authRedirect = sessionStorage.getItem('authRedirect');
       const pendingLesson = sessionStorage.getItem('pendingLesson');
 
       if (pendingLesson) {
-        // المستخدم كان يحاول الدخول لدرس/كويز
         try {
           const pending = JSON.parse(pendingLesson);
           sessionStorage.removeItem('pendingLesson');
           sessionStorage.removeItem('authRedirect');
-          
+
           if (pending.type === 'quiz') {
             const qId = pending.lesson?.quizId ?? pending.quizId;
             if (pending.lesson?.id != null && pending.teacherId != null && qId != null) {
@@ -187,27 +177,25 @@ const SignUp = () => {
       }
 
       if (authRedirect) {
-        // عودة لمسار محدد
         sessionStorage.removeItem('authRedirect');
         navigate(authRedirect);
         return;
       }
 
-      // التحقق من query parameter: ?redirect=/path
       const redirectParam = searchParams.get('redirect');
       if (redirectParam) {
         navigate(redirectParam);
         return;
       }
 
-      // المسار الافتراضي - التوجيه للرئيسية بدلاً من Dashboard
       navigate(normalizedUser.role === 'teacher' ? '/teacher-dashboard' : '/');
-    } catch (err) {
-      console.error('SignUp error:', err);
-      const msg = err.response?.data?.message
-        ?? err.response?.data?.error
-        ?? err.response?.data?.errors
-        ?? err.message
+    } catch (error) {
+      console.error('SignUp error:', error);
+      console.error('Validation errors:', error.response?.data?.errors);
+      const msg = error.response?.data?.message
+        ?? error.response?.data?.error
+        ?? error.response?.data?.errors
+        ?? error.message
         ?? 'حدث خطأ أثناء إنشاء الحساب.';
       setError(typeof msg === 'object' ? Object.values(msg).flat().join(' — ') : msg);
     } finally {
@@ -276,6 +264,19 @@ const SignUp = () => {
               onFocus={e=>{e.target.style.borderColor=T.accent}}
               onBlur={e=>{e.target.style.borderColor=T.border}}
               required
+            />
+          </div>
+
+          <div>
+            <label style={{display:"block",color:T.textDim,fontSize:"0.85rem",fontWeight:700,marginBottom:"8px"}}>{t('profile_picture')}</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setProfilePicture(e.target.files?.[0] ?? null)}
+              disabled={loading}
+              style={{..._input(T),padding:"10px 12px"}}
+              onFocus={e=>{e.target.style.borderColor=T.accent}}
+              onBlur={e=>{e.target.style.borderColor=T.border}}
             />
           </div>
 

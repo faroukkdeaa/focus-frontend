@@ -100,6 +100,7 @@ const VideoDetails = () => {
     title: '',
     lessonTitle: '',
     videoUrl: '',
+    thumbnailUrl: '',
   });
 
   const fetchVideo = useCallback(async () => {
@@ -119,6 +120,7 @@ const VideoDetails = () => {
         title: payload.video_title || payload.title || payload.lesson_title || `فيديو #${id}`,
         lessonTitle: payload.lesson_title || payload.lesson?.title || '—',
         videoUrl: payload.video_url || payload.url || '',
+        thumbnailUrl: payload.thumbnail_url || payload.thumbnail || '',
       });
     } catch (err) {
       console.error('Failed to load video details:', err);
@@ -235,12 +237,26 @@ const VideoDetails = () => {
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px",
               overflow: "hidden", position: "relative"
             }}>
-              <div style={{
-                position: "absolute", inset: 0,
-                background: "radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, transparent 60%)"
-              }} />
-              <Video style={{ color: "rgba(255,255,255,0.4)", width: "48px", height: "48px" }} strokeWidth={1} />
-              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.9rem", fontWeight: 600 }}>إدارة الفيديو (لا توجد معاينة متاحة)</p>
+              {videoInfo.thumbnailUrl ? (
+                <img
+                  src={videoInfo.thumbnailUrl}
+                  alt={videoInfo.title}
+                  style={{
+                    position: "absolute", inset: 0,
+                    width: "100%", height: "100%",
+                    objectFit: "cover", borderRadius: "16px",
+                  }}
+                />
+              ) : (
+                <>
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    background: "radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, transparent 60%)"
+                  }} />
+                  <Video style={{ color: "rgba(255,255,255,0.4)", width: "48px", height: "48px" }} strokeWidth={1} />
+                  <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.9rem", fontWeight: 600 }}>إدارة الفيديو (لا توجد معاينة متاحة)</p>
+                </>
+              )}
             </div>
 
             {/* Video Metadata */}
