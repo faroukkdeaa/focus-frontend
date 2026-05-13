@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Loader2, GraduationCap, BookOpen } from 'lucide-react';
-import Logo from '../components/Logo';
+import FullLogo from '../components/FullLogo';
 import { isValidEmail, isValidPassword, isValidFullName } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
@@ -208,14 +208,14 @@ const SignUp = () => {
       {/* Language & Theme Toggles */}
       <div style={{position:"absolute",top:"16px",right:lang==='ar'?'auto':"16px",left:lang==='ar'?"16px":'auto',display:"flex",alignItems:"center",gap:"12px"}}>
         <ThemeToggle />
-        <LangToggle />
+        
       </div>
 
       {/* 1. اللوجو والعنوان */}
       <div style={{textAlign:"center",marginBottom:"32px"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"12px",marginBottom:"8px"}}>
-          <h1 style={{fontSize:"2.5rem",fontWeight:800,color:T.accent,letterSpacing:"-0.02em"}}>{t('app_name')}</h1>
-          <Logo className="justify-center mb-6 scale-110" />
+          
+          <FullLogo className="justify-center text-3xl" />
         </div>
         <p style={{color:T.textMuted,fontSize:"1.1rem",fontWeight:500}}>{t('tagline')}</p>
       </div>

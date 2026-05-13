@@ -29,6 +29,7 @@ import {
   Atom,
   Clock,
   Lightbulb,
+  Search,
 } from "lucide-react";
 
 const LOGIN_PATH = "/login";
@@ -49,7 +50,20 @@ const transition = {
   transition: "background 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease",
 };
 
-function NavHeader({ T, isDarkMode, setIsDarkMode, onNavigate, handleSmartNav, isLoggedIn, t }) {
+void motion;
+
+function NavHeader({
+  T,
+  isDarkMode,
+  setIsDarkMode,
+  onNavigate,
+  handleSmartNav,
+  isLoggedIn,
+  t,
+  searchQuery,
+  setSearchQuery,
+  handleSearch,
+}) {
   return (
     <header
       style={{
@@ -63,9 +77,57 @@ function NavHeader({ T, isDarkMode, setIsDarkMode, onNavigate, handleSmartNav, i
         borderBottom:         `1px solid ${T.border}`,
       }}
     >
-      <div className="max-w-7xl mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 py-4 flex items-center justify-between gap-4">
         {/* Logo */}
           <Logo className="scale-95 origin-left" />
+
+        <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-4">
+          <div
+            style={{
+              ...transition,
+              position: "relative",
+              width: "100%",
+            }}
+          >
+            <input
+              type="text"
+              placeholder={t("search") || "بحث..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                ...transition,
+                width: "100%",
+                background: T.bgCard,
+                border: `1px solid ${T.border}`,
+                color: T.textPrimary,
+                borderRadius: "14px",
+                padding: "10px 42px",
+                fontSize: "0.9rem",
+                outline: "none",
+                boxShadow: "none",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = T.borderAccent;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = T.border;
+              }}
+            />
+            <Search
+              style={{
+                position: "absolute",
+                insetInlineStart: "14px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: "16px",
+                height: "16px",
+                color: T.textDim,
+                pointerEvents: "none",
+              }}
+              strokeWidth={2}
+            />
+          </div>
+        </form>
 
         {/* Right side controls */}
         <div className="flex items-center gap-3">
@@ -330,7 +392,7 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px", marginTop: "72px" }}>
           {[
             { icon: Brain,      iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, title: "كشف نقاط الضعف بالذكاء الاصطناعي", desc: "النظام يحلل إجاباتك ويحدد المواضيع التي تحتاج للتركيز عليها بدقة" },
-            { icon: Target,     iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, title: "خطة دراسية شخصية",                  desc: "توجيه ذكي للدروس والتمارين بناءً على مستواك الحالي وأهدافك" },
+            { icon: Target,     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, title: "خطة دراسية شخصية",                  desc: "توجيه ذكي للدروس والتمارين بناءً على مستواك الحالي وأهدافك" },
             { icon: TrendingUp, iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, title: "تتبع التقدم المستمر",                 desc: "متابعة دقيقة لتطورك في كل مادة ومهارة مع تقارير تفصيلية" },
           ].map((f, i) => (
             <motion.div
@@ -353,6 +415,7 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
               }}
             >
               <div
+                className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
                 style={{
                   ...transition,
                   width:          "56px", height: "56px", borderRadius: "14px",
@@ -362,7 +425,17 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
                   marginBottom:   "18px",
                 }}
               >
-                <f.icon style={{ color: f.iconClr, width: "26px", height: "26px" }} strokeWidth={2} />
+                <f.icon
+                  className="h-7 w-7 shrink-0"
+                  style={{
+                    color: f.iconClr,
+                    stroke: f.iconClr,
+                    margin: 0,
+                    padding: 0,
+                  }}
+                  strokeWidth={2}
+                  fill="none"
+                />
               </div>
               <h3 style={{ ...transition, color: T.textPrimary, fontWeight: 700, fontSize: "1.05rem", marginBottom: "10px" }}>
                 {f.title}
@@ -381,9 +454,9 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
 function StatsSection({ T, landingData }) {
   const stats = [
     { icon: Users,         iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: `+${landingData?.all_students_count ?? "٢٠٠"}`, label: "طالب مسجّل",   sub: "عبر محافظات مصر" },
-    { icon: GraduationCap, iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, value: `+${landingData?.all_teachers_count ?? "٨٧"}`,   label: "معلم متخصص",  sub: "يستخدمون لوحة التحليل" },
+    { icon: GraduationCap, iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: `+${landingData?.all_teachers_count ?? "٨٧"}`,   label: "معلم متخصص",  sub: "يستخدمون لوحة التحليل" },
     { icon: Star,          iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: "٩٨٪",   label: "نسبة الرضا",  sub: "يوصون بالمنصة" },
-    { icon: Zap,           iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, value: `+${landingData?.subjects_count ?? "٤"}`,  label: "درس ومراجعة", sub: "محتوى محدّث باستمرار" },
+    { icon: Zap,           iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: `+${landingData?.subjects_count ?? "٤"}`,  label: "درس ومراجعة", sub: "محتوى محدّث باستمرار" },
   ];
 
   return (
@@ -393,16 +466,27 @@ function StatsSection({ T, landingData }) {
           {stats.map((s, i) => (
             <div key={i} style={{ ...transition, ...card(T), padding: "28px 24px", textAlign: "center" }}>
               <div
+                className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
                 style={{
                   ...transition,
-                  width: "44px", height: "44px", borderRadius: "12px",
+                  width: "64px", height: "64px", borderRadius: "9999px",
                   background: s.iconBg,
                   border:     `1px solid ${s.iconBdr}`,
                   display:    "flex", alignItems: "center", justifyContent: "center",
                   margin:     "0 auto 16px",
                 }}
               >
-                <s.icon style={{ color: s.iconClr, width: "20px", height: "20px" }} strokeWidth={2} />
+                <s.icon
+                  className="h-8 w-8 shrink-0"
+                  style={{
+                    color: s.iconClr,
+                    stroke: s.iconClr,
+                    margin: 0,
+                    padding: 0,
+                  }}
+                  strokeWidth={2}
+                  fill="none"
+                />
               </div>
               <div style={{ ...transition, color: T.iconA, fontSize: "2.2rem", fontWeight: 800, lineHeight: 1, marginBottom: "6px" }}>
                 {s.value}
@@ -870,8 +954,9 @@ const LandingPage = () => {
   const { t, lang } = useLanguage();
   const { C: T, glass, isDarkMode, toggleTheme } = useTheme();
   
-  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('token'));
+  const [isLoggedIn] = useState(() => !!localStorage.getItem('token'));
   const [landingData, setLandingData] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleSmartNav = (fallbackRoute) => {
     if (!isLoggedIn) {
@@ -893,6 +978,14 @@ const LandingPage = () => {
     navigate('/dashboard');
   };
 
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery) {
+      navigate(`/search?q=${encodeURIComponent(trimmedQuery)}`);
+    }
+  };
+
   useEffect(() => {
     const fetchLandingData = async () => {
       try {
@@ -909,7 +1002,7 @@ const LandingPage = () => {
 
   return (
     <div dir={lang === 'ar' ? 'rtl' : 'ltr'} style={{ ...transition, background: T.bg, minHeight: "100vh", overflowX: "hidden", fontFamily: "'Cairo', sans-serif" }}>
-      <NavHeader        T={T} isDarkMode={isDarkMode} setIsDarkMode={toggleTheme} onNavigate={navigate} handleSmartNav={handleSmartNav} isLoggedIn={isLoggedIn} t={t} />
+      <NavHeader        T={T} isDarkMode={isDarkMode} setIsDarkMode={toggleTheme} onNavigate={navigate} handleSmartNav={handleSmartNav} isLoggedIn={isLoggedIn} t={t} searchQuery={searchQuery} setSearchQuery={setSearchQuery} handleSearch={handleSearch} />
       <HeroSection      T={T} glass={glass} onNavigate={navigate} handleSmartNav={handleSmartNav} />
       <StatsSection     T={T} landingData={landingData} />
       <SubjectsSection  T={T} subjects={landingData?.subjects} onNavigateSubject={(id) => navigate(`/subject/${id}`)} />

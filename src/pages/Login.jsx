@@ -5,7 +5,7 @@ import { isValidLoginIdentifier, isValidPassword } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
 import { useTheme } from '../context/ThemeContext';
-import Logo from '../components/Logo';
+import Logo from '../components/FullLogo';
 import { Brain, Sun, Moon, ArrowRight, Loader2, User, GraduationCap } from 'lucide-react';
 
 /* ════════════════════════════════════════════════════
@@ -311,7 +311,7 @@ const Login = () => {
 
       {/* ── Logo & Tagline ── */}
       <div style={{ textAlign: "center", marginBottom: "32px" }}>
-        <Logo className="justify-center mb-6 scale-110" />
+        <Logo className="justify-center text-3xl" />
         <p style={{ ...transition, color: T.textMuted, fontSize: "0.9rem" }}>{t('tagline')}</p>
       </div>
 

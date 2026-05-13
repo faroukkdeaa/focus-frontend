@@ -7,7 +7,6 @@ import {
   Sun,
   Bell,
   BellOff,
-  Globe,
   Volume2,
   VolumeX,
   Monitor,
@@ -110,7 +109,7 @@ const transition = {
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { t, lang, setLang } = useLanguage();
+  const { t, lang } = useLanguage();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const T = buildTheme(isDark);
@@ -161,161 +160,55 @@ const Settings = () => {
 
   // تطبيق الثيم
   const applyTheme = useCallback((theme) => {
-    console.log('Applying theme:', theme);
-    
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
       localStorage.setItem('theme', 'dark');
-      console.log('Dark mode activated');
     } else if (theme === 'light') {
       document.documentElement.classList.remove('dark');
       localStorage.setItem('theme', 'light');
-      console.log('Light mode activated');
-    } else {
-      // system theme
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.classList.toggle('dark', prefersDark);
-      localStorage.setItem('theme', 'system');
-      console.log('System theme activated, prefersDark:', prefersDark);
     }
-    
-    console.log('HTML classes after theme change:', document.documentElement.className);
   }, []);
 
-  // تطبيق حجم الخط
   const applyFontSize = useCallback((fontSize) => {
     const root = document.documentElement;
     root.classList.remove('text-sm', 'text-base', 'text-lg');
-    
+
     if (fontSize === 'small') {
       root.classList.add('text-sm');
     } else if (fontSize === 'large') {
       root.classList.add('text-lg');
-    } else {
-      root.classList.add('text-base');
     }
-    
-    localStorage.setItem('fontSize', fontSize);
   }, []);
-
-  // تطبيق اللغة
-  const applyLanguage = useCallback((language) => {
-    const root = document.documentElement;
-    if (language === 'en') {
-      root.setAttribute('dir', 'ltr');
-      root.setAttribute('lang', 'en');
-    } else {
-      root.setAttribute('dir', 'rtl');
-      root.setAttribute('lang', 'ar');
-    }
-    localStorage.setItem('language', language);
-  }, []);
-
-  // تحميل الإعدادات من localStorage عند بدء الصفحة
-  useEffect(() => {
-    const savedSettings = localStorage.getItem('userSettings');
-    if (savedSettings) {
-      try {
-        const parsedSettings = JSON.parse(savedSettings);
-        setSettings(parsedSettings);
-        
-        // تطبيق الإعدادات المحفوظة
-        applyTheme(parsedSettings.theme);
-        applyFontSize(parsedSettings.fontSize);
-        applyLanguage(parsedSettings.language);
-      } catch (error) {
-        console.error('Error loading settings:', error);
-      }
-    }
-  }, [applyTheme, applyFontSize, applyLanguage]);
-
-  // حفظ الإعدادات
-  const handleSaveSettings = async () => {
-    setLoading(true);
-    setSuccess('');
-    
-    try {
-      // محاكاة حفظ في الباكند
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // حفظ في localStorage
-      localStorage.setItem('userSettings', JSON.stringify(settings));
-      
-      setSuccess(t('settings_saved') + '!');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (error) {
-      console.error('Error saving settings:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // تغيير إعداد معين وتطبيقه مباشرة
   const updateSetting = useCallback((category, key, value) => {
-    let newSettings;
-    
-    if (category) {
-      newSettings = {
-        ...settings,
-        [category]: {
-          ...settings[category],
-          [key]: value
+    const newSettings = category
+      ? {
+          ...settings,
+          [category]: {
+            ...settings[category],
+            [key]: value,
+          },
         }
-      };
-    } else {
-      newSettings = {
-        ...settings,
-        [key]: value
-      };
-    }
-    
-    // تطبيق التغيير مباشرة حسب النوع - قبل تحديث الـ state
+      : {
+          ...settings,
+          [key]: value,
+        };
+
     if (key === 'theme') {
       applyTheme(value);
     } else if (key === 'fontSize') {
       applyFontSize(value);
     } else if (key === 'language') {
       applyLanguage(value);
-      setLang(value); // sync LanguageContext state
     }
-    
-    // تحديث الـ state
+
     setSettings(newSettings);
-    
-    // تشغيل صوت تأكيد إذا كانت الأصوات مفعلة
+
     if (newSettings.sound.enabled && key !== 'enabled') {
       playClickSound(newSettings.sound.volume);
     }
-    
-    // حفظ تلقائياً
-    localStorage.setItem('userSettings', JSON.stringify(newSettings));
-    
-    // إظهار رسالة حفظ تلقائي
-    setAutoSaveMessage(t('settings_saved') + ' ✓');
-    setTimeout(() => setAutoSaveMessage(''), 2000);
-  }, [settings, applyTheme, applyFontSize, applyLanguage]);
-
-  // تشغيل صوت بسيط
-  const playClickSound = (volume = 80) => {
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = 800;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.value = (volume / 100) * 0.1;
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.05);
-    } catch (error) {
-      console.log('Audio not supported:', error);
-    }
-  };
+  }, [settings, applyTheme, applyFontSize, applyLanguage, playClickSound]);
 
   // تسجيل الخروج
   const handleLogout = () => {
@@ -343,7 +236,6 @@ const Settings = () => {
     { id: 'appearance', icon: Palette, label: t('appearance') },
     { id: 'notifications', icon: Bell, label: t('notifications_title') },
     { id: 'sound', icon: Volume2, label: t('sound_title') },
-    { id: 'language', icon: Globe, label: t('language_setting') },
     { id: 'learning', icon: Eye, label: t('learning_settings') },
     { id: 'privacy', icon: Shield, label: t('privacy_title') },
     { id: 'account', icon: Shield, label: t('account_actions') },
@@ -403,42 +295,10 @@ const Settings = () => {
       )}
 
       <main style={{ maxWidth: "1152px", margin: "0 auto", padding: "32px 24px", display: "flex", gap: "32px", alignItems: "flex-start", flexWrap: "wrap" }}>
-        
-        {/* Sidebar Nav */}
-        <aside style={{ flexShrink: 0, width: "100%", maxWidth: "260px", position: "sticky", top: "100px" }}>
-          <nav style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {navItems.map(item => (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                style={{
-                  ...transition,
-                  display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderRadius: "10px",
-                  textDecoration: "none", color: T.textMuted, fontSize: "0.875rem", fontWeight: 700
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = T.bgPanel;
-                  e.currentTarget.style.color = T.textPrimary;
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = "transparent";
-                  e.currentTarget.style.color = T.textMuted;
-                }}
-              >
-                <item.icon style={{ width: "18px", height: "18px" }} />
-                {item.label}
-              </a>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Content Area */}
-        <div style={{ flex: 1, minWidth: "300px", display: "flex", flexDirection: "column", gap: "32px", paddingBottom: "128px" }}>
-          
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px 16px", borderRadius: "12px", background: T.iconBgA, border: `1px solid ${T.iconBorderA}`, color: T.iconA, fontSize: "0.875rem" }}>
-            <CheckCircle2 style={{ width: "16px", height: "16px", flexShrink: 0 }} />
-            <p><strong>{t('auto_saved')}:</strong> {t('auto_save_desc')}</p>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: T.greenDim, border: `1px solid ${T.greenBorder}`, color: T.green, padding: "12px 16px", borderRadius: "12px", fontSize: "0.875rem", fontWeight: 700 }}>
+          <CheckCircle2 style={{ width: "16px", height: "16px", flexShrink: 0 }} />
+          <p><strong>{t('auto_saved')}:</strong> {t('auto_save_desc')}</p>
+        </div>
 
           {/* المظهر */}
           <section id="appearance" style={{ ...glass(T, { padding: "32px" }), scrollMarginTop: "100px" }}>
@@ -494,40 +354,10 @@ const Settings = () => {
                       color: settings.fontSize === value ? T.iconA : T.textMuted, fontSize: "0.875rem", fontWeight: 700, cursor: "pointer"
                     }}
                   >
-                    {label}
+                    <span>{label}</span>
                   </button>
                 ))}
               </div>
-            </div>
-          </section>
-
-          {/* الإشعارات */}
-          <section id="notifications" style={{ ...glass(T, { padding: "32px" }), scrollMarginTop: "100px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
-              <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: T.iconBgA, display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center" }}>
-                <Bell style={{ width: "18px", height: "18px", color: T.iconA }} />
-              </div>
-              <h2 style={{ fontSize: "1.125rem", fontWeight: 800, color: T.textPrimary }}>{t('notifications_title')}</h2>
-            </div>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <ToggleItem
-                T={T}
-                label={t('enable_notifications')}
-                description={t('enable_notifications_desc')}
-                enabled={settings.notifications.enabled}
-                onChange={(val) => updateSetting('notifications', 'enabled', val)}
-                icon={settings.notifications.enabled ? Bell : BellOff}
-              />
-              
-              {settings.notifications.enabled && (
-                <div style={{ paddingLeft: lang === 'ar' ? 0 : "36px", paddingRight: lang === 'ar' ? "36px" : 0, display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
-                  <ToggleItem T={T} label={t('email_notifications')} description={t('email_notifications_desc')} enabled={settings.notifications.email} onChange={(val) => updateSetting('notifications', 'email', val)} />
-                  <ToggleItem T={T} label={t('quiz_reminders')} description={t('quiz_reminders_desc')} enabled={settings.notifications.quizReminders} onChange={(val) => updateSetting('notifications', 'quizReminders', val)} />
-                  <ToggleItem T={T} label={t('lesson_updates')} description={t('lesson_updates_desc')} enabled={settings.notifications.lessonUpdates} onChange={(val) => updateSetting('notifications', 'lessonUpdates', val)} />
-                  <ToggleItem T={T} label={t('weekly_report')} description={t('weekly_report_desc')} enabled={settings.notifications.weeklyReport} onChange={(val) => updateSetting('notifications', 'weeklyReport', val)} />
-                </div>
-              )}
             </div>
           </section>
 
@@ -564,38 +394,6 @@ const Settings = () => {
                 />
               </div>
             )}
-          </section>
-
-          {/* اللغة */}
-          <section id="language" style={{ ...glass(T, { padding: "32px" }), scrollMarginTop: "100px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
-              <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: T.orangeDim, display: "flex", alignItems: "center", justifyItems: "center", justifyContent: "center" }}>
-                <Globe style={{ width: "18px", height: "18px", color: T.orangeIcon }} />
-              </div>
-              <h2 style={{ fontSize: "1.125rem", fontWeight: 800, color: T.textPrimary }}>{t('language_setting')}</h2>
-            </div>
-            
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
-              {[
-                { value: 'ar', label: t('arabic_lang'), flag: '🇪🇬' },
-                { value: 'en', label: t('english_lang'), flag: '🇺🇸' },
-              ].map(({ value, label, flag }) => (
-                <button
-                  key={value}
-                  onClick={() => updateSetting(null, 'language', value)}
-                  style={{
-                    ...transition,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", padding: "16px", borderRadius: "12px",
-                    background: settings.language === value ? T.iconBgA : T.bgPanel,
-                    border: `1px solid ${settings.language === value ? T.iconBorderA : T.border}`,
-                    color: settings.language === value ? T.iconA : T.textMuted, cursor: "pointer"
-                  }}
-                >
-                  <span style={{ fontSize: "1.5rem" }}>{flag}</span>
-                  <span style={{ fontSize: "1rem", fontWeight: 700 }}>{label}</span>
-                </button>
-              ))}
-            </div>
           </section>
 
           {/* إعدادات التعلم */}
@@ -737,7 +535,6 @@ const Settings = () => {
               </button>
             </div>
           </section>
-        </div>
       </main>
 
       {/* Delete Account Modal */}

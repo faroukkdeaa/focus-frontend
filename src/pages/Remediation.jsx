@@ -8,8 +8,6 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
-const API = 'http://localhost:3001';
-
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 const SectionLoader = () => (
@@ -51,7 +49,7 @@ const GapCard = ({ item, onStartLesson, onFocusedQuiz }) => {
     setErrorContent(null);
     try {
       const { data } = await api.get(
-        `${API}/remediation_content?gap=${encodeURIComponent(item.gap)}`
+        `/remediation_content?gap=${encodeURIComponent(item.gap)}`
       );
       setContent(data[0] ?? null);
     } catch {
@@ -280,7 +278,7 @@ const Remediation = () => {
         setTopics([]);
         return;
       }
-      const { data } = await api.get(`${API}/user_remediation_gaps?userId=${userId}`);
+      const { data } = await api.get(`/user_remediation_gaps?userId=${userId}`);
       setTopics(data);
     } catch {
       setError('تعذّر تحميل خطة المعالجة. تأكد من تشغيل json-server.');
@@ -298,7 +296,7 @@ const Remediation = () => {
   const handleStartLesson = async (topic) => {
     try {
       // جلب بيانات الدرس من الكورس
-      const coursesResponse = await api.get(`http://localhost:3001/courses?subjectId=${topic.subjectId}`);
+      const coursesResponse = await api.get(`/courses?subjectId=${topic.subjectId}`);
       if (coursesResponse.data && coursesResponse.data.length > 0) {
         const course = coursesResponse.data[0];
         const lesson = course.lessons?.find(l => l.id === topic.lessonId) || course.lessons?.[0];

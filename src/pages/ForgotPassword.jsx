@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, Mail, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import LangToggle from '../components/LangToggle';
-import Logo from '../components/Logo';
+import Logo from '../components/FullLogo';
 
 const ForgotPassword = () => {
   const navigate = useNavigate();

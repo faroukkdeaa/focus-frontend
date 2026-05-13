@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { X, LogIn, UserPlus, BookOpen, Zap } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-import Logo from './Logo';
+import FullLogo from './FullLogo';
 
 /**
  * AuthModal — Modal منبثقة تظهر للزوار عند محاولة الدخول لدرس أو كويز

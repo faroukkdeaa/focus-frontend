@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/api';
 import {
   ArrowRight, Users, BookOpen, ClipboardCheck, CheckCircle2,
-  XCircle, Eye, Trash2, Brain, TrendingUp, ShieldCheck,
+  XCircle, Eye, Trash2, TrendingUp, ShieldCheck,
   AlertTriangle, Loader2, PlayCircle, LayoutDashboard, RefreshCcw,
 } from 'lucide-react';
 import {

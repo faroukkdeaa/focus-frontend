@@ -161,6 +161,10 @@ const SearchResults = () => {
                           src={result.teacher_profile_picture.startsWith('http') ? result.teacher_profile_picture : `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://127.0.0.1:8000'}/storage/${result.teacher_profile_picture.replace(/^\/+/, '')}`} 
                           alt={mainTitle} 
                           className="w-full h-full object-cover" 
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(mainTitle || 'User')}&background=1e293b&color=fff&size=128`;
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white font-bold text-xl">

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import { publicApi } from '../api/api';
 import {
-  ArrowRight, BookOpen, PlayCircle,
+  ArrowRight, BookOpen, PlayCircle, Play, FileText, Zap,
   ChevronDown, ChevronUp, Clock, AlertTriangle, RefreshCcw,
-  Home, LogIn, User, GraduationCap, ChevronLeft, Users, Lock,
+  Home, LogIn, User, GraduationCap, ChevronLeft, Users, Lock, Heart, Star
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -58,53 +59,272 @@ const SectionError = ({ message, onRetry, T, t }) => (
 
 // ── Teacher Card ───────────────────────────────────────────────────────────────
 
-const TeacherCard = ({ teacher, isSelected, onSelect, T, t }) => {
+const subjectStyles = {
+  فيزياء: { bg: "linear-gradient(135deg, #0d3320 0%, #071a10 50%, #030e08 100%)", accent: "#22c55e", badge: "rgba(34,197,94,0.2)", badgeText: "#4ade80" },
+  كيمياء: { bg: "linear-gradient(135deg, #1a1500 0%, #0d0b00 50%, #060500 100%)", accent: "#eab308", badge: "rgba(234,179,8,0.2)", badgeText: "#facc15" },
+  أحياء:  { bg: "linear-gradient(135deg, #0d1a00 0%, #070d00 50%, #030600 100%)", accent: "#84cc16", badge: "rgba(132,204,22,0.2)", badgeText: "#a3e635" },
+  رياضيات: { bg: "linear-gradient(135deg, #071030 0%, #030820 50%, #010410 100%)", accent: "#60a5fa", badge: "rgba(96,165,250,0.2)", badgeText: "#93c5fd" },
+  علوم:   { bg: "linear-gradient(135deg, #18071a 0%, #0d040e 50%, #060206 100%)", accent: "#c084fc", badge: "rgba(192,132,252,0.2)", badgeText: "#d8b4fe" },
+  DEFAULT: { bg: "linear-gradient(135deg, #0f172a 0%, #020617 100%)", accent: "#38bdf8", badge: "rgba(56,189,248,0.2)", badgeText: "#7dd3fc" }
+};
+
+const formulaMap = {
+  فيزياء: ["E=mc²", "F=ma", "v=λf", "P=mv", "ΔE=hν", "∇·E=ρ/ε₀", "F=kq₁q₂/r²", "∮B·dl=μ₀I"],
+  كيمياء: ["H₂O", "PV=nRT", "pH=-log[H⁺]", "ΔG=ΔH-TΔS", "CO₂", "NaCl", "Fe₂O₃", "C₆H₁₂O₆"],
+  أحياء:  ["DNA→RNA", "ATP→ADP", "C₆H₁₂O₆+O₂", "mRNA", "tRNA", "Mitosis", "Meiosis", "NADPH"],
+  رياضيات: ["∫f(x)dx", "∑n(n+1)/2", "e^iπ+1=0", "f'(x)", "det(A)", "∇²φ=0", "lim→∞", "∂²u/∂t²"],
+  علوم:   ["E=mc²", "H₂O", "DNA", "F=ma", "ATP", "∫dx", "pH=7", "CO₂"],
+  DEFAULT:["E=mc²", "∞", "xyz", "∑", "1+1=2"]
+};
+
+const TeacherCard = ({ teacher, subjectName, delay = 0, isSelected, onSelect, T, t }) => {
+  const [liked, setLiked] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const colors = [
-    {bg:T.iconBgA, color:T.iconA},
-    {bg:T.iconBgB, color:T.iconB},
-    {bg:T.greenDim, color:T.green},
-    {bg:T.yellowDim, color:T.yellow},
-    {bg:T.redDim, color:T.red},
-    {bg:T.accentDim, color:T.accent},
-  ];
-  const colorIndex = (teacher.id || 0) % colors.length;
-  const col = colors[colorIndex];
+  
+  const style = subjectStyles[subjectName] ?? subjectStyles.DEFAULT;
+  const formulas = formulaMap[subjectName] ?? formulaMap.DEFAULT;
   const profilePictureUrl = getProfilePictureUrl(teacher.teacher_profile_picture);
   
+  const studentCount = teacher.students_count || ((teacher.id || 1) * 123 % 500) + 100;
+  const rating = (4.5 + (((teacher.id || 1) % 5) * 0.1)).toFixed(1);
+
   return (
-    <button
+    <motion.button
       onClick={() => onSelect(teacher)}
-      style={{..._t,display:"flex",alignItems:"center",gap:"16px",padding:"16px",borderRadius:"16px",border:`2px solid ${isSelected ? T.borderAccent : T.border}`,background:isSelected ? T.accentDim : T.bgCard,width:"100%",textAlign:"right",cursor:"pointer"}}
-      onMouseEnter={e=>{if(!isSelected) e.currentTarget.style.borderColor=T.borderAccent;}}
-      onMouseLeave={e=>{if(!isSelected) e.currentTarget.style.borderColor=T.border;}}
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay, ease: "easeOut" }}
+      whileHover={{ scale: 1.03, y: -6 }}
+      className="text-right flex flex-col overflow-hidden w-full m-0 p-0 text-inherit border-none bg-transparent"
+      style={{
+        borderRadius: "16px",
+        boxShadow: isSelected ? `0 0 0 2px ${T.accent}` : T.shadowCard,
+        background: T.bgCard,
+        cursor: "pointer",
+        outline: "none"
+      }}
     >
-      {profilePictureUrl && !imgError ? (
-        <img
-          src={profilePictureUrl}
-          alt={teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })}
-          onError={() => setImgError(true)}
-          style={{width:"56px",height:"56px",borderRadius:"50%",objectFit:"cover",flexShrink:0}}
-        />
-      ) : (
-        <div style={{width:"56px",height:"56px",borderRadius:"50%",background:col.bg,color:col.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.125rem",fontWeight:900,flexShrink:0}}>
-          {(teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })).charAt(0)}
+      <div className="relative overflow-hidden w-full" style={{ aspectRatio: "1 / 1" }}>
+        {/* Chalkboard background */}
+        <div className="absolute inset-0" style={{ background: style.bg }} />
+        
+        {/* Scattered formula overlays */}
+        <div className="absolute inset-0 overflow-hidden select-none pointer-events-none">
+          {formulas.map((formula, i) => (
+            <span
+              key={i}
+              className="absolute font-mono opacity-[0.12] whitespace-nowrap"
+              style={{
+                color: style.accent,
+                fontSize: `${0.55 + (i % 3) * 0.18}rem`,
+                top: `${(i * 31 + 7) % 80}%`,
+                left: `${(i * 43 + 5) % 75}%`,
+                transform: `rotate(${(i * 27 - 30) % 60}deg)`,
+              }}
+            >
+              {formula}
+            </span>
+          ))}
         </div>
-      )}
-      <div style={{flex:1,minWidth:0}}>
-        <p className="truncate" title={teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })} style={{fontWeight:700,color:T.textPrimary,fontSize:"1rem"}}>
-          {teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })}
-        </p>
-        {teacher.lessons_count !== undefined && (
-          <p style={{fontSize:"0.875rem",color:T.textDim,marginTop:"4px"}}>
-            {t('subject_page_lessons_count', { count: teacher.lessons_count })}
-          </p>
+        
+        {/* Chalk texture */}
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(255,255,255,0.3) 28px, rgba(255,255,255,0.3) 29px)" }} />
+        
+        {/* Teacher photo or fallback */}
+        {profilePictureUrl && !imgError ? (
+          <img
+            src={profilePictureUrl}
+            alt={teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })}
+            onError={() => setImgError(true)}
+            className="absolute inset-0 w-full h-full object-cover object-top"
+          />
+        ) : (
+          <div className="absolute inset-0 w-full h-full flex items-center justify-center" style={{ fontSize: "5rem", fontWeight: 900, color: "rgba(255,255,255,0.15)" }}>
+            {(teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })).charAt(0)}
+          </div>
         )}
+
+        {/* Bottom fade into card body */}
+        <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-[rgba(0,0,0,0.8)] via-[rgba(0,0,0,0.5)] to-transparent" />
+
+        {/* Subject badge (Right side since RTL) */}
+        <div className="absolute top-3 right-3 z-10">
+          <span
+            className="text-[10px] px-2.5 py-1 rounded-full font-bold tracking-widest uppercase"
+            style={{
+              background: style.badge,
+              color: style.badgeText,
+              border: `1px solid ${style.accent}40`,
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            {subjectName || "مدرس"}
+          </span>
+        </div>
+
+        {/* Like button (Left side since RTL) */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setLiked((v) => !v); }}
+          className="absolute top-3 left-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110"
+          style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", border: "none", cursor: "pointer" }}
+        >
+          <Heart size={15} className={liked ? "fill-rose-500 text-rose-500" : "text-white/70"} />
+        </button>
       </div>
-      <ChevronLeft style={{..._t,width:"20px",height:"20px",color:T.textDim,flexShrink:0,transform:isSelected?'rotate(90deg)':'none'}} />
-    </button>
+
+      {/* Text Info */}
+      <div className="p-4 text-right w-full" dir="rtl" style={{ background: T.bgCard, flex: 1 }}>
+        <h3 className="mb-1 truncate font-bold" style={{ fontSize: "1.05rem", letterSpacing: "0.01em", color: T.textPrimary }}>
+          {teacher.name || t('subject_page_teacher_fallback', { id: teacher.id })}
+        </h3>
+        
+        <p className="text-sm mb-3 truncate" style={{ color: T.textMuted }}>
+           معلم مادة {subjectName || ""}
+        </p>
+
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1 text-xs" style={{ color: T.textMuted }}>
+            <Users size={12} />
+            {/* <span>{studentCount.toLocaleString()}</span> */}
+          </div>
+          <div className="flex items-center gap-1 text-xs text-yellow-500">
+            <Star size={12} className="fill-yellow-500" />
+            <span className="font-bold">{rating}</span>
+          </div>
+        </div>
+
+        <div className="flex gap-1.5 justify-end flex-wrap">
+          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: T.trackBg, color: T.textMuted, border: `1px solid ${T.border}` }}>
+            الثانوية العامة
+          </span>
+          <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: T.trackBg, color: T.textMuted, border: `1px solid ${T.border}` }}>
+            {subjectName || "مراجعات"}
+          </span>
+        </div>
+      </div>
+    </motion.button>
   );
 };
+
+// ── Glowing Modern Lesson Card Components ───────────────────────────────────
+
+const FALLBACK_GRADIENTS = [
+  "linear-gradient(135deg, #0f0c29 0%, #111a4a 50%, #1a0533 100%)",
+  "linear-gradient(135deg, #0a0e27 0%, #0d1f4a 50%, #1a0a3d 100%)",
+  "linear-gradient(135deg, #09142b 0%, #0c1a42 40%, #1e0738 100%)",
+];
+
+const TYPE_ICON = {
+  video: Play,
+  article: BookOpen,
+  quiz: Zap,
+};
+
+function FallbackThumbnail({ lessonNumber, type = "video" }) {
+  const gradient = FALLBACK_GRADIENTS[(lessonNumber - 1) % FALLBACK_GRADIENTS.length] || FALLBACK_GRADIENTS[0];
+  const Icon = TYPE_ICON[type] || Play;
+
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden bg-slate-100 dark:bg-[#111A3A]">
+      <div className="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(99,102,241,0.4)_1px,transparent_1px),linear-gradient(90deg,rgba(99,102,241,0.4)_1px,transparent_1px)] bg-[size:20px_20px]" />
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-[radial-gradient(ellipse_60%_60%_at_50%_50%,rgba(99,102,241,0.18)_0%,transparent_70%)]" />
+      <div className="relative flex items-center justify-center rounded-xl w-9 h-9 bg-white/50 dark:bg-white/5 border border-indigo-200 dark:border-indigo-500/30 shadow-[0_0_18px_rgba(99,102,241,0.15)] dark:shadow-[0_0_18px_rgba(99,102,241,0.35)]">
+        <Icon size={16} className="text-indigo-600 dark:text-indigo-400" strokeWidth={1.8} />
+      </div>
+      <span className="relative mt-2 text-xs tracking-widest text-slate-500 dark:text-slate-400/60 font-['Cairo']" style={{ letterSpacing: "0.15em" }}>
+        {String(lessonNumber).padStart(2, "0")}
+      </span>
+    </div>
+  );
+}
+
+function LessonCard({ title, duration, attachments = 0, thumbnailUrl, lessonNumber, isCompleted = false, isLocked = false, type = "video", onClick }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <>
+      <style>{`
+        .lesson-card .play-btn { transition: opacity 0.2s ease, transform 0.2s ease; opacity: 0; transform: scale(0.85); }
+        .lesson-card:hover .play-btn { opacity: 1; transform: scale(1); }
+        .lesson-card .thumb-overlay { transition: opacity 0.25s ease; opacity: 0; }
+        .lesson-card:hover .thumb-overlay { opacity: 1; }
+      `}</style>
+      <motion.div
+        className={`lesson-card flex items-stretch w-full rounded-xl overflow-hidden relative border transition-colors ${isLocked ? "cursor-not-allowed opacity-80" : "cursor-pointer"} bg-white dark:bg-[#1A2744]/40 hover:bg-slate-50 dark:hover:bg-[#1A2744]/60 border-gray-200 dark:border-white/10`}
+        onClick={!isLocked ? onClick : undefined}
+        onHoverStart={() => setHovered(true)}
+        onHoverEnd={() => setHovered(false)}
+        dir="rtl"
+        whileTap={!isLocked ? { scale: 0.992 } : undefined}
+      >
+        <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-black/5 dark:from-white/5 to-transparent pointer-events-none z-[1]" />
+        
+        <div className="shrink-0 w-[152px] aspect-[16/9] rounded-l-none rounded-r-[10px] overflow-hidden my-2 mr-2 ml-0 relative">
+          {thumbnailUrl ? (
+            <img src={thumbnailUrl} alt={title} className="w-full h-full object-cover block" />
+          ) : (
+            <FallbackThumbnail lessonNumber={lessonNumber} type={type} />
+          )}
+          <div className="thumb-overlay absolute inset-0 bg-slate-900/10 dark:bg-[#070818]/45 flex items-center justify-center" />
+          
+          {!isLocked && (
+            <div className="play-btn absolute inset-0 flex items-center justify-center">
+              <div className="w-[34px] h-[34px] rounded-full bg-indigo-600/90 dark:bg-indigo-500/85 flex items-center justify-center shadow-[0_0_18px_rgba(79,70,229,0.4)] dark:shadow-[0_0_18px_rgba(99,102,241,0.6)]">
+                <Play size={14} fill="white" color="white" className="-mr-[2px]" />
+              </div>
+            </div>
+          )}
+
+          {isLocked && (
+            <div className="absolute inset-0 bg-slate-100/60 dark:bg-[#070818]/65 flex items-center justify-center">
+              <Lock className="text-slate-500 dark:text-slate-400/70 w-[18px] h-[18px]" />
+            </div>
+          )}
+
+          {isCompleted && !isLocked && (
+            <div className="absolute top-[6px] left-[6px] w-[18px] h-[18px] rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-[0_0_8px_rgba(16,185,129,0.5)]">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 flex flex-col justify-center py-2.5 pr-2 pl-3.5 gap-1.5 min-w-0 z-[2]">
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-semibold tracking-widest font-['Cairo'] transition-colors ${hovered ? "text-indigo-600 dark:text-indigo-400" : "text-indigo-500 dark:text-indigo-500/80"}`}>
+              الدرس {String(lessonNumber).padStart(2, "0")}
+            </span>
+            {type !== "video" && (
+              <span className="text-[9px] px-1.5 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/25 text-indigo-700 dark:text-indigo-400 font-['Cairo']">
+                {type === "article" ? "مقال" : "اختبار"}
+              </span>
+            )}
+          </div>
+          
+          <h4 className={`truncate m-0 font-bold text-[14px] font-['Cairo'] transition-colors ${isLocked ? "text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-white"}`}>
+            {title}
+          </h4>
+          
+          <div className="flex items-center gap-3.5 flex-wrap">
+            <span className="flex items-center gap-1 text-[11px] font-['Cairo'] text-slate-500 dark:text-slate-400">
+              <Clock size={11} className="text-slate-400 dark:text-slate-500" /> {duration}
+            </span>
+            {attachments > 0 && (
+              <span className="flex items-center gap-1 text-[11px] font-['Cairo'] text-slate-500 dark:text-slate-400">
+                <FileText size={11} className="text-slate-400 dark:text-slate-500" /> {attachments} {attachments === 1 ? "ملف" : "ملفات"}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0 flex items-center pl-3.5 pr-1 z-[2]">
+          <motion.div animate={hovered && !isLocked ? { x: -3 } : { x: 0 }} transition={{ duration: 0.2 }}>
+            <ChevronLeft size={16} className={`transition-colors ${hovered && !isLocked ? "text-indigo-600 dark:text-indigo-400" : "text-slate-300 dark:text-slate-600"}`} />
+          </motion.div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
 
 // ── Unit card (self-contained, collapsible) ───────────────────────────────────
 
@@ -113,79 +333,43 @@ const UnitCard = ({ unit, subjectId, onStartLesson, isLoggedIn, T, t }) => {
   const totalCount = unit.lessons.length;
 
   return (
-    <div style={{..._t,..._c(T),overflow:"hidden",marginBottom:"12px"}}>
+    <div className="overflow-hidden mb-3 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1A2744]/40 shadow-sm transition-all">
       {/* ── Unit header ── */}
       <button
         onClick={() => setExpanded(prev => !prev)}
-        style={{..._t,width:"100%",display:"flex",alignItems:"center",gap:"16px",padding:"16px",textAlign:"right",background:"transparent",border:"none",cursor:"pointer"}}
-        onMouseEnter={e=>e.currentTarget.style.background=T.bg}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+        className="w-full flex items-center gap-4 p-4 text-right bg-transparent border-none cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-[#1A2744]/60"
       >
-        <div style={_iw(T.iconBgA,T.iconBorderA,"36px","12px")}>
-          <span style={{color:T.iconA,fontSize:"0.875rem",fontWeight:900}}>{unit.order}</span>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20">
+          <span className="text-indigo-600 dark:text-indigo-400 text-sm font-black">{unit.order}</span>
         </div>
 
-        <div style={{flex:1,minWidth:0}}>
-          <p className="truncate" title={unit.title} style={{fontWeight:700,color:T.textPrimary,fontSize:"0.875rem",lineHeight:1.4}}>{unit.title}</p>
-          <span style={{fontSize:"0.75rem",color:T.textDim,marginTop:"6px",display:"block"}}>{t('subject_page_lessons_count', { count: totalCount })}</span>
+        <div className="flex-1 min-w-0">
+          <p className="truncate font-bold text-slate-900 dark:text-white text-sm leading-tight m-0">{unit.title}</p>
+          <span className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 block font-['Cairo']">{t('subject_page_lessons_count', { count: totalCount })}</span>
         </div>
 
         {expanded
-          ? <ChevronUp style={{width:"16px",height:"16px",color:T.textDim,flexShrink:0}} />
-          : <ChevronDown style={{width:"16px",height:"16px",color:T.textDim,flexShrink:0}} />
+          ? <ChevronUp className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
+          : <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
         }
       </button>
 
       {/* ── Lesson rows ── */}
       {expanded && (
-        <div style={{borderTop:`1px solid ${T.border}`,background:T.bg}}>
+        <div className="p-4 flex flex-col gap-3 border-t border-gray-100 dark:border-white/5 bg-slate-50/50 dark:bg-transparent">
           {unit.lessons.map((lesson, idx) => {
             const isLocked = lesson.is_locked || (!isLoggedIn && idx > 0);
-            const isActive = lesson.is_active || (isLoggedIn && !lesson.completed && idx === 0);
             return (
-            <div
-              key={lesson.id ?? idx}
-              style={{
-                display:"flex",alignItems:"center",gap:"16px",padding:"16px",
-                borderBottom:idx<unit.lessons.length-1?`1px solid ${T.border}`:"none",
-                transition:"all 0.2s ease",
-                opacity: isLocked ? 0.6 : 1,
-                background: isActive ? T.accentDim : "transparent",
-                borderInlineStart: isActive ? `2px solid ${T.accent}` : "2px solid transparent",
-              }}
-              onMouseEnter={e=>{if(!isActive && !isLocked) e.currentTarget.style.background=T.bgCard;}}
-              onMouseLeave={e=>{if(!isActive && !isLocked) e.currentTarget.style.background="transparent";}}
-            >
-              {/* Title + duration */}
-              <div style={{flex:1,minWidth:0}}>
-                <p className="truncate" title={lesson.title} style={{fontSize:"0.875rem",fontWeight:700,color: isLocked ? T.textMuted : T.textPrimary}}>{lesson.title}</p>
-                {lesson.duration && (
-                  <p style={{fontSize:"0.75rem",color:T.textDim,display:"flex",alignItems:"center",gap:"4px",marginTop:"4px"}}>
-                    <Clock style={{width:"12px",height:"12px"}} /> {lesson.duration}
-                  </p>
-                )}
-              </div>
-
-              {/* Action buttons */}
-              <div style={{display:"flex",alignItems:"center",gap:"6px",flexShrink:0}}>
-                {isLocked ? (
-                  <div style={{display:"flex",alignItems:"center",gap:"6px",color:T.textMuted,fontSize:"0.75rem",fontWeight:700,padding:"6px 10px"}}>
-                    <Lock style={{width:"14px",height:"14px"}} />
-                    <span>{t('subject_page_locked')}</span>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => onStartLesson(lesson, subjectId)}
-                    style={{..._t,fontSize:"0.75rem",padding:"6px 14px",borderRadius:"8px",fontWeight:700,display:"flex",alignItems:"center",gap:"4px",background: isActive ? T.accent : T.bgCard, color: isActive ? "#FFF" : T.textPrimary, border: isActive ? "none" : `1px solid ${T.border}`,cursor:"pointer",boxShadow:isActive?T.shadowCard:"none"}}
-                    onMouseEnter={e=>{if(isActive)e.currentTarget.style.filter="brightness(1.1)"; else e.currentTarget.style.borderColor=T.accent;}}
-                    onMouseLeave={e=>{if(isActive)e.currentTarget.style.filter="none"; else e.currentTarget.style.borderColor=T.border;}}
-                  >
-                    {!isLoggedIn && <LogIn style={{width:"12px",height:"12px"}} />}
-                    {isLoggedIn ? "ابدأ" : t('subject_page_login_to_start')}
-                  </button>
-                )}
-              </div>
-            </div>
+              <LessonCard
+                key={lesson.id ?? idx}
+                title={lesson.title}
+                duration={lesson.duration ?? '--'}
+                lessonNumber={idx + 1}
+                isCompleted={lesson.completed}
+                isLocked={isLocked}
+                onClick={() => onStartLesson(lesson, subjectId)}
+                type={lesson.type ?? "video"}
+              />
             );
           })}
         </div>
@@ -589,11 +773,13 @@ const SubjectPage = () => {
               </div>
             ) : (
               <>
-                <div style={{display:"grid",gap:"12px",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))"}}>
-                  {allTeachers.map(teacher => (
+                <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))" }}>
+                  {allTeachers.map((teacher, i) => (
                     <TeacherCard
                       key={teacher.id}
                       teacher={teacher}
+                      subjectName={subject?.name}
+                      delay={i * 0.07}
                       isSelected={false}
                       onSelect={handleSelectTeacher}
                       T={T}

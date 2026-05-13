@@ -246,6 +246,10 @@ const VideoDetails = () => {
                     width: "100%", height: "100%",
                     objectFit: "cover", borderRadius: "16px",
                   }}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = 'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100%25" height="100%25" viewBox="0 0 800 450"%3E%3Crect fill="%231e293b" width="100%25" height="100%25"/%3E%3Ctext fill="%23475569" font-family="sans-serif" font-size="24" font-weight="bold" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle"%3ENo Thumbnail Available%3C/text%3E%3C/svg%3E';
+                  }}
                 />
               ) : (
                 <>

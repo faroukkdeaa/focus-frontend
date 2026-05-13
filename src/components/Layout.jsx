@@ -60,7 +60,6 @@ const Layout = () => {
   const isAdmin   = user.role === 'admin';
   const mainNav   = isTeacher ? TEACHER_NAV : STUDENT_NAV;
   const isRtl     = lang === 'ar';
-  const homeRoute = isTeacher ? '/teacher-dashboard' : '/dashboard';
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -97,8 +96,8 @@ const Layout = () => {
       {/* ══════════════════════════════════════════════════════════════
           TOP NAVBAR
       ══════════════════════════════════════════════════════════════ */}
-      <header className="h-16 sticky top-0 z-30 bg-white dark:bg-gray-800 border-b
-        border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
+      <header className="h-16 sticky top-0 z-30 bg-[rgba(248,250,252,0.90)] dark:bg-[rgba(11,17,32,0.88)] border-b
+        border-gray-200 dark:border-gray-700 backdrop-blur-[20px] transition-colors">
         <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-3">
 
           {/* ── Left: Hamburger + Logo ── */}
@@ -355,8 +354,8 @@ export const PublicLayout = () => {
       {/* ══════════════════════════════════════════════════════════════
           SIMPLE TOP NAVBAR FOR PUBLIC PAGES
       ══════════════════════════════════════════════════════════════ */}
-      <header className="h-16 sticky top-0 z-30 bg-white dark:bg-gray-800 border-b
-        border-gray-200 dark:border-gray-700 shadow-sm transition-colors">
+      <header className="h-16 sticky top-0 z-30 bg-[rgba(248,250,252,0.90)] dark:bg-[rgba(11,17,32,0.88)] border-b
+        border-gray-200 dark:border-gray-700 backdrop-blur-[20px] transition-colors">
         <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-3">
           
           {/* ── Left: Logo ── */}

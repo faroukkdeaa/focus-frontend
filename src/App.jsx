@@ -26,7 +26,6 @@ import QuizDetails from './pages/QuizDetails';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ProtectedLayout, PublicLayout } from './components/Layout';
 import EditQuiz from './pages/EditQuiz';
-import SearchResults from './pages/SearchResults';
 
 
 
@@ -43,7 +42,6 @@ function App() {
         {/* ── Public Routes WITH PublicLayout (simple navbar for visitors) ── */}
         <Route element={<PublicLayout />}>
           <Route path="/subject/:subjectId" element={<SubjectPage />} />
-          <Route path="/search" element={<SearchResults />} />
         </Route>
 
         {/* ── Protected Routes WITH global Layout (navbar + drawer) ── */}

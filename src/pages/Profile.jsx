@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { isValidEmail, isValidPassword, isValidFullName } from '../utils/validation';
 import { useLanguage } from '../context/LanguageContext';
+import SkeletonLoader from '../components/SkeletonLoader';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -203,9 +204,11 @@ const Profile = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-[#103B66] dark:text-blue-400 font-['Cairo'] transition-colors" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        <Loader2 className="w-12 h-12 animate-spin mb-4" />
-        <p className="text-lg font-bold dark:text-white transition-colors">{t('loading')}</p>
+      <div className="min-h-screen flex flex-col pt-12 px-6 bg-gray-50 dark:bg-gray-900 transition-colors" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+        <div className="max-w-4xl mx-auto w-full space-y-6">
+          <SkeletonLoader type="card" height="150px" />
+          <SkeletonLoader type="bento" height="400px" />
+        </div>
       </div>
     );
   }

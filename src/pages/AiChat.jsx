@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Brain, ArrowRight, Send, Loader2 } from 'lucide-react';
+import { ArrowRight, Send, Loader2 } from 'lucide-react';
+import TargetIcon from '../components/TargetIcon';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useLanguage } from '../context/LanguageContext';
+import SkeletonLoader from '../components/SkeletonLoader';
 
 const AiChat = () => {
   const navigate = useNavigate();
@@ -77,7 +79,7 @@ const AiChat = () => {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <div className="bg-[#103B66] p-2 rounded-lg">
-                  <Brain className="w-5 h-5 text-white" />
+                  <TargetIcon className="w-5 h-5 shrink-0" />
                 </div>
                 <h1 className="text-xl font-bold text-[#103B66] dark:text-blue-400">{t('ai_chat_title')}</h1>
               </div>
@@ -107,9 +109,14 @@ const AiChat = () => {
           ))}
           {loading && (
             <div className="flex justify-end">
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 shadow-sm flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-[#103B66]" />
-                <span className="text-gray-500 dark:text-gray-400 text-sm">{t('generating')}</span>
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 shadow-sm flex flex-col gap-2 w-48">
+                <div className="flex items-center gap-2 mb-1">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#103B66]" />
+                  <span className="text-gray-500 dark:text-gray-400 text-xs font-semibold">{t('generating')}</span>
+                </div>
+                <SkeletonLoader type="text" height="12px" className="w-[80%]" />
+                <SkeletonLoader type="text" height="12px" className="w-[60%]" />
+                <SkeletonLoader type="text" height="12px" className="w-[90%]" />
               </div>
             </div>
           )}
