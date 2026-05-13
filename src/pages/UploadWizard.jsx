@@ -804,22 +804,19 @@ const UploadWizard = () => {
       }
       const durationSeconds = await getVideoDurationSeconds(videoFile);
       formData.append('duration', durationSeconds);
-      formData.append('file', videoFile);
 
-      // Append raw File object directly — thumbnail is always a File or null (never a data URL)
-      if (thumbnail) {
-        formData.append('thumbnail', thumbnail, thumbnail.name);
+      const videoFileState = videoFile;
+      console.log('FINAL VIDEO STATE:', videoFileState);
+      if (videoFileState) {
+        formData.append('file', videoFileState);
       }
 
-      // Verify payload before sending
-      console.log('[UploadWizard] FormData entries:');
-      for (const [key, value] of formData.entries()) {
-        console.log(' ', key, value instanceof File ? `File(${value.name}, ${(value.size/1024).toFixed(1)}KB)` : value);
+      if (thumbnail && thumbnail instanceof File) {
+        formData.append('thumbnail', thumbnail);
       }
 
       // Let the browser set Content-Type + boundary automatically (DO NOT set it manually)
-      // Use POST + _method=PUT for updates so PHP processes the multipart body correctly
-      const videoRes = await api.post('/videos', formData);
+      const videoRes = await api.post('/videos', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       
       const newVideoId = videoRes.data.id;
 
@@ -1204,16 +1201,12 @@ const UploadWizard = () => {
                   type="file"
                   accept="image/*"
                   style={{display:"none"}}
-                  onChange={e => {
+                  onChange={(e) => {
                     const f = e.target.files[0];
                     if (!f) return;
-                    // ── DEBUG PROBE: confirm File is captured at selection time ──
-                    console.log("%c[THUMBNAIL DEBUG] File selected:", "color:lime;font-weight:bold", f);
-                    console.log("[THUMBNAIL DEBUG] name:", f.name, "| size:", f.size, "| type:", f.type);
-                    // ─────────────────────────────────────────────────────────────
                     setThumbnail(f);
                     const reader = new FileReader();
-                    reader.onload = ev => setThumbPreview(ev.target.result);
+                    reader.onload = (ev) => setThumbPreview(ev.target.result);
                     reader.readAsDataURL(f);
                   }}
                 />
