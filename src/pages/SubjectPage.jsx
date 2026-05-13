@@ -221,7 +221,6 @@ const TYPE_ICON = {
 };
 
 function FallbackThumbnail({ lessonNumber, type = "video" }) {
-  const gradient = FALLBACK_GRADIENTS[(lessonNumber - 1) % FALLBACK_GRADIENTS.length] || FALLBACK_GRADIENTS[0];
   const Icon = TYPE_ICON[type] || Play;
 
   return (

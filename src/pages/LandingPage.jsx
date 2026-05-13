@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
-import LangToggle from "../components/LangToggle";
 import { publicApi } from "../api/api";
 import { motion } from "framer-motion";
 import { useTheme } from "../context/ThemeContext";
-import Logo from "../components/Logo";
+import FullLogo from "../components/FullLogo";
+import TargetIcon from "../components/TargetIcon";
 import {
   Brain,
   TrendingUp,
@@ -30,6 +30,7 @@ import {
   Clock,
   Lightbulb,
   Search,
+  ClipboardCheck,
 } from "lucide-react";
 
 const LOGIN_PATH = "/login";
@@ -79,7 +80,7 @@ function NavHeader({
     >
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-4 flex items-center justify-between gap-4">
         {/* Logo */}
-          <Logo className="scale-95 origin-left" />
+          <FullLogo className="text-3xl" theme="dark" />
 
         <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-md mx-4">
           <div
@@ -131,8 +132,6 @@ function NavHeader({
 
         {/* Right side controls */}
         <div className="flex items-center gap-3">
-          <LangToggle />
-
           {/* ── Theme toggle ── */}
           <button
             onClick={setIsDarkMode} // Now directly calls the global toggleTheme
@@ -246,203 +245,389 @@ function NavHeader({
   );
 }
 
-function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
+function FeatureCard({
+  icon: Icon,
+  title,
+  description,
+  iconColor = "#22d3ee",
+}) {
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <section
-      style={{
-        ...transition,
-        background:   T.bg,
-        paddingTop:   "96px",
-        paddingBottom:"100px",
-        position:     "relative",
-        overflow:     "hidden",
-      }}
+    <div
+      className="relative p-[1.5px] rounded-2xl cursor-default"
+      style={{ fontFamily: "'Cairo', sans-serif" }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      <div
-        style={{
-          position:         "absolute", inset: 0, pointerEvents: "none",
-          backgroundImage:  `radial-gradient(${T.textDim === "#475569" ? "rgba(255,255,255,0.04)" : "rgba(15,23,42,0.055)"} 1px, transparent 1px)`,
-          backgroundSize:   "36px 36px",
+      {/* Animated gradient border layer */}
+      <motion.div
+        className="absolute inset-0 rounded-2xl"
+        animate={{
+          opacity: hovered ? 1 : 0,
+          background: hovered
+            ? [
+                "linear-gradient(135deg, #1e40af, #7c3aed, #1e40af)",
+                "linear-gradient(225deg, #7c3aed, #1e40af, #7c3aed)",
+                "linear-gradient(315deg, #1e40af, #7c3aed, #1e40af)",
+              ]
+            : "linear-gradient(135deg, #1e40af, #7c3aed)",
+        }}
+        transition={{
+          opacity: { duration: 0.35 },
+          background: { duration: 3, repeat: Infinity, ease: "linear" },
         }}
       />
 
-      <div className="relative max-w-7xl mx-auto px-6 lg:px-10 text-center">
-        <motion.div 
-          className="max-w-3xl mx-auto"
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          transition={{ duration: 0.6, ease: "easeOut" }}
+      {/* Subtle default border */}
+      <div
+        className="absolute inset-0 rounded-2xl border border-gray-200 dark:border-white/10"
+      />
+
+      {/* Card body */}
+      <div
+        className="relative rounded-2xl flex flex-col items-center text-center px-6 py-8 gap-5 bg-white shadow-sm dark:bg-[#1A2744]/40 dark:shadow-none"
+        style={{ height: "100%" }}
+      >
+        {/* Icon container */}
+        <div
+          className="relative flex items-center justify-center w-14 h-14 rounded-xl flex-shrink-0"
+          style={{
+            background: `radial-gradient(circle at 50% 50%, ${iconColor}18 0%, ${iconColor}06 100%)`,
+            border: `1px solid ${iconColor}30`,
+          }}
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.1, ease: "easeOut" }}
-            style={{
-              ...transition,
-              display:        "inline-flex",
-              alignItems:     "center",
-              gap:            "8px",
-              padding:        "8px 18px",
-              borderRadius:   "999px",
-              marginBottom:   "28px",
-              background:     T.accentDim,
-              border:         `1px solid ${T.borderAccent}`,
-            }}
+            animate={
+              hovered
+                ? { filter: `drop-shadow(0 0 8px ${iconColor}90)` }
+                : { filter: `drop-shadow(0 0 4px ${iconColor}50)` }
+            }
+            transition={{ duration: 0.4 }}
           >
-            <Sparkles style={{ color: T.accent, width: "14px", height: "14px" }} />
-            <span style={{ color: T.accent, fontSize: "0.8rem" }}>
-              منصة تعليمية مدعومة بالذكاء الاصطناعي
-            </span>
+            <Icon size={26} color={iconColor} strokeWidth={1.5} />
           </motion.div>
+          {/* Subtle icon glow bg */}
+          <motion.div
+            className="absolute inset-0 rounded-xl"
+            animate={{ opacity: hovered ? 0.2 : 0.08 }}
+            transition={{ duration: 0.4 }}
+            style={{ background: `radial-gradient(circle, ${iconColor} 0%, transparent 70%)` }}
+          />
+        </div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
-            style={{
-              ...transition,
-              color:        T.textPrimary,
-              fontSize:     "clamp(2.8rem, 6vw, 4.8rem)",
-              fontWeight:   800,
-              lineHeight:   1.18,
-              marginBottom: "20px",
-            }}
+        {/* Text */}
+        <div className="flex flex-col items-center gap-2">
+          <h3
+            className="text-slate-900 dark:text-white m-0"
+            style={{ fontSize: "1.1rem", fontWeight: 700, lineHeight: 1.4 }}
           >
-            منصتك الذكية للتميز في
-            <br />
-            <span style={{ color: T.accent }}>الثانوية العامة</span>
-          </motion.h1>
+            {title}
+          </h3>
+          <p
+            className="m-0 leading-relaxed text-slate-600 dark:text-[#94a3b8]"
+            style={{ fontSize: "0.875rem", fontWeight: 400, maxWidth: "22ch" }}
+          >
+            {description}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
-            style={{
-              ...transition,
-              color:        T.textMuted,
-              fontSize:     "1.1rem",
-              lineHeight:   1.85,
-              marginBottom: "40px",
-            }}
-          >
-            نظام ذكي يحلل نقاط ضعفك تلقائياً ويوجهك للدروس المناسبة
-            <br />
-            لتحقيق أفضل النتائج في الشعبة العلمية
-          </motion.p>
+function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
+  return (
+    <section
+      dir="rtl"
+      className="bg-slate-50 dark:bg-[#0f172a]"
+      style={{
+        ...transition,
+        position:      "relative",
+        minHeight:     "100vh",
+        width:         "100%",
+        overflow:      "hidden",
+        padding:       "80px 0 100px",
+        fontFamily:    "'Cairo', sans-serif",
+      }}
+    >
+      {/* ── Ambient background gradients ── */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }} aria-hidden="true">
+        {/* Cyan top-right glow */}
+        <div style={{
+          position: "absolute", top: "-10%", right: "5%",
+          width: "520px", height: "520px", borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(6,182,212,0.12) 0%, transparent 70%)",
+        }} />
+        {/* Purple bottom-left glow */}
+        <div style={{
+          position: "absolute", bottom: "-5%", left: "10%",
+          width: "480px", height: "480px", borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%)",
+        }} />
+        {/* Center indigo subtle */}
+        <div style={{
+          position: "absolute", top: "30%", left: "35%",
+          width: "300px", height: "300px", borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)",
+        }} />
+      </div>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
-            style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}
-          >
-            <button
-              onClick={() => handleSmartNav('/signup')}
+      <div className="relative max-w-7xl mx-auto px-6 lg:px-12" style={{ position: "relative", zIndex: 10 }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "48px 64px",
+          alignItems: "center",
+        }} className="grid-cols-1 lg:grid-cols-2">
+
+          {/* ── Column 1: Text (right in RTL) ── */}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", textAlign: "right", gap: "28px" }}>
+
+            {/* Badge */}
+            <motion.div
+              initial={{ opacity: 0, y: -16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
               style={{
-                ...transition,
-                display:      "flex", alignItems: "center", gap: "8px",
-                padding:      "14px 32px",
-                borderRadius: "12px",
-                fontSize:     "1rem",
-                fontWeight:   700,
-                background:   T.accent,
-                color:        "#FFFFFF",
-                border:       "none",
-                cursor:       "pointer",
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.opacity   = "0.88";
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.opacity   = "1";
+                display: "inline-flex", alignItems: "center", gap: "8px",
+                borderRadius: "999px", padding: "8px 16px", fontSize: "0.875rem",
+                background: "rgba(14,165,233,0.10)",
+                border: "1px solid rgba(14,165,233,0.25)",
+                backdropFilter: "blur(12px)",
+                color: "#38bdf8",
               }}
             >
-              ابدأ التعلم الآن
-              <ArrowLeft style={{ width: "16px", height: "16px" }} />
-            </button>
+              <span>✨</span>
+              <span>منصة تعليمية مدعومة بالذكاء الاصطناعي</span>
+            </motion.div>
 
-            <button
-              onClick={() => onNavigate("signup")}
+            {/* Heading */}
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
+              className="text-slate-900 dark:text-[#f1f5f9]"
               style={{
-                ...transition,
-                display:      "flex", alignItems: "center", gap: "8px",
-                padding:      "14px 32px",
-                borderRadius: "12px",
-                fontSize:     "1rem",
-                background:   T.bgCard,
-                color:        T.textPrimary,
-                border:       `1px solid ${T.border}`,
-                cursor:       "pointer",
-                boxShadow:    T.shadowCard,
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = T.borderAccent;
-                e.currentTarget.style.color        = T.accent;
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = T.border;
-                e.currentTarget.style.color        = T.textPrimary;
+                fontFamily: "'Cairo', sans-serif",
+                fontSize: "clamp(2rem, 4vw, 3.5rem)",
+                fontWeight: 900,
+                lineHeight: 1.3,
+                margin: 0,
+                textAlign: "right",
               }}
             >
-              شاهد كيف يعمل
-            </button>
-          </motion.div>
-        </motion.div>
+              منصتك الذكية{" "}
+              <span style={{
+                background: "linear-gradient(135deg, #818cf8 0%, #a78bfa 40%, #c084fc 80%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}>
+                للتميز في
+              </span>
+              <br />
+              الثانوية العامة
+            </motion.h1>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px", marginTop: "72px" }}>
+            {/* Subtitle */}
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.25, ease: "easeOut" }}
+              className="text-slate-600 dark:text-[#cbd5e1]"
+              style={{
+                fontFamily: "'Cairo', sans-serif",
+                fontSize: "clamp(0.95rem, 1.5vw, 1.125rem)",
+                lineHeight: 1.8,
+                fontWeight: 400,
+                maxWidth: "32rem",
+                margin: 0,
+              }}
+            >
+              تعلّم بأسلوب ذكي ومخصص مع منصة{" "}
+              <span style={{ color: "#818cf8", fontWeight: 600 }}>Focus</span>
+              . دروس تفاعلية، اختبارات تكيفية، ومسار دراسي يتكيف مع مستواك
+              ليضمن لك أعلى النتائج في امتحاناتك.
+            </motion.p>
+
+            {/* CTA Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.35, ease: "easeOut" }}
+              style={{ display: "flex", flexDirection: "row-reverse", gap: "16px", flexWrap: "wrap", justifyContent: "flex-start" }}
+            >
+              {/* Primary CTA – smooth scroll to subjects */}
+              <motion.button
+                whileHover={{ scale: 1.04, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  document.getElementById('subjects-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                style={{
+                  position: "relative", overflow: "hidden",
+                  borderRadius: "12px", padding: "12px 28px",
+                  color: "#ffffff", cursor: "pointer",
+                  fontFamily: "'Cairo', sans-serif", fontWeight: 700, fontSize: "1rem",
+                  background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)",
+                  boxShadow: "0 0 24px rgba(99,102,241,0.45), 0 4px 16px rgba(99,102,241,0.3)",
+                  border: "none",
+                }}
+              >
+                ابدأ التعلم الآن ←
+              </motion.button>
+
+              {/* Secondary CTA */}
+              <motion.button
+                whileHover={{ scale: 1.04, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => onNavigate("signup")}
+                style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  borderRadius: "12px", padding: "12px 28px", cursor: "pointer",
+                  fontFamily: "'Cairo', sans-serif", fontWeight: 600, fontSize: "1rem",
+                  color: "#e2e8f0",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  backdropFilter: "blur(16px)",
+                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
+                }}
+              >
+                <span style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: "28px", height: "28px", borderRadius: "50%",
+                  background: "rgba(99,102,241,0.25)", color: "#818cf8", fontSize: "0.75rem",
+                }}>▶</span>
+                شاهد كيف يعمل
+              </motion.button>
+            </motion.div>
+
+            {/* Stats row */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.7, delay: 0.5, ease: "easeOut" }}
+              style={{
+                display: "flex", flexDirection: "row-reverse", gap: "32px", paddingTop: "8px",
+                borderTop: "1px solid rgba(255,255,255,0.06)", width: "100%",
+              }}
+            >
+              {/* {[
+                { value: "+٥٠٠٠", label: "طالب نشط" },
+                { value: "٩٨٪",   label: "معدل النجاح" },
+                { value: "+٢٠٠",  label: "درس تفاعلي" },
+              ].map((stat) => (
+                <div key={stat.label} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", paddingTop: "16px" }}>
+                  <span style={{
+                    fontFamily: "'Cairo', sans-serif", fontSize: "1.4rem", fontWeight: 800,
+                    background: "linear-gradient(135deg, #38bdf8, #818cf8)",
+                    WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+                  }}>{stat.value}</span>
+                  <span style={{
+                    fontFamily: "'Cairo', sans-serif", fontSize: "0.8rem",
+                    color: "#64748b", fontWeight: 500,
+                  }}>{stat.label}</span>
+                </div>
+              ))} */}
+            </motion.div>
+          </div>
+
+          {/* ── Column 2: Visual – TargetIcon with glow auras (left in RTL) ── */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", padding: "32px 0" }}>
+
+            {/* Large cyan glow aura behind icon */}
+            <div style={{
+              position: "absolute",
+              width: "520px", height: "520px",
+              background: "radial-gradient(circle, rgba(6,182,212,0.28) 0%, rgba(99,102,241,0.14) 45%, transparent 72%)",
+              borderRadius: "50%",
+              filter: "blur(32px)",
+            }} />
+
+            {/* Inner bright core glow */}
+            <div style={{
+              position: "absolute",
+              width: "300px", height: "300px",
+              background: "radial-gradient(circle, rgba(56,189,248,0.20) 0%, transparent 70%)",
+              borderRadius: "50%",
+              filter: "blur(20px)",
+            }} />
+
+            {/* Floating TargetIcon */}
+            <motion.div
+              animate={{ y: [0, -20, 0] }}
+              transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+              style={{ position: "relative", maxWidth: "90vw" }}
+            >
+              {/* Ground shadow that shrinks/grows with float */}
+              <motion.div
+                animate={{ scaleX: [1, 0.75, 1], opacity: [0.5, 0.25, 0.5] }}
+                transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+                style={{
+                  position: "absolute", bottom: "-28px", left: "50%",
+                  transform: "translateX(-50%)",
+                  width: "260px", height: "28px",
+                  background: "radial-gradient(ellipse, rgba(6,182,212,0.35) 0%, transparent 70%)",
+                  filter: "blur(12px)", borderRadius: "50%",
+                }}
+              />
+              <TargetIcon className="w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96 relative z-10" />
+            </motion.div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── Feature Cards (below the hero grid) ── */}
+      <div className="relative max-w-7xl mx-auto px-6 lg:px-12" style={{ position: "relative", zIndex: 10, marginTop: "80px" }} dir="rtl">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px" }}>
           {[
-            { icon: Brain,      iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, title: "كشف نقاط الضعف بالذكاء الاصطناعي", desc: "النظام يحلل إجاباتك ويحدد المواضيع التي تحتاج للتركيز عليها بدقة" },
-            { icon: Target,     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, title: "خطة دراسية شخصية",                  desc: "توجيه ذكي للدروس والتمارين بناءً على مستواك الحالي وأهدافك" },
-            { icon: TrendingUp, iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, title: "تتبع التقدم المستمر",                 desc: "متابعة دقيقة لتطورك في كل مادة ومهارة مع تقارير تفصيلية" },
+            {
+              icon: Brain,
+              title: "كشف نقاط الضعف بالذكاء الاصطناعي",
+              description: "النظام يحلل إجاباتك ويحدد المواضيع التي تحتاج للتركيز عليها بدقة",
+              iconColor: "#22d3ee",
+            },
+            {
+              icon: TrendingUp,
+              title: "تتبع التقدم المستمر",
+              description: "متابعة دقيقة لتطورك في كل مادة ومقارنة مع تقارير تفصيلية",
+              iconColor: "#818cf8",
+            },
+            {
+              icon: Target,
+              title: "خطة دراسية شخصية",
+              description: "توجيه ذكي للدروس والتمارين بناءً على مستواك الحالي وأهدافك",
+              iconColor: "#34d399",
+            },
+            {
+              icon: Zap,
+              title: "تغذية راجعة فورية",
+              description: "تلقَّ تحليلاً فورياً بعد كل سؤال لتفهم أخطاءك وتصحّحها لحظياً",
+              iconColor: "#f59e0b",
+            },
+            {
+              icon: BarChart3,
+              title: "تحليلات أداء متقدمة",
+              description: "رسوم بيانية واضحة تُظهر نموك عبر الوقت في كل موضوع ومادة",
+              iconColor: "#a78bfa",
+            },
+            {
+              icon: BookOpen,
+              title: "محتوى شامل ومنظّم",
+              description: "جميع مواد الثانوية العامة في مكان واحد، منظّمة ومصنّفة بعناية",
+              iconColor: "#38bdf8",
+            },
           ].map((f, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.5, delay: i * 0.15 }}
-              whileHover={{ y: -4 }}
-              style={{ ...transition, ...glass(), padding: "32px", textAlign: "right" }}
-              onMouseEnter={e => {
-                const el = e.currentTarget;
-                el.style.boxShadow   = T.shadowHover;
-                el.style.borderColor = T.borderAccent;
-              }}
-              onMouseLeave={e => {
-                const el = e.currentTarget;
-                el.style.boxShadow   = T.shadowCard;
-                el.style.borderColor = T.border;
-              }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
             >
-              <div
-                className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
-                style={{
-                  ...transition,
-                  width:          "56px", height: "56px", borderRadius: "14px",
-                  background:     f.iconBg,
-                  border:         `1px solid ${f.iconBdr}`,
-                  display:        "flex", alignItems: "center", justifyContent: "center",
-                  marginBottom:   "18px",
-                }}
-              >
-                <f.icon
-                  className="h-7 w-7 shrink-0"
-                  style={{
-                    color: f.iconClr,
-                    stroke: f.iconClr,
-                    margin: 0,
-                    padding: 0,
-                  }}
-                  strokeWidth={2}
-                  fill="none"
-                />
-              </div>
-              <h3 style={{ ...transition, color: T.textPrimary, fontWeight: 700, fontSize: "1.05rem", marginBottom: "10px" }}>
-                {f.title}
-              </h3>
-              <p style={{ ...transition, color: T.textMuted, fontSize: "0.875rem", lineHeight: 1.8 }}>
-                {f.desc}
-              </p>
+              <FeatureCard {...f} />
             </motion.div>
           ))}
         </div>
@@ -451,53 +636,111 @@ function HeroSection({ T, glass, onNavigate, handleSmartNav }) {
   );
 }
 
+function StatCard({ stat }) {
+  const [hovered, setHovered] = useState(false);
+  const { isDarkMode } = useTheme();
+  
+  const iconColor = stat.color || "#38bdf8";
+  const Icon = stat.icon;
+
+  const bgGradient = isDarkMode
+    ? "linear-gradient(160deg, #0d1528 0%, #0a0f1e 100%)"
+    : `linear-gradient(160deg, #ffffff 0%, #f8fafc 100%)`;
+
+  const borderStatic = isDarkMode
+    ? "1.5px solid rgba(255,255,255,0.07)"
+    : "1.5px solid rgba(0,0,0,0.04)";
+
+  const textColor = isDarkMode ? "#ffffff" : "#0f172a";
+  const descColor = isDarkMode ? "#94a3b8" : "#475569";
+
+  return (
+    <div
+      className="relative p-[1.5px] rounded-2xl cursor-default h-full transition-transform duration-300"
+      style={{ fontFamily: "'Cairo', sans-serif", transform: hovered ? "translateY(-4px)" : "translateY(0)" }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <motion.div
+        className="absolute inset-0 rounded-2xl"
+        animate={{
+          opacity: hovered ? 1 : 0,
+          background: hovered
+            ? [
+                `linear-gradient(135deg, ${iconColor}50, transparent, ${iconColor}50)`,
+                `linear-gradient(225deg, transparent, ${iconColor}50, transparent)`,
+                `linear-gradient(315deg, ${iconColor}50, transparent, ${iconColor}50)`,
+              ]
+            : `linear-gradient(135deg, ${iconColor}20, transparent)`,
+        }}
+        transition={{
+          opacity: { duration: 0.35 },
+          background: { duration: 3, repeat: Infinity, ease: "linear" },
+        }}
+      />
+      <div
+        className="absolute inset-0 rounded-2xl"
+        style={{ border: borderStatic }}
+      />
+      <div
+        className="relative rounded-2xl flex flex-col items-center justify-center p-8 h-full text-center"
+        style={{ background: bgGradient, boxShadow: isDarkMode ? "none" : hovered ? "0 10px 25px -5px rgba(0,0,0,0.05)" : "0 4px 6px -1px rgba(0,0,0,0.02)", transition: "box-shadow 0.3s ease" }}
+      >
+        <div
+            className="flex items-center justify-center w-16 h-16 rounded-full mb-5"
+            style={{
+              background: `radial-gradient(circle at 50% 50%, ${iconColor}18 0%, ${iconColor}06 100%)`,
+              border: `1px solid ${iconColor}30`,
+            }}
+        >
+          <motion.div
+            animate={
+              hovered
+                ? { filter: `drop-shadow(0 0 8px ${iconColor}80)`, scale: 1.1 }
+                : { filter: `drop-shadow(0 0 4px ${iconColor}40)`, scale: 1 }
+            }
+            transition={{ duration: 0.4 }}
+          >
+            <Icon size={30} color={iconColor} strokeWidth={1.5} />
+          </motion.div>
+        </div>
+        
+        <div style={{ color: iconColor, fontSize: "2.2rem", fontWeight: 800, lineHeight: 1, marginBottom: "8px" }}>
+          {stat.value}
+        </div>
+        <div style={{ color: textColor, fontWeight: 700, fontSize: "1rem", marginBottom: "4px" }}>
+          {stat.label}
+        </div>
+        <div style={{ color: descColor, fontSize: "0.8rem" }}>
+          {stat.sub}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatsSection({ T, landingData }) {
   const stats = [
-    { icon: Users,         iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: `+${landingData?.all_students_count ?? "٢٠٠"}`, label: "طالب مسجّل",   sub: "عبر محافظات مصر" },
-    { icon: GraduationCap, iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: `+${landingData?.all_teachers_count ?? "٨٧"}`,   label: "معلم متخصص",  sub: "يستخدمون لوحة التحليل" },
-    { icon: Star,          iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: "٩٨٪",   label: "نسبة الرضا",  sub: "يوصون بالمنصة" },
-    { icon: Zap,           iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, value: `+${landingData?.subjects_count ?? "٤"}`,  label: "درس ومراجعة", sub: "محتوى محدّث باستمرار" },
+    { icon: Users,         color: "#38bdf8", value: `${landingData?.all_students_count ?? "52"}+`, label: "طالب مسجّل",   sub: "عبر محافظات مصر" },
+    { icon: GraduationCap, color: "#38bdf8", value: `${landingData?.all_teachers_count ?? "23"}+`,   label: "معلم متخصص",  sub: "يستخدمون لوحة التحليل" },
+    { icon: Star,          color: "#38bdf8", value: "%98",   label: "نسبة الرضا",  sub: "يوصون بالمنصة" },
+    { icon: Zap,           color: "#38bdf8", value: `${landingData?.subjects_count ?? "3"}+`,  label: "درس ومراجعة", sub: "محتوى محدّث باستمرار" },
   ];
 
   return (
-    <section style={{ ...transition, background: T.bgPanel, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, padding: "56px 0" }}>
+    <section style={{ ...transition, background: T.bgPanel, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}`, padding: "70px 0" }}>
       <div className="max-w-7xl mx-auto px-6 lg:px-10">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "24px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "24px" }}>
           {stats.map((s, i) => (
-            <div key={i} style={{ ...transition, ...card(T), padding: "28px 24px", textAlign: "center" }}>
-              <div
-                className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
-                style={{
-                  ...transition,
-                  width: "64px", height: "64px", borderRadius: "9999px",
-                  background: s.iconBg,
-                  border:     `1px solid ${s.iconBdr}`,
-                  display:    "flex", alignItems: "center", justifyContent: "center",
-                  margin:     "0 auto 16px",
-                }}
-              >
-                <s.icon
-                  className="h-8 w-8 shrink-0"
-                  style={{
-                    color: s.iconClr,
-                    stroke: s.iconClr,
-                    margin: 0,
-                    padding: 0,
-                  }}
-                  strokeWidth={2}
-                  fill="none"
-                />
-              </div>
-              <div style={{ ...transition, color: T.iconA, fontSize: "2.2rem", fontWeight: 800, lineHeight: 1, marginBottom: "6px" }}>
-                {s.value}
-              </div>
-              <div style={{ ...transition, color: T.textPrimary, fontWeight: 600, fontSize: "0.9rem" }}>
-                {s.label}
-              </div>
-              <div style={{ ...transition, color: T.textMuted, fontSize: "0.75rem", marginTop: "3px" }}>
-                {s.sub}
-              </div>
-            </div>
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+            >
+              <StatCard stat={s} />
+            </motion.div>
           ))}
         </div>
       </div>
@@ -505,13 +748,117 @@ function StatsSection({ T, landingData }) {
   );
 }
 
+function SubjectCard({ subject, onClick }) {
+  const [hovered, setHovered] = useState(false);
+  const { isDarkMode, theme: T } = useTheme();
+  
+  const iconColor = subject.color || "#818cf8";
+  const Icon = subject.icon;
+
+  const bgGradient = isDarkMode
+    ? "linear-gradient(160deg, #0d1528 0%, #0a0f1e 100%)"
+    : `linear-gradient(160deg, #ffffff 0%, #f8fafc 100%)`;
+
+  const borderStatic = isDarkMode
+    ? "1.5px solid rgba(255,255,255,0.07)"
+    : "1.5px solid rgba(0,0,0,0.04)";
+
+  const textColor = isDarkMode ? "#ffffff" : "#0f172a";
+  const descColor = isDarkMode ? "#94a3b8" : "#475569";
+
+  return (
+    <div
+      className="relative p-[1.5px] rounded-2xl cursor-pointer h-full transition-transform duration-300"
+      style={{ fontFamily: "'Cairo', sans-serif", transform: hovered ? "translateY(-4px)" : "translateY(0)" }}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <motion.div
+        className="absolute inset-0 rounded-2xl"
+        animate={{
+          opacity: hovered ? 1 : 0,
+          background: hovered
+            ? [
+                `linear-gradient(135deg, ${iconColor}50, transparent, ${iconColor}50)`,
+                `linear-gradient(225deg, transparent, ${iconColor}50, transparent)`,
+                `linear-gradient(315deg, ${iconColor}50, transparent, ${iconColor}50)`,
+              ]
+            : `linear-gradient(135deg, ${iconColor}20, transparent)`,
+        }}
+        transition={{
+          opacity: { duration: 0.35 },
+          background: { duration: 3, repeat: Infinity, ease: "linear" },
+        }}
+      />
+      <div
+        className="absolute inset-0 rounded-2xl"
+        style={{ border: borderStatic }}
+      />
+      <div
+        className="relative rounded-2xl flex flex-col p-6 h-full text-right"
+        style={{ background: bgGradient, boxShadow: isDarkMode ? "none" : hovered ? "0 10px 25px -5px rgba(0,0,0,0.05)" : "0 4px 6px -1px rgba(0,0,0,0.02)", transition: "box-shadow 0.3s ease" }}
+      >
+        <div className="flex justify-between items-start mb-6" dir="ltr">
+          <div
+             className="relative flex items-center justify-center w-14 h-14 rounded-xl flex-shrink-0"
+             style={{
+               background: `radial-gradient(circle at 50% 50%, ${iconColor}18 0%, ${iconColor}06 100%)`,
+               border: `1px solid ${iconColor}30`,
+             }}
+          >
+            <motion.div
+              animate={
+                hovered
+                  ? { filter: `drop-shadow(0 0 8px ${iconColor}80)` }
+                  : { filter: `drop-shadow(0 0 4px ${iconColor}40)` }
+              }
+              transition={{ duration: 0.4 }}
+            >
+              <Icon size={28} color={iconColor} strokeWidth={1.5} />
+            </motion.div>
+          </div>
+          <span
+            style={{
+              padding: "4px 12px",
+              borderRadius: "8px",
+              fontSize: "0.75rem",
+              letterSpacing: "0.05em",
+              background: `${iconColor}15`,
+              color: iconColor,
+              border: `1px solid ${iconColor}30`,
+              textTransform: "uppercase"
+            }}
+          >
+            {subject.eng}
+          </span>
+        </div>
+        
+        <h3
+          className="m-0 mb-4"
+          style={{ color: textColor, fontSize: "1.25rem", fontWeight: 700, lineHeight: 1.4 }}
+        >
+          {subject.name}
+        </h3>
+        
+        <div className="mt-auto flex items-center gap-2" style={{ color: descColor, fontSize: "0.85rem" }}>
+          <span className="transition-colors duration-300" style={{ color: hovered ? iconColor : descColor }}>ابدأ الآن</span>
+          <motion.div animate={{ x: hovered ? -4 : 0 }} transition={{ duration: 0.3 }}>
+            <ChevronRight size={16} color={hovered ? iconColor : descColor} />
+          </motion.div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SubjectsSection({ T, subjects, onNavigateSubject }) {
   const SUBJECT_MAP = {
-    PHYSICS:   { icon: Atom,         eng: "Physics",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
-    CHEMISTRY: { icon: FlaskConical, eng: "Chemistry",   iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, badgeBg: T.accentAltDim, badgeBdr: T.borderAlt,    badgeClr: T.accentAlt, cardBdr: T.borderAlt    },
-    BIOLOGY:   { icon: Microscope,   eng: "Biology",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
-    MATH:      { icon: Calculator,   eng: "Mathematics", iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, badgeBg: T.accentAltDim, badgeBdr: T.borderAlt,    badgeClr: T.accentAlt, cardBdr: T.borderAlt    },
-    DEFAULT:   { icon: BookOpen,     eng: "Subject",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
+    PHYSICS:   { icon: Atom,         eng: "Physics",     color: "#38bdf8" },
+    CHEMISTRY: { icon: FlaskConical, eng: "Chemistry",   color: "#34d399" },
+    BIOLOGY:   { icon: Microscope,   eng: "Biology",     color: "#f472b6" },
+    MATH:      { icon: Calculator,   eng: "Mathematics", color: "#818cf8" },
+    DEFAULT:   { icon: BookOpen,     eng: "Subject",     color: "#a78bfa" },
   };
 
   const displayedSubjects = subjects?.length > 0 ? subjects.map(s => {
@@ -522,14 +869,14 @@ function SubjectsSection({ T, subjects, onNavigateSubject }) {
          id: s.id
       };
   }) : [
-    { name: "الفيزياء",   icon: Atom,         eng: "Physics",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
-    { name: "الكيمياء",   icon: FlaskConical, eng: "Chemistry",   iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, badgeBg: T.accentAltDim, badgeBdr: T.borderAlt,    badgeClr: T.accentAlt, cardBdr: T.borderAlt    },
-    { name: "الأحياء",    icon: Microscope,   eng: "Biology",     iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeBg: T.accentDim,    badgeBdr: T.borderAccent, badgeClr: T.accent,    cardBdr: T.borderAccent },
-    { name: "الرياضيات",  icon: Calculator,   eng: "Mathematics", iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, badgeBg: T.accentAltDim, badgeBdr: T.borderAlt,    badgeClr: T.accentAlt, cardBdr: T.borderAlt    },
+    { name: "الفيزياء",   icon: Atom,         eng: "Physics",     color: "#38bdf8" },
+    { name: "الكيمياء",   icon: FlaskConical, eng: "Chemistry",   color: "#34d399" },
+    { name: "الأحياء",    icon: Microscope,   eng: "Biology",     color: "#f472b6" },
+    { name: "الرياضيات",  icon: Calculator,   eng: "Mathematics", color: "#818cf8" },
   ];
 
   return (
-    <section style={{ ...transition, background: T.bg, padding: "90px 0" }}>
+    <section id="subjects-section" style={{ ...transition, background: T.bg, padding: "90px 0" }}>
       <div className="max-w-7xl mx-auto px-6 lg:px-10">
         <div style={{ marginBottom: "48px" }}>
           <div
@@ -551,66 +898,20 @@ function SubjectsSection({ T, subjects, onNavigateSubject }) {
           </p>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "24px" }}>
           {displayedSubjects.map((s, i) => (
-            <div
+            <motion.div
               key={i}
-              style={{ ...transition, ...card(T), padding: "28px", cursor: "pointer" }}
-              onClick={() => s.id ? onNavigateSubject(s.id) : null}
-              onMouseEnter={e => {
-                const el = e.currentTarget;
-                el.style.transform   = "translateY(-4px)";
-                el.style.boxShadow   = T.shadowHover;
-                el.style.borderColor = s.cardBdr;
-                const iconEl = el.querySelector(".icon-wrap");
-                if (iconEl) { iconEl.style.background = s.iconBg.replace("0.10", "0.17").replace("0.11", "0.18"); }
-              }}
-              onMouseLeave={e => {
-                const el = e.currentTarget;
-                el.style.transform   = "translateY(0)";
-                el.style.boxShadow   = T.shadowCard;
-                el.style.borderColor = T.border;
-                const iconEl = el.querySelector(".icon-wrap");
-                if (iconEl) { iconEl.style.background = s.iconBg; }
-              }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
             >
-              <div
-                className="icon-wrap"
-                style={{
-                  ...transition,
-                  width: "60px", height: "60px", borderRadius: "16px",
-                  background:   s.iconBg,
-                  border:       `1px solid ${s.iconBdr}`,
-                  display:      "flex", alignItems: "center", justifyContent: "center",
-                  marginBottom: "18px",
-                }}
-              >
-                <s.icon style={{ color: s.iconClr, width: "28px", height: "28px" }} strokeWidth={2} />
-              </div>
-              <span
-                style={{
-                  ...transition,
-                  display:       "inline-block",
-                  padding:       "2px 10px",
-                  borderRadius:  "6px",
-                  fontSize:      "0.7rem",
-                  letterSpacing: "0.06em",
-                  marginBottom:  "10px",
-                  background:    s.badgeBg,
-                  color:         s.badgeClr,
-                  border:        `1px solid ${s.badgeBdr}`,
-                }}
-              >
-                {s.eng}
-              </span>
-              <h3 style={{ ...transition, color: T.textPrimary, fontWeight: 700, fontSize: "1.15rem", marginBottom: "8px" }}>
-                {s.name}
-              </h3>
-              <div style={{ ...transition, display: "flex", alignItems: "center", gap: "4px", color: T.textDim, fontSize: "0.8rem", marginTop: "8px" }}>
-                <span>ابدأ الآن</span>
-                <ChevronRight style={{ width: "14px", height: "14px" }} />
-              </div>
-            </div>
+              <SubjectCard
+                subject={s}
+                onClick={() => s.id ? onNavigateSubject(s.id) : null}
+              />
+            </motion.div>
           ))}
         </div>
       </div>
@@ -618,12 +919,96 @@ function SubjectsSection({ T, subjects, onNavigateSubject }) {
   );
 }
 
+function StepCard({ stepName, title, description, icon: Icon, iconColor = "#818cf8" }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      className="relative p-[1.5px] rounded-2xl cursor-default h-full"
+      style={{ fontFamily: "'Cairo', sans-serif" }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <motion.div
+        className="absolute inset-0 rounded-2xl"
+        animate={{
+          opacity: hovered ? 1 : 0,
+          background: hovered
+            ? [
+                `linear-gradient(135deg, ${iconColor}40, transparent, ${iconColor}40)`,
+                `linear-gradient(225deg, transparent, ${iconColor}40, transparent)`,
+                `linear-gradient(315deg, ${iconColor}40, transparent, ${iconColor}40)`,
+              ]
+            : `linear-gradient(135deg, ${iconColor}20, transparent)`,
+        }}
+        transition={{
+          opacity: { duration: 0.35 },
+          background: { duration: 3, repeat: Infinity, ease: "linear" },
+        }}
+      />
+      <div
+        className="absolute inset-0 rounded-2xl border border-gray-200 dark:border-white/10"
+      />
+      <div
+        className="relative rounded-2xl flex flex-col items-center text-center px-6 py-8 gap-4 bg-white shadow-sm dark:bg-[#1A2744]/40 dark:shadow-none"
+        style={{ height: "100%" }}
+      >
+        <div
+          className="relative flex items-center justify-center w-14 h-14 rounded-full flex-shrink-0 mb-2"
+          style={{
+            background: `radial-gradient(circle at 50% 50%, ${iconColor}18 0%, ${iconColor}06 100%)`,
+            border: `1px solid ${iconColor}30`,
+          }}
+        >
+          <motion.div
+            animate={
+              hovered
+                ? { filter: `drop-shadow(0 0 8px ${iconColor}90)` }
+                : { filter: `drop-shadow(0 0 4px ${iconColor}50)` }
+            }
+            transition={{ duration: 0.4 }}
+          >
+            <Icon size={26} color={iconColor} strokeWidth={1.5} />
+          </motion.div>
+        </div>
+        
+        <span
+          style={{
+            display: "inline-block",
+            padding: "2px 12px",
+            borderRadius: "999px",
+            fontSize: "0.75rem",
+            background: `${iconColor}20`,
+            color: iconColor,
+            border: `1px solid ${iconColor}40`,
+          }}
+        >
+          {stepName}
+        </span>
+        
+        <h3
+          className="text-slate-900 dark:text-white m-0"
+          style={{ fontSize: "1.05rem", fontWeight: 700, lineHeight: 1.4 }}
+        >
+          {title}
+        </h3>
+        <p
+          className="m-0 leading-relaxed text-slate-600 dark:text-[#94a3b8]"
+          style={{ fontSize: "0.875rem", fontWeight: 400 }}
+        >
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function HowItWorksSection({ T }) {
   const steps = [
-    { num: "٢", icon: BookOpen,    title: "أجب على الاختبارات",           desc: "حل اختبارات تشخيصية ذكية مصنّفة حسب الموضوع والمهارة المعرفية.",    iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeClr: T.accent,    badgeBg: T.accentDim,    badgeBdr: T.borderAccent },
-    { num: "٣", icon: BarChart3,   title: "حلّل الذكاء الاصطناعي نتائجك", desc: "النظام يرصد نمط إجاباتك ويكشف نقاط الضعف الدقيقة عبر وسوم المهارات.", iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, badgeClr: T.accentAlt, badgeBg: T.accentAltDim, badgeBdr: T.borderAlt    },
-    { num: "٤", icon: Lightbulb,   title: "احصل على خطتك الشخصية",        desc: "توجيه فوري للدروس والتمارين العلاجية المناسبة بالضبط لما تحتاجه.",   iconBg: T.iconBgA, iconBdr: T.iconBorderA, iconClr: T.iconA, badgeClr: T.accent,    badgeBg: T.accentDim,    badgeBdr: T.borderAccent },
-    { num: "٥", icon: TrendingUp,  title: "راقب تحسّنك المستمر",           desc: "تقارير أسبوعية تفصيلية تُظهر تطورك وتُعدّل الخطة تلقائياً.",          iconBg: T.iconBgB, iconBdr: T.iconBorderB, iconClr: T.iconB, badgeClr: T.accentAlt, badgeBg: T.accentAltDim, badgeBdr: T.borderAlt    },
+    { num: "١", icon: ClipboardCheck, title: "تشخيص المستوى", desc: "حل اختبارات تشخيصية دقيقة لتحديد مستواك ومكامن قوتك وضعفك.", iconColor: "#22d3ee" },
+    { num: "٢", icon: Brain,          title: "تحليل الذكاء الاصطناعي", desc: "النظام يرصد نمط إجاباتك ويكشف نقاط الضعف الدقيقة عبر وسوم المهارات.", iconColor: "#818cf8" },
+    { num: "٣", icon: Target,         title: "خطة مخصصة", desc: "استلم مساراً دراسياً يركز فقط على مراجعة ما تحتاج إلى تحسينه.", iconColor: "#34d399" },
+    { num: "٤", icon: TrendingUp,     title: "تطور مستمر", desc: "راقب تقدمك أسبوعياً مع تقارير شاملة تُعدّل الخطة تلقائياً بمستواك الجديد.", iconColor: "#f59e0b" },
   ];
 
   return (
@@ -645,41 +1030,23 @@ function HowItWorksSection({ T }) {
             أربع خطوات للتميز
           </h2>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "24px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "24px" }}>
           {steps.map((s, i) => (
-            <div key={i} style={{ textAlign: "center" }}>
-              <div
-                style={{
-                  ...transition,
-                  width: "60px", height: "60px", borderRadius: "50%",
-                  background:   s.iconBg,
-                  border:       `1px solid ${s.iconBdr}`,
-                  display:      "flex", alignItems: "center", justifyItems: "center",
-                  justifyContent: "center",
-                  margin:       "0 auto 18px",
-                }}
-              >
-                <s.icon style={{ color: s.iconClr, width: "24px", height: "24px" }} strokeWidth={2} />
-              </div>
-              <span
-                style={{
-                  ...transition,
-                  display:      "inline-block",
-                  padding:      "2px 10px", borderRadius: "999px",
-                  fontSize:     "0.72rem",
-                  background:   s.badgeBg, color: s.badgeClr, border: `1px solid ${s.badgeBdr}`,
-                  marginBottom: "10px",
-                }}
-              >
-                الخطوة {s.num}
-              </span>
-              <h3 style={{ ...transition, color: T.textPrimary, fontWeight: 700, fontSize: "0.95rem", marginBottom: "8px" }}>
-                {s.title}
-              </h3>
-              <p style={{ ...transition, color: T.textMuted, fontSize: "0.83rem", lineHeight: 1.8 }}>
-                {s.desc}
-              </p>
-            </div>
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+            >
+              <StepCard
+                stepName={`الخطوة ${s.num}`}
+                title={s.title}
+                description={s.desc}
+                icon={s.icon}
+                iconColor={s.iconColor}
+              />
+            </motion.div>
           ))}
         </div>
       </div>
@@ -688,8 +1055,8 @@ function HowItWorksSection({ T }) {
 }
 
 function ComparisonSection({ T }) {
-  const trad  = ["طريقة دراسة موحدة لجميع الطلاب", "لا تشخيص لنقاط الضعف الفعلية", "مراجعة المحتوى كله بلا تركيز", "نتائج متأخرة بعد الامتحان فقط", "لا تتكيف مع مستواك الشخصي"];
-  const focus = ["تحليل ذكي يكشف ضعفك بدقة الوسوم", "خطة دراسية مخصصة لكل طالب", "تركيز فوري على ما تحتاجه فعلاً", "تغذية راجعة فورية بعد كل سؤال", "نظام يتطور مع تطور مستواك"];
+  const trad  = ["طريقة دراسة موحدة لجميع الطلاب", "لا تشخيص دقيق لنقاط الضعف", "مراجعة المحتوى كله بلا تركيز", "نتائج متأخرة بعد الامتحان فقط", "لا تتكيف مع مستواك الشخصي"];
+  const focus = ["تحليل ذكي يكشف ضعفك بدقة", "خطة دراسية مخصصة لك فقط", "تركيز فوري على ما تحتاجه فعلاً", "تغذية راجعة متقدمة بعد كل سؤال", "نظام يتطور كلما تطور مستواك"];
 
   return (
     <section style={{ ...transition, background: T.bg, padding: "90px 0", borderTop: `1px solid ${T.border}` }}>
@@ -703,54 +1070,60 @@ function ComparisonSection({ T }) {
           </p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px" }}>
-          <div
-            style={{
-              ...transition,
-              padding: "32px", borderRadius: "16px",
-              background:  T.bgCard,
-              border:      `1px solid ${T.borderRed}`,
-              boxShadow:   T.shadowCard,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
-              <div style={{ ...transition, width: "40px", height: "40px", borderRadius: "10px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.22)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <XCircle style={{ color: "#EF4444", width: "18px", height: "18px" }} strokeWidth={1.5} />
+          
+          {/* Traditional Card */}
+          <div className="relative p-[1.5px] rounded-2xl cursor-default h-full">
+            <div className="absolute inset-0 rounded-2xl border border-red-200 dark:border-red-900/30" />
+            <div className="relative rounded-2xl flex flex-col px-8 py-8 h-full bg-red-50/50 dark:bg-[#2a0f15]/80">
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "32px" }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <XCircle className="text-red-500" style={{ width: "22px", height: "22px" }} strokeWidth={1.5} />
+                </div>
+                <h3 className="text-red-600 dark:text-red-400" style={{ fontWeight: 700, fontSize: "1.15rem", margin: 0 }}>الطريقة التقليدية</h3>
               </div>
-              <h3 style={{ ...transition, color: T.textPrimary, fontWeight: 700, fontSize: "1rem" }}>الطريقة التقليدية</h3>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "18px" }}>
+                {trad.map((pt, i) => (
+                  <li key={i} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <XCircle className="text-red-500 opacity-70" style={{ width: "18px", height: "18px", flexShrink: 0 }} strokeWidth={1.5} />
+                    <span className="text-slate-700 dark:text-slate-400" style={{ fontSize: "0.95rem" }}>{pt}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "14px" }}>
-              {trad.map((pt, i) => (
-                <li key={i} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <XCircle style={{ color: "#EF4444", opacity: 0.5, width: "16px", height: "16px", flexShrink: 0 }} strokeWidth={1.5} />
-                  <span style={{ ...transition, color: T.textMuted, fontSize: "0.875rem" }}>{pt}</span>
-                </li>
-              ))}
-            </ul>
           </div>
-          <div
-            style={{
-              ...transition,
-              padding:    "32px", borderRadius: "16px",
-              background: T.bgCard,
-              border:     `1px solid ${T.borderAccent}`,
-              boxShadow:  T.shadowCard,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
-              <div style={{ ...transition, width: "40px", height: "40px", borderRadius: "10px", background: T.accentDim, border: `1px solid ${T.borderAccent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Sparkles style={{ color: T.accent, width: "18px", height: "18px" }} strokeWidth={1.5} />
+
+          {/* Focus Card */}
+          <div className="relative p-[1.5px] rounded-2xl cursor-default h-full overflow-hidden">
+            <motion.div
+              className="absolute inset-0 rounded-2xl hidden dark:block"
+              animate={{
+                background: [
+                  "linear-gradient(135deg, #1e40af, #7c3aed, #1e40af)",
+                  "linear-gradient(225deg, #7c3aed, #1e40af, #7c3aed)",
+                  "linear-gradient(315deg, #1e40af, #7c3aed, #1e40af)",
+                ]
+              }}
+              transition={{ background: { duration: 3, repeat: Infinity, ease: "linear" } }}
+            />
+            <div className="absolute inset-0 rounded-2xl border border-blue-200 dark:border-white/10" />
+            <div className="relative rounded-2xl flex flex-col px-8 py-8 h-full bg-blue-50/50 dark:bg-[#1A2744]/60">
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "32px" }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "rgba(34,211,238,0.15)", border: "1px solid rgba(34,211,238,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Sparkles className="text-blue-500 dark:text-cyan-400" style={{ width: "22px", height: "22px" }} strokeWidth={1.5} />
+                </div>
+                <h3 className="text-blue-600 dark:text-cyan-400" style={{ fontWeight: 700, fontSize: "1.15rem", margin: 0 }}>منظومة FOCUS الذكية</h3>
               </div>
-              <h3 style={{ ...transition, color: T.accent, fontWeight: 700, fontSize: "1rem" }}>مظومة FOCUS الذكية</h3>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "18px" }}>
+                {focus.map((pt, i) => (
+                  <li key={i} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <CheckCircle2 className="text-emerald-500 dark:text-emerald-400" style={{ width: "18px", height: "18px", flexShrink: 0 }} strokeWidth={1.5} />
+                    <span className="text-slate-900 dark:text-slate-100" style={{ fontSize: "0.95rem", fontWeight: 500 }}>{pt}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "14px" }}>
-              {focus.map((pt, i) => (
-                <li key={i} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <CheckCircle2 style={{ color: T.accent, width: "16px", height: "16px", flexShrink: 0 }} strokeWidth={1.5} />
-                  <span style={{ ...transition, color: T.textPrimary, fontSize: "0.875rem" }}>{pt}</span>
-                </li>
-              ))}
-            </ul>
           </div>
+
         </div>
       </div>
     </section>
@@ -927,7 +1300,7 @@ function CTASection({ T, onNavigate, handleSmartNav }) {
 
       <footer style={{ ...transition, background: T.footerBg, borderTop: `1px solid ${T.border}`, padding: "28px 24px" }}>
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Logo className="scale-75 origin-left" />
+          <FullLogo className="scale-75 origin-left text-3xl" theme={T.isDark ? 'dark' : 'light'} />
           <p style={{ ...transition, color: T.textDim, fontSize: "0.78rem" }}>
             © ٢٠٢٦ FOCUS. جميع الحقوق محفوظة.
           </p>
