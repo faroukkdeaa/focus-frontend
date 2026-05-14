@@ -1381,7 +1381,7 @@ const LandingPage = () => {
       <SubjectsSection  T={T} subjects={landingData?.subjects} onNavigateSubject={(id) => navigate(`/subject/${id}`)} />
       <HowItWorksSection T={T} />
       <ComparisonSection T={T} />
-      <TestimonialsSection T={T} />
+      {/* <TestimonialsSection T={T} /> */}
       <CTASection       T={T} onNavigate={navigate} handleSmartNav={handleSmartNav} />
     </div>
   );
