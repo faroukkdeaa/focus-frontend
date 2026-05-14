@@ -3,10 +3,7 @@ import { X, LogIn, UserPlus, BookOpen, Zap } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import FullLogo from './FullLogo';
 
-/**
- * AuthModal — Modal منبثقة تظهر للزوار عند محاولة الدخول لدرس أو كويز
- * تعرض خيارين: تسجيل الدخول أو إنشاء حساب جديد
- */
+
 const AuthModal = ({ 
   isOpen, 
   onClose, 
@@ -74,7 +71,7 @@ const AuthModal = ({
 
         {/* Header */}
         <div className="p-6 pb-4 text-center">
-          <Logo className="justify-center mb-6 scale-110" />
+          <FullLogo className="justify-center mb-6 scale-110" />
           <div className={`w-16 h-16 ${iconBg} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
             <Icon className={`w-8 h-8 ${iconColor}`} />
           </div>
